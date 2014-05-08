@@ -1,0 +1,307 @@
+#!/usr/bin/python
+#
+# vcycled - VM lifecycle manager daemon for OpenStack
+#
+#  Andrew McNab, University of Manchester.
+#  Copyright (c) 2013-4. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or
+#  without modification, are permitted provided that the following
+#  conditions are met:
+#
+#    o Redistributions of source code must retain the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer. 
+#    o Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials
+#      provided with the distribution. 
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+#  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+#  INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+#  BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+#  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+#  TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+#  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+#  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+#  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+#  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+
+import uuid
+import sys
+import getpass
+import os
+import tempfile
+import time
+import calendar
+import novaclient.client
+
+import VCYCLE
+
+sleepSeconds      = 60
+creationsPerCycle = 5
+
+def oneCycle(vmtypeName, vmtype):
+  
+  serverNumber           = 0
+  changed                = 0
+  created                = 0
+  running                = 0
+  found                  = 0
+  notPassedFizzleSeconds = 0
+      
+  novaClient = novaclient.client.Client('1.1', username=vmtype['username'], api_key=vmtype['password'],
+                                        project_id=vmtype['project_name'], auth_url=vmtype['auth_url'])
+
+  serversList = novaClient.servers.list(detailed=True)
+  serversDict = dict((x.name, x) for x in serversList)
+
+  for oneServer in serversList:
+
+      found += 1
+
+      createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
+      updatedTime  = calendar.timegm(time.strptime(oneServer.updated, "%Y-%m-%dT%H:%M:%SZ"))
+      
+      taskState  = str(getattr(oneServer, 'OS-EXT-STS:task_state' ))
+      powerState = str(getattr(oneServer, 'OS-EXT-STS:power_state'))
+
+      try:
+        launchedTime = calendar.timegm(time.strptime(str(getattr(oneServer,'OS-SRV-USG:launched_at')).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
+        startTime    = launchedTime
+      except:
+        launchedTime = None
+        startTime    = createdTime
+        
+      try:
+        ip = str(getattr(oneServer, 'addresses')['CERN_NETWORK'][0]['addr'])
+      except:
+        ip = '0.0.0.0'
+
+      try:
+        heartbeatStr = str(int(time.time() - os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)) + 's'
+      except:
+        heartbeatStr = '-'
+      
+      VCYCLE.logLine(oneServer.name + ' ' + 
+              (ip + '            ')[:16] + 
+              (oneServer.status + '       ')[:8] + 
+              (taskState + '               ')[:13] +
+              powerState + ' ' +
+              oneServer.created + 
+              ' to ' + 
+              oneServer.updated + ' ' +
+              ('%5.2f' % ((time.time() - startTime)/3600.0)) + ' ' +
+              heartbeatStr)
+              
+      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < vmtype['fizzle_seconds']:
+        VCYCLE.lastFizzles[vmtypeName] = updatedTime
+        VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
+
+      if oneServer.status == 'ACTIVE' and powerState == '1':
+        # These ones are running properly
+        running += 1
+
+      # These ones are starting/running, but not yet passed vmtype['fizzle_seconds']
+      if ((oneServer.status == 'ACTIVE' or oneServer.status == 'BUILD') and 
+          ((int(time.time()) - startTime) < vmtype['fizzle_seconds'])):
+        notPassedFizzleSeconds += 1
+
+      if ( 
+           (
+             # We always delete if in SHUTOFF state and not transitioning
+             oneServer.status == 'SHUTOFF' and taskState == 'None'
+           ) 
+           or 
+           (
+             # We always delete if in ERROR state and not transitioning
+             oneServer.status == 'ERROR' and taskState == 'None'
+           ) 
+           or 
+           (
+             # ACTIVE gets deleted if longer than max VM lifetime 
+             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > vmtype['max_wallclock_seconds'])
+           )
+           or
+           (
+             (
+               # Transitioning states ('deleting' etc) get deleted ...
+               oneServer.status  == 'SHUTOFF' or
+               oneServer.status  == 'ERROR'   or 
+               oneServer.status  == 'DELETED' or 		   
+               oneServer.status  == 'BUILD'   or 
+               (oneServer.status == 'ACTIVE' and powerState != '1')
+             )
+             and
+             (
+               # ... but only if this has been for a while
+               updatedTime < int(time.time()) - 900
+             )             
+           )
+         ):
+        VCYCLE.logLine('Deleting ' + oneServer.name)
+        try:
+          oneServer.delete()
+        except Exception as e:
+          VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
+
+        # Only counts if not already trying to delete it, in case deleting is stuck
+        if taskState != 'deleting':
+          changed += 1
+
+
+  VCYCLE.logLine('%d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
+
+  if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds']):
+        VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[vmtypeName]) )
+
+  elif (int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds > 0):
+        VCYCLE.logLine('Free capacity found ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
+                   (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName], notPassedFizzleSeconds, vmtype['fizzle_seconds']))
+    
+  else:
+    while True:
+
+      if found + created >= vmtype['servers_total']:
+        VCYCLE.logLine('Reached limit (%d) on number of servers to create' % vmtype['servers_total'])
+        break
+
+      elif created >= creationsPerCycle:
+        VCYCLE.logLine('Free capacity found ... but already created %d this cycle' % created )
+        break
+          
+      else:
+        VCYCLE.logLine('Free capacity found ... creating')
+
+        serverName = 'vcycle-' + str(uuid.uuid4())
+        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures')
+        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures')
+        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machineoutputs')
+
+        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/phys_cores', '1',        0644)
+        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_vmtype', vmtypeName, 0644)
+        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_space', vmtype['space_name'],0644)
+
+        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures/cpu_limit_secs',  str(vmtype['max_wallclock_seconds']), 0644)
+        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures/wall_limit_secs', str(vmtype['max_wallclock_seconds']), 0644)
+
+        try:
+            newServer = novaClient.servers.create(serverName, 
+                         novaClient.images.find(name=vmtype['image_name']),
+                         novaClient.flavors.find(name=vmtype['flavor_name']), 
+                         key_name=vmtype['root_key_name'],
+                         meta={ 'cern-services'   : 'false',
+                                'machinefeatures' : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machinefeatures',
+                                'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/jobfeatures',
+                                'machineoutputs'  : 'https://' + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machineoutputs',
+                                'vcycle-vmtype'	  : vmtypeName
+                              }, 
+                         userdata=open('/var/lib/vcycle/user_data/' + vmtypeName, 'r').read())
+
+        except Exception as e:
+            VCYCLE.logLine('Error creating new server: ' + str(e))
+            break
+
+        else:
+            VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
+            changed += 1
+            created += 1
+            VCYCLE.logLine('Created ' + serverName)
+
+        if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds']):
+            VCYCLE.logLine('Only create one this cycle as still within fizzleSeconds+backoffSeconds(%ds) of last fizzle (%ds ago)' % 
+                     (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName]))  
+            break
+                  
+#
+# PROGRAM MAIN
+#
+
+if __name__ == '__main__':
+
+#  try:
+#    novaPassword = open('/etc/vcycle.d/passwords.conf','r').read().strip()
+#  except Exception as e:
+#    print 'Failed to read passwords.conf: ' + str(e)
+#    sys.exit(1)
+
+  if (os.fork() != 0):
+    sys.exit() # first parent
+
+  else:
+    os.chdir("/")
+    os.setsid()
+    os.umask(0) 
+
+    if os.fork() != 0:
+      sys.exit() # second parent
+
+    else:
+
+      try:
+        f = open('/var/run/vcycled.pid', 'w')
+        f.write(str(os.getpid()) + '\n')
+        f.close()
+      except:
+        print 'Failed to create /var/run/vcycled.pid - exiting'
+        sys.exit(1)
+
+      # Close stdin now
+      si = file('/dev/null', 'r')
+      os.dup2(si.fileno(), sys.stdin.fileno())
+
+      while True:
+
+        # Close and reopen stdout->log file, in case of logrotate
+        try:
+          close(so)
+        except:
+          pass
+
+        so = file('/var/log/vcycled', 'a+')
+        os.dup2(so.fileno(), sys.stdout.fileno())
+          
+        # Close and reopen stderr->log file, in case of logrotate
+        try:
+          close(se)
+        except:
+          pass
+
+        se = file('/var/log/vcycled', 'a+', 0)     
+        os.dup2(se.fileno(), sys.stderr.fileno())
+
+        try:
+          pf = open('/var/run/vcycled.pid', 'r')
+          pid = int(pf.read().strip())
+          pf.close()
+       
+          if pid != os.getpid():
+            print 'new /var/run/vcycled.pid - exiting'
+            break
+                
+        except:
+          print 'no /var/run/vcycled.pid - exiting'
+          break
+
+        VCYCLE.logLine('=============== Start cycle ===============')
+
+        VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
+        
+        for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():
+          oneCycle(vmtypeName, vmtype)
+
+        VCYCLE.logLine('================ End cycle ================')
+
+        # Flush logging to the filesystem 
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        time.sleep(sleepSeconds)
+
+      sys.exit(0) # if we break out of the while loop then we exit
+
