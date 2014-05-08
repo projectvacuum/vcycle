@@ -225,12 +225,6 @@ def oneCycle(vmtypeName, vmtype):
 
 if __name__ == '__main__':
 
-#  try:
-#    novaPassword = open('/etc/vcycle.d/passwords.conf','r').read().strip()
-#  except Exception as e:
-#    print 'Failed to read passwords.conf: ' + str(e)
-#    sys.exit(1)
-
   if (os.fork() != 0):
     sys.exit() # first parent
 
