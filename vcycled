@@ -59,7 +59,6 @@ def oneCycle(vmtypeName, vmtype):
                                         project_id=vmtype['project_name'], auth_url=vmtype['auth_url'])
 
   serversList = novaClient.servers.list(detailed=True)
-  serversDict = dict((x.name, x) for x in serversList)
 
   for oneServer in serversList:
 
@@ -212,6 +211,8 @@ def oneCycle(vmtypeName, vmtype):
             changed += 1
             created += 1
             VCYCLE.logLine('Created ' + serverName)
+            VCYCLE.makeJsonFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures')
+            VCYCLE.makeJsonFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures')
 
         if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds']):
             VCYCLE.logLine('Only create one this cycle as still within fizzleSeconds+backoffSeconds(%ds) of last fizzle (%ds ago)' % 
