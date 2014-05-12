@@ -58,7 +58,11 @@ def oneCycle(vmtypeName, vmtype):
   novaClient = novaclient.client.Client('1.1', username=vmtype['username'], api_key=vmtype['password'],
                                         project_id=vmtype['project_name'], auth_url=vmtype['auth_url'])
 
-  serversList = novaClient.servers.list(detailed=True)
+  try:
+    serversList = novaClient.servers.list(detailed=True)
+  except Exception as e:
+    VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
+    return
 
   for oneServer in serversList:
 
