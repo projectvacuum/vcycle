@@ -66,6 +66,8 @@ def cleanupDirectories():
         VCYCLE.logLine('Deleted /var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
 
 def oneCycle(vmtypeName, vmtype):
+
+  VCYCLE.logLine('Processing vmtype ' + vmtypeName)
   
   serverNumber           = 0
   changed                = 0
@@ -85,6 +87,12 @@ def oneCycle(vmtypeName, vmtype):
 
   for oneServer in serversList:
 
+      try:
+        if oneServer.metadata['vcycle-vmtype'] != vmtypeName:
+          continue
+      except:
+        continue
+        
       found += 1
 
       createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
@@ -180,7 +188,7 @@ def oneCycle(vmtypeName, vmtype):
           changed += 1
 
 
-  VCYCLE.logLine('%d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
+  VCYCLE.logLine(vmtypeName + ' has %d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
 
   if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds']):
         VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[vmtypeName]) )
