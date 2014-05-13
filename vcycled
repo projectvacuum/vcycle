@@ -77,6 +77,10 @@ def oneCycle(vmtypeName, vmtype):
       try:
         launchedTime = calendar.timegm(time.strptime(str(getattr(oneServer,'OS-SRV-USG:launched_at')).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
         startTime    = launchedTime
+        
+        if not os.path.isfile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/launched'):
+          VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/launched', str(int(time.time())), 0600)
+        
       except:
         launchedTime = None
         startTime    = createdTime
