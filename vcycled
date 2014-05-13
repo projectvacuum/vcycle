@@ -61,7 +61,7 @@ def cleanupDirectories():
         continue
         
       if onedirCtime < (time.time() - vmtype['max_wallclock_seconds'] - 86400):
-#        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
         VCYCLE.logLine('Deleted /var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
 
 def oneCycle(vmtypeName, vmtype):
