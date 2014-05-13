@@ -82,7 +82,7 @@ def oneCycle(vmtypeName, vmtype):
         startTime    = createdTime        
       else:        
         if not os.path.isfile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/launched'):
-          VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/launched', str(int(time.time())), 0600)
+          VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/launched', str(int(time.time())), 0600)
         
       try:
         ip = str(getattr(oneServer, 'addresses')['CERN_NETWORK'][0]['addr'])
