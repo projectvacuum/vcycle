@@ -46,6 +46,24 @@ import VCYCLE
 sleepSeconds      = 60
 creationsPerCycle = 5
 
+def cleanupDirectories():
+
+  for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():    
+    try:
+      dirslist = os.listdir('/var/lib/vcycle/mjf/' + vmtypeName)
+    except:
+      continue
+      
+    for onedir in dirslist:
+      try:
+        onedirCtime = os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir).st_ctime
+      except:
+        continue
+        
+      if onedirCtime < (time.time() - vmtype['max_wallclock_seconds'] - 3 * 86400):
+#        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+        logLine('Deleted ' + '/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+
 def oneCycle(vmtypeName, vmtype):
   
   serverNumber           = 0
@@ -296,6 +314,8 @@ if __name__ == '__main__':
         
         for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():
           oneCycle(vmtypeName, vmtype)
+          
+        cleanupDirectories()
 
         VCYCLE.logLine('================ End cycle ================')
 
