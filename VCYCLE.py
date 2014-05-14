@@ -97,6 +97,16 @@ def readConf(requirePassword=True):
         else:
           vmtype['password'] = ''
 
+      try
+        vmtype['heartbeat_file'] = parser.get(sectionName, 'heartbeat_file')
+      except:
+        pass
+
+      try:
+        vmtype['heartbeat_seconds'] = int(parser.get(sectionName, 'heartbeat_seconds'))
+      except:
+        pass
+
       if not sectionNameSplit[1] in lastFizzles:
         lastFizzles[sectionNameSplit[1]] = int(time.time()) - vmtype['backoff_seconds']
 

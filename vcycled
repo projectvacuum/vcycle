@@ -117,8 +117,10 @@ def oneCycle(vmtypeName, vmtype):
         ip = '0.0.0.0'
 
       try:
-        heartbeatStr = str(int(time.time() - os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)) + 's'
+        heartbeatTime = int(os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)
+        heartbeatStr = str(int(time.time() - heartbeatTime)) + 's'
       except:
+        heartbeatTime = None
         heartbeatStr = '-'
       
       VCYCLE.logLine(oneServer.name + ' ' + 
@@ -159,6 +161,18 @@ def oneCycle(vmtypeName, vmtype):
            (
              # ACTIVE gets deleted if longer than max VM lifetime 
              oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > vmtype['max_wallclock_seconds'])
+           )
+           or 
+           (
+             # ACTIVE gets deleted if heartbeat defined in configuration but not updated by the VM
+             vmtype['heartbeat_file'] is not None and 
+             vmtype['heartbeat_seconds'] is not None and
+             oneServer.status == 'ACTIVE' and taskState == 'None' and 
+             ((int(time.time()) - startTime) > vmtype['heartbeat_seconds']) and
+             (
+              (heartbeatTime is None) or 
+              ((int(time.time()) - heartbeatTime) > vmtype['heartbeat_seconds'])
+             )              
            )
            or
            (
