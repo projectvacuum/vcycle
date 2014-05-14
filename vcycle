@@ -52,7 +52,7 @@ def stuckDeleting(vmtypeName, vmtype):
   try:
     serversList = novaClient.servers.list(detailed=True)
   except Exception as e:
-    VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
+    print 'novaClient.servers.list() fails with exception ' + str(e)
     return
 
   for oneServer in serversList:
@@ -73,14 +73,14 @@ def stuckDeleting(vmtypeName, vmtype):
       except:
         ip = '0.0.0.0'
 
-      if taskState == 'deleting':
+      if taskState == 'deleting' and updatedTime < (time.time() - 3600):
 
-        VCYCLE.logLine(oneServer.name + ' ' + 
-              (ip + '            ')[:16] + 
-              (oneServer.status + '       ')[:8] + 
-              (taskState + '               ')[:13] +
-              powerState + ' ' +
-              oneServer.updated)
+        print (vmtype['project_name'] + '  ' +
+               oneServer.name + '  ' + 
+               (ip + '             ')[:17] + 
+               (oneServer.status + '        ')[:9] + 
+               (taskState + '               ')[:13] +
+               '%.2f' % ((time.time() - updatedTime) / 3600.0))
               
                   
 #
@@ -89,7 +89,9 @@ def stuckDeleting(vmtypeName, vmtype):
 
 if __name__ == '__main__':
 
-        VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
+        VCYCLE.readConf()
+        
+        print 'Project,Hostname,IP,State,Task,Hours since last update'
         
         for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():
           stuckDeleting(vmtypeName, vmtype)
