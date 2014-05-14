@@ -87,11 +87,11 @@ def oneCycle(vmtypeName, vmtype):
 
   for oneServer in serversList:
 
-      try:
-        if oneServer.metadata['vcycle-vmtype'] != vmtypeName:
-          continue
-      except:
-        continue
+#      try:
+#        if oneServer.metadata['vcycle-vmtype'] != vmtypeName:
+#          continue
+#      except:
+#        continue
         
       found += 1
 

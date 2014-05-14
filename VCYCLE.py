@@ -97,7 +97,7 @@ def readConf(requirePassword=True):
         else:
           vmtype['password'] = ''
 
-      try
+      try:
         vmtype['heartbeat_file'] = parser.get(sectionName, 'heartbeat_file')
       except:
         pass
