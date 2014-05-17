@@ -71,7 +71,10 @@ def readConf(requirePassword=True):
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
 
-  for sectionName in parser.sections():
+#  for sectionName in parser.sections():
+  if length(parser.sections()) == 1):
+    sectionName = parser.sections()[0]
+    
     sectionNameSplit = sectionName.lower().split(None,1)
 
     if sectionNameSplit[0] == 'vmtype':
@@ -115,6 +118,9 @@ def readConf(requirePassword=True):
     else:
       return 'Section type ' + sectionNameSplit[0] + ' not recognised'
 
+  else:
+    return 'Can not define more than one vmtype in configuration yet!'
+      
   return None
 
 def createFile(targetname, contents, mode=None):
