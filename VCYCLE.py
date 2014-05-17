@@ -39,19 +39,22 @@ import json
 import tempfile
 import ConfigParser
 
-vmtypes     = None
+tenancies    = None
 lastFizzles = {}
 
 def readConf(requirePassword=True):
 
-  global vmtypes, lastFizzles
+  global tenancies, lastFizzles
   
-  vmtypes = {}
+  tenancies = {}
 
-  vmtypeStrOptions = ( 'project_name', 'auth_url', 'username', 'space_name', 'image_name', 
-                       'flavor_name', 'root_key_name', 'x509dn' )
+  tenancyStrOptions = ( 'tenancy_name', 'url', 'username' )
 
-  vmtypeIntOptions = ( 'servers_total', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ) 
+  tenancyIntOptions = ( 'total_machines' )
+
+  vmtypeStrOptions = ( 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' )
+
+  vmtypeIntOptions = ( 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ) 
 
   parser = ConfigParser.RawConfigParser()
   
@@ -71,55 +74,86 @@ def readConf(requirePassword=True):
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
 
-#  for sectionName in parser.sections():
-  if len(parser.sections()) == 1:
-    sectionName = parser.sections()[0]
+  # First look for tenancy sections
+
+  for tenancySectionName in parser.sections():
+    split1 = tenancySectionName.lower().split(None,1)
+
+    if split1[0] == 'tenancy':    
+      tenancyName = split1[1]
+      tenancy = {}
+      
+      # Get the options from this section for this tenancy
     
-    sectionNameSplit = sectionName.lower().split(None,1)
-
-    if sectionNameSplit[0] == 'vmtype':
-      vmtype = {}
-
-      for opt in vmtypeStrOptions:
-        if parser.has_option(sectionName, opt):
-          vmtype[opt] = parser.get(sectionName, opt)
+      for opt in tenancyStrOptions:
+        if parser.has_option(tenancySectionName, opt):
+          tenancy[opt] = parser.get(tenancySectionName, opt)
         else:
-          return 'Option ' + opt + ' required in [vmtype ' + sectionNameSplit[1] + ']'
+          return 'Option ' + opt + ' required in [tenancy ' + tenancySectionNameSplit[1] + ']'
 
-      for opt in vmtypeIntOptions:
+      for opt in tenancyIntOptions:
         try:
-          vmtype[opt] = int(parser.get(sectionName, opt))
+          tenancy[opt] = int(parser.get(tenancySectionName, opt))
         except:
-          return 'Option ' + opt + ' required in [vmtype ' + sectionNameSplit[1] + ']'
+          return 'Option ' + opt + ' required in [tenancy ' + tenancySectionNameSplit[1] + ']'
 
       try:
-        vmtype['password'] = parser.get(sectionName, 'password')
+        tenancy['password'] = parser.get(tenancySectionName, 'password')
       except:
         if requirePassword:
-          return 'Option password is required in [vmtype ' + sectionNameSplit[1] + ']'
+          return 'Option password is required in [tenancy ' + tenancySectionNameSplit[1] + ']'
         else:
-          vmtype['password'] = ''
+          tenancy['password'] = ''
 
-      try:
-        vmtype['heartbeat_file'] = parser.get(sectionName, 'heartbeat_file')
-      except:
-        pass
+      # Get the options for each vmtype section associated with this tenancy
 
-      try:
-        vmtype['heartbeat_seconds'] = int(parser.get(sectionName, 'heartbeat_seconds'))
-      except:
-        pass
+      vmtypes = {}
 
-      if not sectionNameSplit[1] in lastFizzles:
-        lastFizzles[sectionNameSplit[1]] = int(time.time()) - vmtype['backoff_seconds']
+      for vmtypeSectionName in parser.sections():
+        split2 = vmtypeSectionName.lower().split(None,1)
 
-      vmtypes[sectionNameSplit[1]] = vmtype 
+        if split2[0] == 'vmtype':
+          split3 = split2[1].split(':',1)          
+
+          if split3[0] == tenancyName:
+            vmtypeName = split3[1]          
+            vmtype = {}        
+
+            for opt in vmtypeStrOptions:
+              if parser.has_option(vmtypeSectionName, opt):
+                vmtype[opt] = parser.get(vmtypeSectionName, opt)
+              else:
+                return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
+
+            for opt in vmtypeIntOptions:
+              try:
+                vmtype[opt] = int(parser.get(vmtypeSectionName, opt))
+              except:
+                return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
+
+            try:
+              vmtype['heartbeat_file'] = parser.get(vmtypeSectionName, 'heartbeat_file')
+            except:
+              pass
+
+            try:
+              vmtype['heartbeat_seconds'] = int(parser.get(vmtypeSectionName, 'heartbeat_seconds'))
+            except:
+              pass
+                      
+            if not (tenancyName + ':' + vmtypeName) in lastFizzles:
+              lastFizzles[tenancyName + ':' + vmtypeName] = int(time.time()) - vmtype['backoff_seconds']
+
+            vmtypes[vmtypeName] = vmtype
+
+      if len(vmtypes) < 1:
+        return 'No vmtypes defined for tenancy ' + tenancyName + ' - each tenancy must have at least one vmtype')
+
+      tenancy['vmtypes']     = vmtypes
+      tenancies[tenancyName] = tenancy
 
     else:
-      return 'Section type ' + sectionNameSplit[0] + ' not recognised'
-
-  else:
-    return 'Can not define more than one vmtype in configuration yet!'
+      return 'Section type ' + split1[0] + ' not recognised'
       
   return None
 

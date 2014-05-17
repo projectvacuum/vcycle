@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# vcycled - VM lifecycle manager daemon for OpenStack
+# vcycled - VM lifecycle manager daemon for OpenStack etc
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-4. All rights reserved.
@@ -47,37 +47,36 @@ import VCYCLE
 sleepSeconds      = 60
 creationsPerCycle = 5
 
-def cleanupDirectories():
+#def cleanupDirectories():
+#
+#  for tenancyName, tenancy in VCYCLE.tenancys.iteritems():    
+#    try:
+#      dirslist = os.listdir('/var/lib/vcycle/mjf/' + tenancyName)
+#    except:
+#      continue
+#      
+#    for onedir in dirslist:
+#      try:
+#        onedirCtime = os.stat('/var/lib/vcycle/mjf/' + tenancyName + '/' + onedir).st_ctime
+#      except:
+#        continue
+#        
+#      if onedirCtime < (time.time() - tenancy['max_wallclock_seconds'] - 86400):
+#        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+#        VCYCLE.logLine('Deleted /var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
 
-  for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():    
-    try:
-      dirslist = os.listdir('/var/lib/vcycle/mjf/' + vmtypeName)
-    except:
-      continue
-      
-    for onedir in dirslist:
-      try:
-        onedirCtime = os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir).st_ctime
-      except:
-        continue
-        
-      if onedirCtime < (time.time() - vmtype['max_wallclock_seconds'] - 86400):
-        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
-        VCYCLE.logLine('Deleted /var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+def oneCycle(tenancyName, tenancy):
 
-def oneCycle(vmtypeName, vmtype):
-
-  VCYCLE.logLine('Processing vmtype ' + vmtypeName)
+  VCYCLE.logLine('Processing tenancy ' + tenancyName)
   
-  serverNumber           = 0
   changed                = 0
   created                = 0
   running                = 0
   found                  = 0
   notPassedFizzleSeconds = 0
       
-  novaClient = novaclient.client.Client('1.1', username=vmtype['username'], api_key=vmtype['password'],
-                                        project_id=vmtype['project_name'], auth_url=vmtype['auth_url'])
+  novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
+                                        project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
 
   try:
     serversList = novaClient.servers.list(detailed=True)
@@ -87,12 +86,13 @@ def oneCycle(vmtypeName, vmtype):
 
   for oneServer in serversList:
 
-#      try:
-#        if oneServer.metadata['vcycle-vmtype'] != vmtypeName:
-#          continue
-#      except:
-#        continue
-        
+      try:
+        vmtypeName = open('/var/lib/vcycle/machines/' + oneServer.name + '/vmtype_name', 'r').read().strip()
+      except:
+        # Not one of ours?
+        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no vmtype')
+        continue
+
       found += 1
 
       createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
@@ -108,22 +108,23 @@ def oneCycle(vmtypeName, vmtype):
         launchedTime = None
         startTime    = createdTime        
       else:        
-        if not os.path.isfile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/launched'):
-          VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/launched', str(launchedTime), 0600)
+        if not os.path.isfile('/var/lib/vcycle/machines/' + oneServer.name + '/launched'):
+          VCYCLE.createFile('/var/lib/vcycle/machines/' + oneServer.name + '/launched', str(launchedTime), 0600)
         
       try:
         ip = str(getattr(oneServer, 'addresses')['CERN_NETWORK'][0]['addr'])
       except:
         ip = '0.0.0.0'
-
+        
       try:
-        heartbeatTime = int(os.stat('/var/lib/vcycle/mjf/' + vmtypeName + '/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)
+        heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)
         heartbeatStr = str(int(time.time() - heartbeatTime)) + 's'
       except:
         heartbeatTime = None
         heartbeatStr = '-'
       
       VCYCLE.logLine(oneServer.name + ' ' + 
+              (vmtypeName + '                  ')[:16] + 
               (ip + '            ')[:16] + 
               (oneServer.status + '       ')[:8] + 
               (taskState + '               ')[:13] +
@@ -134,8 +135,8 @@ def oneCycle(vmtypeName, vmtype):
               ('%5.2f' % ((time.time() - startTime)/3600.0)) + ' ' +
               heartbeatStr)
               
-      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < vmtype['fizzle_seconds']:
-        VCYCLE.lastFizzles[vmtypeName] = updatedTime
+      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+        VCYCLE.lastFizzles[tenancyName + ':' + vmtypeName] = updatedTime
         VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
 
       if oneServer.status == 'ACTIVE' and powerState == '1':
@@ -144,7 +145,7 @@ def oneCycle(vmtypeName, vmtype):
 
       # These ones are starting/running, but not yet passed vmtype['fizzle_seconds']
       if ((oneServer.status == 'ACTIVE' or oneServer.status == 'BUILD') and 
-          ((int(time.time()) - startTime) < vmtype['fizzle_seconds'])):
+          ((int(time.time()) - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds'])):
         notPassedFizzleSeconds += 1
 
       if ( 
@@ -160,18 +161,18 @@ def oneCycle(vmtypeName, vmtype):
            or 
            (
              # ACTIVE gets deleted if longer than max VM lifetime 
-             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > vmtype['max_wallclock_seconds'])
+             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])
            )
            or 
            (
              # ACTIVE gets deleted if heartbeat defined in configuration but not updated by the VM
-             vmtype['heartbeat_file'] is not None and 
-             vmtype['heartbeat_seconds'] is not None and
+             'heartbeat_file' in tenancy['vmtypes'][vmtypeName] and
+             'heartbeat_seconds' in tenancy['vmtypes'][vmtypeName] and
              oneServer.status == 'ACTIVE' and taskState == 'None' and 
-             ((int(time.time()) - startTime) > vmtype['heartbeat_seconds']) and
+             ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']) and
              (
               (heartbeatTime is None) or 
-              ((int(time.time()) - heartbeatTime) > vmtype['heartbeat_seconds'])
+              ((int(time.time()) - heartbeatTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'])
              )              
            )
            or
@@ -193,7 +194,8 @@ def oneCycle(vmtypeName, vmtype):
          ):
         VCYCLE.logLine('Deleting ' + oneServer.name)
         try:
-          oneServer.delete()
+          if oneServer.name[:7] == 'vcycle-':        
+            oneServer.delete()
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
@@ -202,7 +204,7 @@ def oneCycle(vmtypeName, vmtype):
           changed += 1
 
 
-  VCYCLE.logLine(vmtypeName + ' has %d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
+  VCYCLE.logLine(tenancyName + ' has %d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
 
   if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds']):
         VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[vmtypeName]) )
@@ -229,6 +231,8 @@ def oneCycle(vmtypeName, vmtype):
         os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures')
         os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures')
         os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machineoutputs')
+
+        VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name', vmtypeName, 0644)
 
         VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/phys_cores', '1',        0644)
         VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_vmtype', vmtypeName, 0644)
@@ -335,10 +339,10 @@ if __name__ == '__main__':
 
         VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
         
-        for vmtypeName, vmtype in VCYCLE.vmtypes.iteritems():
-          oneCycle(vmtypeName, vmtype)
+        for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
+          oneCycle(tenancyName, tenancy)
           
-        cleanupDirectories()
+#        cleanupDirectories()
 
         VCYCLE.logLine('================ End cycle ================')
 
