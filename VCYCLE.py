@@ -72,7 +72,7 @@ def readConf(requirePassword=True):
   parser.read('/etc/vcycle.conf')
 
 #  for sectionName in parser.sections():
-  if length(parser.sections()) == 1):
+  if len(parser.sections()) == 1:
     sectionName = parser.sections()[0]
     
     sectionNameSplit = sectionName.lower().split(None,1)
