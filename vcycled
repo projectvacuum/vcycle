@@ -73,10 +73,12 @@ def oneCycle(tenancyName, tenancy):
   totalFound   = 0
 
   notPassedFizzleSeconds = {}
+  foundPerVmtype         = {}
   runningPerVmtype       = {}
 
-  for vmtypeName in tenancy['vmtypes'].iteritems(): 
+  for vmtypeName,vmtype in tenancy['vmtypes'].iteritems(): 
     notPassedFizzleSeconds[vmtypeName] = 0
+    foundPerVmtype[vmtypeName]         = 0
     runningPerVmtype[vmtypeName]       = 0
         
   novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
@@ -170,7 +172,7 @@ def oneCycle(tenancyName, tenancy):
 
       if oneServer.status == 'ACTIVE' and powerState == '1':
         # These ones are running properly
-        running += 1
+        totalRunning += 1
         
         if vmtypeName not in runningPerVmtype:
           runningPerVmtype[vmtypeName]  = 1
@@ -237,13 +239,9 @@ def oneCycle(tenancyName, tenancy):
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
-        # Only counts if not already trying to delete it, in case deleting is stuck
-        if taskState != 'deleting':
-          changed += 1
-
   VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running out of %d found in any state for all vmtypes' % (totalRunning, totalFound))
 
-  for vmtypeName in tenancy['vmtypes'].iteritems():
+  for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
     VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
 
 
@@ -280,7 +278,7 @@ def oneCycle(tenancyName, tenancy):
       else:
         VCYCLE.logLine('Free capacity found ... creating')
         
-        errorMessage = createMachine(tenancyName, vmtypeName)
+        errorMessage = createMachine(novaClient, tenancyName, vmtypeName)
         
         if errorMessage:
           VCYCLE.logLine(errorMessage)
@@ -311,7 +309,7 @@ def oneCycle(tenancyName, tenancy):
 #            return
                   
 
-def createMachine(tenancyName, vmtypeName):
+def createMachine(novaClient, tenancyName, vmtypeName):
  
   serverName = 'vcycle-' + str(uuid.uuid4())
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
@@ -334,11 +332,11 @@ def createMachine(tenancyName, vmtypeName):
           novaClient.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
           key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
           meta={ 'cern-services'   : 'false',
-                 'machinefeatures' : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machinefeatures',
-                 'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/jobfeatures',
-                 'machineoutputs'  : 'https://' + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machineoutputs'
+                 'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
+                 'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
+                 'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
                }, 
-          userdata=open('/var/lib/vcycle/user_data/' + vmtypeName, 'r').read())
+          userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
 
   except Exception as e:
     return 'Error creating new server: ' + str(e)
@@ -346,6 +344,8 @@ def createMachine(tenancyName, vmtypeName):
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
   VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
   VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
+
+  VCYCLE.logLine('Created ' + serverName + ' (' + newServer.id + ') for ' + vmtypeName + ' within ' + tenancyName)
 
   return None
 

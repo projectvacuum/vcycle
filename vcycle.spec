@@ -9,7 +9,7 @@ Source: vcycle.tgz
 URL: http://www.gridpp.ac.uk/vac/
 Vendor: GridPP
 Packager: Andrew McNab <Andrew.McNab@cern.ch>
-Requires: httpd
+Requires: httpd,mod_ssl,python-novaclient
 
 %description
 VM lifecycle manager daemon for OpenStack etc
@@ -45,6 +45,7 @@ fi
 /var/lib/vcycle/bin
 /var/lib/vcycle/doc
 /var/lib/vcycle/tmp
+/var/lib/vcycle/user_data
 /var/lib/vcycle/machines
 /var/lib/vcycle/machineoutputs
 /etc/rc.d/init.d/vcycled

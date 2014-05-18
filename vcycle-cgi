@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# vcycle-cgi - Accept HTTP PUT requests of /etc/machineoutputs files
+#  vcycle-cgi - Accept HTTP PUT requests of /etc/machineoutputs files
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-4. All rights reserved.
@@ -44,33 +44,41 @@ if VCYCLE.readConf(requirePassword=False) is not None:
   sys.exit(0)
 
 try:
-  (vmtypeName, hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:5]
+  (hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
 except:
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
 if (subDirectory != 'machineoutputs' or 
-    not os.path.isdir('/var/lib/vcycle/mjf/' + vmtypeName + '/' + hostName + '/machineoutputs')):
+    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')):
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
+try:
+  tenancyName = open('/var/lib/vcycle/machines/' + hostName + '/tenancy_name', 'r').read()
+  vmtypeName  = open('/var/lib/vcycle/machines/' + hostName + '/vmtype_name', 'r').read()
+except:
+  print 'Status: 500 Internal Server Error (2)'
+  print
+  sys.exit(0)
 
-if (not 'SSL_CLIENT_S_DN' in os.environ or
-    not vmtypeName in VCYCLE.vmtypes or 
-    not 'x509dn' in VCYCLE.vmtypes[vmtypeName] or
-    os.environ['SSL_CLIENT_S_DN'] != VCYCLE.vmtypes[vmtypeName]['x509dn']):
+if ('SSL_CLIENT_S_DN' not in os.environ or
+    tenancyName not in VCYCLE.tenancies or
+    vmtypeName not in VCYCLE.tenancies[tenancyName]['vmtypes'] or 
+    'x509dn' not in VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName] or 
+    os.environ['SSL_CLIENT_S_DN'] != VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['x509dn']):
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)
 
 try:
-  f = open('/var/lib/vcycle/mjf/' + vmtypeName + '/' + hostName + '/machineoutputs/' + fileName, 'w')
+  f = open('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + fileName, 'w')
   f.write(sys.stdin.read())  
   f.close()
 except:
-  print 'Status: 500 Internal Server Error (2)'
+  print 'Status: 500 Internal Server Error (3)'
   print
 else:
   print 'Status: 200 OK'  

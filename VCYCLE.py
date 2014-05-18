@@ -48,13 +48,13 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = ( 'tenancy_name', 'url', 'username' )
+  tenancyStrOptions = [ 'tenancy_name', 'url', 'username' ]
 
-  tenancyIntOptions = ( 'max_machines' )
+  tenancyIntOptions = [ 'max_machines' ]
 
-  vmtypeStrOptions = ( 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' )
+  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' ]
 
-  vmtypeIntOptions = ( 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ) 
+  vmtypeIntOptions = [ 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ]
 
   parser = ConfigParser.RawConfigParser()
   
@@ -79,29 +79,36 @@ def readConf(requirePassword=True):
   for tenancySectionName in parser.sections():
     split1 = tenancySectionName.lower().split(None,1)
 
-    if split1[0] == 'tenancy':    
+    if split1[0] == 'vmtype':    
+      continue
+      
+    elif split1[0] != 'tenancy':
+      return 'Section type ' + split1[0] + ' not recognised'
+      
+    else:
       tenancyName = split1[1]
+# NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
       tenancy = {}
       
       # Get the options from this section for this tenancy
-    
+        
       for opt in tenancyStrOptions:
         if parser.has_option(tenancySectionName, opt):
           tenancy[opt] = parser.get(tenancySectionName, opt)
         else:
-          return 'Option ' + opt + ' required in [tenancy ' + tenancySectionNameSplit[1] + ']'
+          return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
 
       for opt in tenancyIntOptions:
         try:
           tenancy[opt] = int(parser.get(tenancySectionName, opt))
         except:
-          return 'Option ' + opt + ' required in [tenancy ' + tenancySectionNameSplit[1] + ']'
+          return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
 
       try:
         tenancy['password'] = parser.get(tenancySectionName, 'password')
       except:
         if requirePassword:
-          return 'Option password is required in [tenancy ' + tenancySectionNameSplit[1] + ']'
+          return 'Option password is required in [' + tenancySectionName + ']'
         else:
           tenancy['password'] = ''
 
@@ -110,16 +117,16 @@ def readConf(requirePassword=True):
       vmtypes = {}
 
       for vmtypeSectionName in parser.sections():
-        split2 = vmtypeSectionName.lower().split(None,1)
+        split2 = vmtypeSectionName.lower().split(None,2)
 
         if split2[0] == 'vmtype':
-          split3 = split2[1].split(':',1)          
 
-          if split3[0] == tenancyName:
-            vmtypeName = split3[1]          
-            vmtype = {}        
+          if split2[1] == tenancyName:
+            vmtypeName = split2[2]
+# NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
+            vmtype = {}
 
-            for opt in vmtypeStrOptions:
+            for opt in vmtypeStrOptions:              
               if parser.has_option(vmtypeSectionName, opt):
                 vmtype[opt] = parser.get(vmtypeSectionName, opt)
               else:
@@ -150,14 +157,11 @@ def readConf(requirePassword=True):
             vmtypes[vmtypeName] = vmtype
 
       if len(vmtypes) < 1:
-        return 'No vmtypes defined for tenancy ' + tenancyName + ' - each tenancy must have at least one vmtype')
+        return 'No vmtypes defined for tenancy ' + tenancyName + ' - each tenancy must have at least one vmtype'
 
       tenancy['vmtypes']     = vmtypes
       tenancies[tenancyName] = tenancy
 
-    else:
-      return 'Section type ' + split1[0] + ' not recognised'
-      
   return None
 
 def createFile(targetname, contents, mode=None):
