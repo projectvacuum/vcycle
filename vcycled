@@ -37,6 +37,7 @@ import sys
 import getpass
 import os
 import tempfile
+import random
 import time
 import shutil
 import calendar
@@ -92,6 +93,9 @@ def oneCycle(tenancyName, tenancy):
 
   for oneServer in serversList:
 
+      # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
+      totalFound += 1
+
       # Just in case other VMs are in this tenancy
       if oneServer.name[:7] != 'vcycle-':
         continue
@@ -114,8 +118,6 @@ def oneCycle(tenancyName, tenancy):
         # Not one of ours? Something went wrong?
         VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no vmtype name')
         continue
-
-      totalFound += 1
 
       if vmtypeName not in foundPerVmtype:
         foundPerVmtype[vmtypeName]  = 1
@@ -239,7 +241,7 @@ def oneCycle(tenancyName, tenancy):
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
-  VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running out of %d found in any state for all vmtypes' % (totalRunning, totalFound))
+  VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
 
   for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
     VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
@@ -255,7 +257,11 @@ def oneCycle(tenancyName, tenancy):
     createdThisPass = 0
   
     # Go through vmtypes, possibly creating one from each, before starting again
-    for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
+    vmtypeNames = tenancy['vmtypes'].keys()
+    random.shuffle(vmtypeNames)
+    
+    for vmtypeName in vmtypeNames:
+      vmtype = tenancy['vmtypes'][vmtypeName]
     
       if totalFound >= tenancy['max_machines']:
         VCYCLE.logLine('Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
@@ -269,11 +275,11 @@ def oneCycle(tenancyName, tenancy):
         return
 
       elif int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds']):
-        VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
+        VCYCLE.logLine('Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
         
       elif (int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
-        VCYCLE.logLine('Free capacity found ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
-               (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
+        VCYCLE.logLine('Free capacity found for %s ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
+               (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
 
       else:
         VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
