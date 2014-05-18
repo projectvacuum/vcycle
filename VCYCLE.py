@@ -50,7 +50,7 @@ def readConf(requirePassword=True):
 
   tenancyStrOptions = ( 'tenancy_name', 'url', 'username' )
 
-  tenancyIntOptions = ( 'total_machines' )
+  tenancyIntOptions = ( 'max_machines' )
 
   vmtypeStrOptions = ( 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' )
 
@@ -141,8 +141,11 @@ def readConf(requirePassword=True):
             except:
               pass
                       
-            if not (tenancyName + ':' + vmtypeName) in lastFizzles:
-              lastFizzles[tenancyName + ':' + vmtypeName] = int(time.time()) - vmtype['backoff_seconds']
+            if tenancyName not in lastFizzles:
+              lastFizzles[tenancyName] = {}
+              
+            if vmtypeName not in lastFizzles[tenancyName]:
+              lastFizzles[tenancyName][vmtypeName] = int(time.time()) - vmtype['backoff_seconds']
 
             vmtypes[vmtypeName] = vmtype
 
@@ -158,7 +161,7 @@ def readConf(requirePassword=True):
   return None
 
 def createFile(targetname, contents, mode=None):
-  # Create a text file containing contents in the vac tmp directory
+  # Create a text file containing contents in the vcycle tmp directory
   # then move it into place. Rename is an atomic operation in POSIX,
   # including situations where targetname already exists.
    

@@ -62,19 +62,23 @@ creationsPerCycle = 5
 #        continue
 #        
 #      if onedirCtime < (time.time() - tenancy['max_wallclock_seconds'] - 86400):
-#        shutil.rmtree('/var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
-#        VCYCLE.logLine('Deleted /var/lib/vcycle/mjf/' + vmtypeName + '/' + onedir)
+#        shutil.rmtree('/var/lib/vcycle/machines/' + onedir)
+#        VCYCLE.logLine('Deleted /var/lib/vcycle/machines/' + onedir)
 
 def oneCycle(tenancyName, tenancy):
 
   VCYCLE.logLine('Processing tenancy ' + tenancyName)
   
-  changed                = 0
-  created                = 0
-  running                = 0
-  found                  = 0
-  notPassedFizzleSeconds = 0
-      
+  totalRunning = 0
+  totalFound   = 0
+
+  notPassedFizzleSeconds = {}
+  runningPerVmtype       = {}
+
+  for vmtypeName in tenancy['vmtypes'].iteritems(): 
+    notPassedFizzleSeconds[vmtypeName] = 0
+    runningPerVmtype[vmtypeName]       = 0
+        
   novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
                                         project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
 
@@ -86,14 +90,35 @@ def oneCycle(tenancyName, tenancy):
 
   for oneServer in serversList:
 
+      # Just in case other VMs are in this tenancy
+      if oneServer.name[:7] != 'vcycle-':
+        continue
+
+      try:
+        fileTenancyName = open('/var/lib/vcycle/machines/' + oneServer.name + '/tenancy_name', 'r').read().strip()
+      except:
+        # Not one of ours? Cleaned up directory too early?
+        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no tenancy name')
+        continue
+      else:
+        # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
+        if fileTenancyName != tenancyName:        
+          VCYCLE.logLine('Skipping ' + oneServer.name + ' which is in ' + tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
+          continue
+
       try:
         vmtypeName = open('/var/lib/vcycle/machines/' + oneServer.name + '/vmtype_name', 'r').read().strip()
       except:
-        # Not one of ours?
-        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no vmtype')
+        # Not one of ours? Something went wrong?
+        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no vmtype name')
         continue
 
-      found += 1
+      totalFound += 1
+
+      if vmtypeName not in foundPerVmtype:
+        foundPerVmtype[vmtypeName]  = 1
+      else:
+        foundPerVmtype[vmtypeName] += 1
 
       createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
       updatedTime  = calendar.timegm(time.strptime(oneServer.updated, "%Y-%m-%dT%H:%M:%SZ"))
@@ -136,17 +161,31 @@ def oneCycle(tenancyName, tenancy):
               heartbeatStr)
               
       if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.lastFizzles[tenancyName + ':' + vmtypeName] = updatedTime
         VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
+        try:
+          VCYCLE.lastFizzles[tenancyName][vmtypeName] = updatedTime
+        except:
+          # In case vmtype removed from configuration while VMs still existed
+          pass
 
       if oneServer.status == 'ACTIVE' and powerState == '1':
         # These ones are running properly
         running += 1
+        
+        if vmtypeName not in runningPerVmtype:
+          runningPerVmtype[vmtypeName]  = 1
+        else:
+          runningPerVmtype[vmtypeName] += 1
 
-      # These ones are starting/running, but not yet passed vmtype['fizzle_seconds']
-      if ((oneServer.status == 'ACTIVE' or oneServer.status == 'BUILD') and 
+      # These ones are starting/running, but not yet passed tenancy['vmtypes'][vmtypeName]['fizzle_seconds']
+      if ((oneServer.status == 'ACTIVE' or 
+           oneServer.status == 'BUILD') and 
           ((int(time.time()) - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds'])):
-        notPassedFizzleSeconds += 1
+          
+        if vmtypeName not in notPassedFizzleSeconds:
+          notPassedFizzleSeconds[vmtypeName]  = 1
+        else:
+          notPassedFizzleSeconds[vmtypeName] += 1
 
       if ( 
            (
@@ -194,8 +233,7 @@ def oneCycle(tenancyName, tenancy):
          ):
         VCYCLE.logLine('Deleting ' + oneServer.name)
         try:
-          if oneServer.name[:7] == 'vcycle-':        
-            oneServer.delete()
+          oneServer.delete()
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
@@ -203,74 +241,114 @@ def oneCycle(tenancyName, tenancy):
         if taskState != 'deleting':
           changed += 1
 
+  VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running out of %d found in any state for all vmtypes' % (totalRunning, totalFound))
 
-  VCYCLE.logLine(tenancyName + ' has %d ACTIVE:running out of %d found in any state. %d running VMs have not passed fizzleSeconds' % (running,found,notPassedFizzleSeconds))
+  for vmtypeName in tenancy['vmtypes'].iteritems():
+    VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
 
-  if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds']):
-        VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[vmtypeName]) )
 
-  elif (int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds > 0):
-        VCYCLE.logLine('Free capacity found ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
-                   (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName], notPassedFizzleSeconds, vmtype['fizzle_seconds']))
+  # Now decide whether to create new VMs
+
+  createdThisCycle = 0
+
+  # Keep going till limits exhausted
+  while True:
+  
+    createdThisPass = 0
+  
+    # Go through vmtypes, possibly creating one from each, before starting again
+    for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
     
-  else:
-    while True:
+      if totalFound >= tenancy['max_machines']:
+        VCYCLE.logLine('Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
+        return
 
-      if found + created >= vmtype['servers_total']:
-        VCYCLE.logLine('Reached limit (%d) on number of servers to create' % vmtype['servers_total'])
-        break
+      elif foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
+        VCYCLE.logLine('Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
 
-      elif created >= creationsPerCycle:
-        VCYCLE.logLine('Free capacity found ... but already created %d this cycle' % created )
-        break
-          
+      elif createdThisCycle >= creationsPerCycle:
+        VCYCLE.logLine('Free capacity found ... but already created %d this cycle' % createdThisCycle )
+        return
+
+      elif int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds']):
+        VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
+        
+      elif (int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
+        VCYCLE.logLine('Free capacity found ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
+               (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
+
       else:
         VCYCLE.logLine('Free capacity found ... creating')
-
-        serverName = 'vcycle-' + str(uuid.uuid4())
-        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures')
-        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures')
-        os.makedirs('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machineoutputs')
-
-        VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name', vmtypeName, 0644)
-
-        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/phys_cores', '1',        0644)
-        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_vmtype', vmtypeName, 0644)
-        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_space', vmtype['space_name'],0644)
-
-        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures/cpu_limit_secs',  str(vmtype['max_wallclock_seconds']), 0644)
-        VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures/wall_limit_secs', str(vmtype['max_wallclock_seconds']), 0644)
-
-        try:
-            newServer = novaClient.servers.create(serverName, 
-                         novaClient.images.find(name=vmtype['image_name']),
-                         novaClient.flavors.find(name=vmtype['flavor_name']), 
-                         key_name=vmtype['root_key_name'],
-                         meta={ 'cern-services'   : 'false',
-                                'machinefeatures' : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machinefeatures',
-                                'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/jobfeatures',
-                                'machineoutputs'  : 'https://' + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machineoutputs',
-                                'vcycle-vmtype'	  : vmtypeName
-                              }, 
-                         userdata=open('/var/lib/vcycle/user_data/' + vmtypeName, 'r').read())
-
-        except Exception as e:
-            VCYCLE.logLine('Error creating new server: ' + str(e))
-            break
-
+        
+        errorMessage = createMachine(tenancyName, vmtypeName)
+        
+        if errorMessage:
+          VCYCLE.logLine(errorMessage)
         else:
-            VCYCLE.createFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
-            changed += 1
-            created += 1
-            VCYCLE.logLine('Created ' + serverName)
-            VCYCLE.makeJsonFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/machinefeatures')
-            VCYCLE.makeJsonFile('/var/lib/vcycle/mjf/' + vmtypeName + '/' + serverName + '/jobfeatures')
+          createdThisCycle                   += 1
+          createdThisPass                    += 1
+          totalFound                         += 1
+          foundPerVmtype[vmtypeName]         += 1
+          notPassedFizzleSeconds[vmtypeName] += 1
+              
+    if createdThisPass == 0:
+      # Run out of things to do, so finish the cycle for this tenancy
+      return
 
-        if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds']):
-            VCYCLE.logLine('Only create one this cycle as still within fizzleSeconds+backoffSeconds(%ds) of last fizzle (%ds ago)' % 
-                     (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName]))  
-            break
+#  if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds']):
+#        VCYCLE.logLine('Free capacity found ... but only %d seconds after last fizzle' % (int(time.time()) - VCYCLE.lastFizzles[vmtypeName]) )
+#
+#  elif (int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds > 0):
+#        VCYCLE.logLine('Free capacity found ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
+#                   (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName], notPassedFizzleSeconds, vmtype['fizzle_seconds']))
+#
+#  changed += 1
+#  created += 1
+#  VCYCLE.logLine('Created ' + serverName)
+#  if int(time.time()) < (VCYCLE.lastFizzles[vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds']):
+#            VCYCLE.logLine('Only create one this cycle as still within fizzleSeconds+backoffSeconds(%ds) of last fizzle (%ds ago)' % 
+#                     (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[vmtypeName]))  
+#            return
                   
+
+def createMachine(tenancyName, vmtypeName):
+ 
+  serverName = 'vcycle-' + str(uuid.uuid4())
+  os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
+  os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
+  os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machineoutputs')
+
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name',  vmtypeName,  0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/tenancy_name', tenancyName, 0644)
+
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/phys_cores', '1',        0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_vmtype', vmtypeName, 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',  VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['ce_name'],0644)
+
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+
+  try:
+    newServer = novaClient.servers.create(serverName, 
+          novaClient.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+          novaClient.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
+          key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
+          meta={ 'cern-services'   : 'false',
+                 'machinefeatures' : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machinefeatures',
+                 'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/jobfeatures',
+                 'machineoutputs'  : 'https://' + os.uname()[1] + '/' + vmtypeName + '/' + serverName + '/machineoutputs'
+               }, 
+          userdata=open('/var/lib/vcycle/user_data/' + vmtypeName, 'r').read())
+
+  except Exception as e:
+    return 'Error creating new server: ' + str(e)
+
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
+  VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
+  VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
+
+  return None
+
 #
 # PROGRAM MAIN
 #
