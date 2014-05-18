@@ -276,7 +276,7 @@ def oneCycle(tenancyName, tenancy):
                (vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
 
       else:
-        VCYCLE.logLine('Free capacity found ... creating')
+        VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
         
         errorMessage = createMachine(novaClient, tenancyName, vmtypeName)
         
