@@ -143,7 +143,10 @@ def oneCycle(tenancyName, tenancy):
       try:
         ip = str(getattr(oneServer, 'addresses')['CERN_NETWORK'][0]['addr'])
       except:
-        ip = '0.0.0.0'
+        try:
+          ip = str(getattr(oneServer, 'addresses')['novanetwork'][0]['addr'])
+        except:
+          ip = '0.0.0.0'
         
       try:
         heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)
