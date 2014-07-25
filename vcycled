@@ -83,6 +83,7 @@ def oneCycle(tenancyName, tenancy):
     runningPerVmtype[vmtypeName]       = 0
   
   if 'proxy' in tenancy:
+     import novaclient.auth_plugin
      novaclient.auth_plugin.discover_auth_systems()
      auth_plugin = novaclient.auth_plugin.load_plugin('voms')
      auth_plugin.opts["x509_user_proxy"] = tenancy['proxy']
