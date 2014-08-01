@@ -88,7 +88,7 @@ def oneCycle(tenancyName, tenancy):
      auth_plugin = novaclient.auth_plugin.load_plugin('voms')
      auth_plugin.opts["x509_user_proxy"] = tenancy['proxy']
      novaClient = novaclient.client.Client('1.1',None,None,project_id=tenancy['tenancy_name'],
-                                           auth_plugin=auth_plugin,auth_system='voms') 
+                                           auth_plugin=auth_plugin,auth_system='voms',insecure=True) 
   else:     
      novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
                                         project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
