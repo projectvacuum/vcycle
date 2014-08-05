@@ -54,7 +54,7 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d
-	cp vcycled vcycle VCYCLE.py vcycle-cgi \
+	cp vcycled vcycle VCYCLE.py vcycle-cgi occi.py \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin
 	cp VERSION CHANGES \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/doc
