@@ -83,7 +83,7 @@ def oneCycle(tenancyName, tenancy):
     runningPerVmtype[vmtypeName]       = 0
   
   if 'proxy' in tenancy:
-     occiClient = occi.Occi(tenancy['url'], 'x509',True, tenancy['proxy'])
+     occiClient = occi.Occi(tenancy['url'],user_cred=tenancy['proxy'])
   else:     
      pass
 
@@ -137,16 +137,16 @@ def oneCycle(tenancyName, tenancy):
               (vmtypeName + '                  ')[:16] + 
               (oneServer.ip + '            ')[:16] + 
               (oneServer.status + '       ')[:8] + 
-              oneServer.created + 
+              str(oneServer.created) + 
               ' to ' + 
-              oneServer.updated + ' ' +
+              str(oneServer.updated) + ' ' +
               heartbeatStr)
               
-      if oneServer.status == 'SHUTOFF':
+      if oneServer.status == 'inactive':
         VCYCLE.logLine(oneServer.name + ' was a fizzle!')
       
 
-      if oneServer.status == 'ACTIVE':
+      if oneServer.status == 'active':
         # These ones are running properly
         totalRunning += 1
         
@@ -156,13 +156,13 @@ def oneCycle(tenancyName, tenancy):
           runningPerVmtype[vmtypeName] += 1
 
       # These ones are starting/running
-      if oneServer.status == 'ACTIVE' or oneServer.status == 'BUILD' :
+      if oneServer.status == 'active' or oneServer.status == 'BUILD' :
         if vmtypeName not in notPassedFizzleSeconds:
           notPassedFizzleSeconds[vmtypeName]  = 1
         else:
           notPassedFizzleSeconds[vmtypeName] += 1
 
-      if oneServer.status in ['SHUTOFF','ERROR'] :
+      if oneServer.status in ['inactive','error'] :
         VCYCLE.logLine('Deleting ' + oneServer.name)
         try:
           oneServer.delete()
@@ -262,13 +262,13 @@ def createMachine(occiClient, tenancyName, vmtypeName):
 
   try:
      newServer = occiClient.servers.create(serverName,
-                 occiClient.images.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-                 occiClient.flavors.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
+                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
                  meta={ 'cern-services'   : 'false',
                         'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
                         'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
                         'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'},
-                 userdata="file://var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName)                         )
+                 user_data="file:///var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName)                         )
     
 
   except Exception as e:
@@ -287,7 +287,7 @@ def createMachine(occiClient, tenancyName, vmtypeName):
 #
 
 if __name__ == '__main__':
-  '''
+  
   if (os.fork() != 0):
     sys.exit() # first parent
 
@@ -345,23 +345,23 @@ if __name__ == '__main__':
         except:
           print 'no /var/run/vcycled.pid - exiting'
           break
-   '''
-  VCYCLE.logLine('=============== Start cycle ===============')
 
-  VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
+        VCYCLE.logLine('=============== Start cycle ===============')
+
+        VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
         
-  for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
-    oneCycle(tenancyName, tenancy)
+        for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
+          oneCycle(tenancyName, tenancy)
           
 #        cleanupDirectories()
 
-  VCYCLE.logLine('================ End cycle ================')
+        VCYCLE.logLine('================ End cycle ================')
 
         # Flush logging to the filesystem 
-  sys.stdout.flush()
-  sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stderr.flush()
  
-  time.sleep(sleepSeconds)
+        time.sleep(sleepSeconds)
 
-  sys.exit(0) # if we break out of the while loop then we exit
+    sys.exit(0) # if we break out of the while loop then we exit
 
