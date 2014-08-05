@@ -263,8 +263,8 @@ class Server():
       
       
    
-occi = Occi("https://prisma-cloud.ba.infn.it:8787/",user_cred='/tmp/x509up_u0')
-print occi.servers.list()
+#occi = Occi("https://prisma-cloud.ba.infn.it:8787/",user_cred='/tmp/x509up_u0')
+#print occi.servers.list()
 #print occi.servers.describe('https://prisma-cloud.ba.infn.it:8787/compute/49f326ea-495e-4852-9e0e-74eae063565a')
 
 #print occi.flavors.list()
