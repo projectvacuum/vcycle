@@ -42,7 +42,7 @@ import time
 import shutil
 import calendar
 import novaclient.client
-
+import occi
 import VCYCLE
 
 sleepSeconds      = 60
@@ -81,14 +81,16 @@ def oneCycle(tenancyName, tenancy):
     notPassedFizzleSeconds[vmtypeName] = 0
     foundPerVmtype[vmtypeName]         = 0
     runningPerVmtype[vmtypeName]       = 0
-        
-  novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
-                                        project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
+  
+  if 'proxy' in tenancy:
+     occiClient = occi.Occi(tenancy['url'], 'x509',True, tenancy['proxy'])
+  else:     
+     pass
 
   try:
-    serversList = novaClient.servers.list(detailed=True)
+    serversList = occiClient.servers.list()
   except Exception as e:
-    VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
+    VCYCLE.logLine('occiClient.servers.list() fails with exception ' + str(e))
     return
 
   for oneServer in serversList:
@@ -124,27 +126,6 @@ def oneCycle(tenancyName, tenancy):
       else:
         foundPerVmtype[vmtypeName] += 1
 
-      createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
-      updatedTime  = calendar.timegm(time.strptime(oneServer.updated, "%Y-%m-%dT%H:%M:%SZ"))
-      
-      taskState  = str(getattr(oneServer, 'OS-EXT-STS:task_state' ))
-      powerState = str(getattr(oneServer, 'OS-EXT-STS:power_state'))
-
-      try:
-        launchedTime = calendar.timegm(time.strptime(str(getattr(oneServer,'OS-SRV-USG:launched_at')).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
-        startTime    = launchedTime
-      except:
-        launchedTime = None
-        startTime    = createdTime        
-      else:        
-        if not os.path.isfile('/var/lib/vcycle/machines/' + oneServer.name + '/launched'):
-          VCYCLE.createFile('/var/lib/vcycle/machines/' + oneServer.name + '/launched', str(launchedTime), 0600)
-        
-      try:
-        ip = str(getattr(oneServer, 'addresses')['CERN_NETWORK'][0]['addr'])
-      except:
-        ip = '0.0.0.0'
-        
       try:
         heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + oneServer.name + '/machineoutputs/vm-heartbeat').st_ctime)
         heartbeatStr = str(int(time.time() - heartbeatTime)) + 's'
@@ -154,25 +135,18 @@ def oneCycle(tenancyName, tenancy):
       
       VCYCLE.logLine(oneServer.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
-              (ip + '            ')[:16] + 
+              (oneServer.ip + '            ')[:16] + 
               (oneServer.status + '       ')[:8] + 
-              (taskState + '               ')[:13] +
-              powerState + ' ' +
               oneServer.created + 
               ' to ' + 
               oneServer.updated + ' ' +
-              ('%5.2f' % ((time.time() - startTime)/3600.0)) + ' ' +
               heartbeatStr)
               
-      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
-        try:
-          VCYCLE.lastFizzles[tenancyName][vmtypeName] = updatedTime
-        except:
-          # In case vmtype removed from configuration while VMs still existed
-          pass
+      if oneServer.status == 'SHUTOFF':
+        VCYCLE.logLine(oneServer.name + ' was a fizzle!')
+      
 
-      if oneServer.status == 'ACTIVE' and powerState == '1':
+      if oneServer.status == 'ACTIVE':
         # These ones are running properly
         totalRunning += 1
         
@@ -181,60 +155,14 @@ def oneCycle(tenancyName, tenancy):
         else:
           runningPerVmtype[vmtypeName] += 1
 
-      # These ones are starting/running, but not yet passed tenancy['vmtypes'][vmtypeName]['fizzle_seconds']
-      if ((oneServer.status == 'ACTIVE' or 
-           oneServer.status == 'BUILD') and 
-          ((int(time.time()) - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds'])):
-          
+      # These ones are starting/running
+      if oneServer.status == 'ACTIVE' or oneServer.status == 'BUILD' :
         if vmtypeName not in notPassedFizzleSeconds:
           notPassedFizzleSeconds[vmtypeName]  = 1
         else:
           notPassedFizzleSeconds[vmtypeName] += 1
 
-      if ( 
-           (
-             # We always delete if in SHUTOFF state and not transitioning
-             oneServer.status == 'SHUTOFF' and taskState == 'None'
-           ) 
-           or 
-           (
-             # We always delete if in ERROR state and not transitioning
-             oneServer.status == 'ERROR' and taskState == 'None'
-           ) 
-           or 
-           (
-             # ACTIVE gets deleted if longer than max VM lifetime 
-             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])
-           )
-           or 
-           (
-             # ACTIVE gets deleted if heartbeat defined in configuration but not updated by the VM
-             'heartbeat_file' in tenancy['vmtypes'][vmtypeName] and
-             'heartbeat_seconds' in tenancy['vmtypes'][vmtypeName] and
-             oneServer.status == 'ACTIVE' and taskState == 'None' and 
-             ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']) and
-             (
-              (heartbeatTime is None) or 
-              ((int(time.time()) - heartbeatTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'])
-             )              
-           )
-           or
-           (
-             (
-               # Transitioning states ('deleting' etc) get deleted ...
-               oneServer.status  == 'SHUTOFF' or
-               oneServer.status  == 'ERROR'   or 
-               oneServer.status  == 'DELETED' or 		   
-               oneServer.status  == 'BUILD'   or 
-               (oneServer.status == 'ACTIVE' and powerState != '1')
-             )
-             and
-             (
-               # ... but only if this has been for a while
-               updatedTime < int(time.time()) - 900
-             )             
-           )
-         ):
+      if oneServer.status in ['SHUTOFF','ERROR'] :
         VCYCLE.logLine('Deleting ' + oneServer.name)
         try:
           oneServer.delete()
@@ -284,7 +212,7 @@ def oneCycle(tenancyName, tenancy):
       else:
         VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
         
-        errorMessage = createMachine(novaClient, tenancyName, vmtypeName)
+        errorMessage = createMachine(occiClient, tenancyName, vmtypeName)
         
         if errorMessage:
           VCYCLE.logLine(errorMessage)
@@ -315,7 +243,7 @@ def oneCycle(tenancyName, tenancy):
 #            return
                   
 
-def createMachine(novaClient, tenancyName, vmtypeName):
+def createMachine(occiClient, tenancyName, vmtypeName):
  
   serverName = 'vcycle-' + str(uuid.uuid4())
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
@@ -333,16 +261,15 @@ def createMachine(novaClient, tenancyName, vmtypeName):
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
   try:
-    newServer = novaClient.servers.create(serverName, 
-          novaClient.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-          novaClient.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
-          key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
-          meta={ 'cern-services'   : 'false',
-                 'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
-                 'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
-                 'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
-               }, 
-          userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
+     newServer = occiClient.servers.create(serverName,
+                 occiClient.images.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+                 occiClient.flavors.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+                 meta={ 'cern-services'   : 'false',
+                        'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
+                        'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
+                        'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'},
+                 userdata="file://var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName)                         )
+    
 
   except Exception as e:
     return 'Error creating new server: ' + str(e)
@@ -360,7 +287,7 @@ def createMachine(novaClient, tenancyName, vmtypeName):
 #
 
 if __name__ == '__main__':
-
+  '''
   if (os.fork() != 0):
     sys.exit() # first parent
 
@@ -418,23 +345,23 @@ if __name__ == '__main__':
         except:
           print 'no /var/run/vcycled.pid - exiting'
           break
+   '''
+  VCYCLE.logLine('=============== Start cycle ===============')
 
-        VCYCLE.logLine('=============== Start cycle ===============')
-
-        VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
+  VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
         
-        for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
-          oneCycle(tenancyName, tenancy)
+  for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
+    oneCycle(tenancyName, tenancy)
           
 #        cleanupDirectories()
 
-        VCYCLE.logLine('================ End cycle ================')
+  VCYCLE.logLine('================ End cycle ================')
 
         # Flush logging to the filesystem 
-        sys.stdout.flush()
-        sys.stderr.flush()
+  sys.stdout.flush()
+  sys.stderr.flush()
+ 
+  time.sleep(sleepSeconds)
 
-        time.sleep(sleepSeconds)
-
-      sys.exit(0) # if we break out of the while loop then we exit
+  sys.exit(0) # if we break out of the while loop then we exit
 
