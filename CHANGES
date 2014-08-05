@@ -1,3 +1,6 @@
 ==================== Changes in Vcycle version 0.3.0 =====================
 - Separate [tenancy ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per tenancy
+- Use ROT-13 encoding for passwords in config to avoid accidental 
+  disclosure if browsing around. Obviously this is trivial to get around
+  if one wants to.
