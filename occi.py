@@ -31,7 +31,11 @@ class Occi():
       
       command = "occi --endpoint %s --action list --resource %s" % (self.endpoint, resource)
       command += self.command_credentials 
-      result_command = self.process_std(command)
+      try:
+         result_command = self.process_std(command)
+      except Exception,e:
+         logging.error(e)
+         return []
       result = []
       for  line in result_command.split('\n'):
          if len(line) > 0:
@@ -160,7 +164,10 @@ class Compute():
       servers = []
       list_servers = self.occi._list('compute')
       for server in list_servers:
-         servers.append(self.describe(server))
+         try:
+            servers.append(self.describe(server))
+         except Exception,e:
+            logging.error(e)
       return servers
    
    
@@ -169,6 +176,7 @@ class Compute():
       id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
+      print name
       ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
       
       #check os and flavor
