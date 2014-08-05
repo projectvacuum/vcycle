@@ -34,7 +34,7 @@
 include VERSION
 
 INSTALL_FILES=vcycled vcycle VCYCLE.py vcycle-cgi vcycled.init \
-          vcycled.logrotate VERSION CHANGES 
+          occy.py vcycled.logrotate VERSION CHANGES 
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
