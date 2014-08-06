@@ -34,8 +34,11 @@ class Occi():
       try:
          result_command = self.process_std(command)
       except Exception,e:
-         logging.error(e)
-         return []
+         if "sslv3 alert certificate expired" in e.message:
+            raise e
+         else:
+            logging.error(e)
+            return []
       result = []
       for  line in result_command.split('\n'):
          if len(line) > 0:
@@ -79,10 +82,8 @@ class Occi():
 
    def process_std(self,command):
       logging.info(command)
-      result = ''
-      err_result = ''
       (result,err_result)=Popen(command,shell=True,stdout=PIPE,stderr=PIPE).communicate()
-     
+      
       if len(err_result) > 0:
          raise Exception(err_result)
       if len(err_result) == 0  and len(result) == 0 :
@@ -176,8 +177,10 @@ class Compute():
       id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
-      print name
-      ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
+      if not status in ['inactive','error','stopped']:
+         ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
+      else:
+         ip = 'None'
       
       #check os and flavor
       os = description['mixins'][1]
@@ -190,9 +193,8 @@ class Compute():
       
       
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
+      meta = {}
       meta['occi.core.title'] = name
-      meta['vcycle.starttime'] = datetime.now()
-      meta['vcycle.name'] = 'test'
       result = self.occi._create(image, flavor, user_data, meta)
       return self.describe(result)
    
@@ -235,7 +237,10 @@ class Server():
       self.ip = ip
       self.os = os
       self.flavor = flavor
-      self.created = datetime.now()
+      if 'vcycle' in name:
+         self.created = name[len('vcycle-'):]
+      else:
+         self.created = None
       self.updated = self.created
       
    def delete(self):
@@ -249,24 +254,23 @@ class Server():
                 'status':self.status,
                 'ip':self.ip,
                 'os': self.os,
-                'flavor':self.flavor}
+                'flavor':self.flavor,
+                'created':self.created}
       return json.dumps(result)
       
 
 
-#occi = Occi("https://prisma-cloud.ba.infn.it:8787/",user_cred='/tmp/x509up_u0')
-#print occi.servers.list()
-#print occi.servers.describe('https://prisma-cloud.ba.infn.it:8787/compute/49f326ea-495e-4852-9e0e-74eae063565a'.strip())
+#occi = Occi("https://egi-cloud.pd.infn.it:8787/",user_cred='/tmp/x509up_u0')
 
 #print occi.flavors.list()
+#for im in occi.images.list():
+#   print occi.images.describe(im)
 #print occi.images.find('Cern')
-
-#server = occi.servers.create('lvillazoVM','5364f77a-e1cb-4a6c-862e-96dc79c4ef67', 'm1-medium',user_data='file://$PWD/tmpfedcloud.login')
+#occi --endpoint https://cloud.cesga.es:3202/ --action create --resource compute --mixin os_tpl#uuid_fedcloud_cernvm_virtual_machine_publicimagelist_267 --mixin resource_tpl#medium --context user_data=file:///var/lib/vcycle/user_data/lvillazovm2:cern-prod_cloud --attribute occi.core.title='vcycle-1407334781'  --auth x509 --user-cred /tmp/x509up_u0 --voms
+#server = occi.servers.create('lvillazoVM','c64908ae-86ca-4be3-bcb3-6077aa6b5d32', 'hpc',user_data='file://$PWD/tmpfedcloud.login')
 #print server
 #server.delete()
-#print occi.servers.delete('https://cloud.ifca.es:8787/compute/3055d960-5ea3-4616-9431-084d862fa7f8')
-#print occi.compute.describe('https://prisma-cloud.ba.infn.it:8787/compute/86ae3606-d753-4421-b415-e697b1670879')
-#print occi.compute.delete('https://prisma-cloud.ba.infn.it:8787/compute/86ae3606-d753-4421-b415-e697b1670879')
+#server = occi.servers.create('lvillazoVM','uuid_fedcloud_cernvm_virtual_machine_publicimagelist_267','medium',user_data='file://$PWD/tmpfedcloud.login')
 
 
-#occi.delete('https://prisma-cloud.ba.infn.it:8787/compute/86ae3606-d753-4421-b415-e697b1670879')
+
