@@ -101,7 +101,10 @@ def oneCycle(tenancyName, tenancy):
       # Just in case other VMs are in this tenancy
       if oneServer.name[:7] != 'vcycle-':
         continue
-
+      
+      
+      startTime = int(oneServer.created)
+      
       try:
         fileTenancyName = open('/var/lib/vcycle/machines/' + oneServer.name + '/tenancy_name', 'r').read().strip()
       except:
@@ -136,14 +139,11 @@ def oneCycle(tenancyName, tenancy):
       VCYCLE.logLine(oneServer.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (oneServer.ip + '            ')[:16] + 
-              (oneServer.status + '       ')[:8] + 
-              str(oneServer.created) + 
-              ' to ' + 
-              str(oneServer.updated) + ' ' +
-              heartbeatStr)
+              (oneServer.status + '       ')[:8] 
+              )
               
-      if oneServer.status == 'inactive':
-        VCYCLE.logLine(oneServer.name + ' was a fizzle!')
+      if oneServer.status in ['inactive','error','stopped']:
+        VCYCLE.logLine(oneServer.name + ' was a fizzle!' + str(int(time.time()) - startTime) + ' sg')
       
 
       if oneServer.status == 'active':
@@ -156,13 +156,14 @@ def oneCycle(tenancyName, tenancy):
           runningPerVmtype[vmtypeName] += 1
 
       # These ones are starting/running
-      if oneServer.status == 'active' or oneServer.status == 'BUILD' :
+      if oneServer.status == 'active' and  (int(time.time()) - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
         if vmtypeName not in notPassedFizzleSeconds:
           notPassedFizzleSeconds[vmtypeName]  = 1
         else:
           notPassedFizzleSeconds[vmtypeName] += 1
 
-      if oneServer.status in ['inactive','error'] :
+      if oneServer.status in ['inactive','error','stopped'] or (oneServer.status == 'active' and 
+         ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) :
         VCYCLE.logLine('Deleting ' + oneServer.name)
         try:
           oneServer.delete()
@@ -244,8 +245,7 @@ def oneCycle(tenancyName, tenancy):
                   
 
 def createMachine(occiClient, tenancyName, vmtypeName):
- 
-  serverName = 'vcycle-' + str(uuid.uuid4())
+  serverName = 'vcycle-' + str(int(time.time()))
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machineoutputs')
