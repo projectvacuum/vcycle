@@ -172,7 +172,7 @@ class Compute():
          try:
             servers.append(self.describe(server))
          except Exception,e:
-            logging.error(e)
+            pass
       return servers
    
    
