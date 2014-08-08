@@ -85,7 +85,11 @@ def oneCycle(tenancyName, tenancy):
   if 'proxy' in tenancy:
      occiClient = occi.Occi(tenancy['url'],user_cred=tenancy['proxy'])
   else:     
-     pass
+     occiClient = occi.Occi(tenancy['url'],
+                            username=tenancy['username'],
+                            password=tenancy['password'],
+                            auth='digest',
+                            voms=False)
 
   try:
     serversList = occiClient.servers.list()

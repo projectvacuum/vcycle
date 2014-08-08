@@ -8,16 +8,17 @@ class Occi():
 
    command_credentials = ''
    
-   def __init__(self, endpoint, auth='x509', voms=True, user_cred=None):
+   def __init__(self, endpoint, auth='x509', voms=True, user_cred=None, username=None, password=None):
       self.flavors = Flavor(self)
       self.images = Image(self)
       self.servers = Compute(self)
-      self.network = Network(self)
-      self.storage = Storage(self)
-      
       self.endpoint = endpoint
       self.command_credentials = " --auth %s" % auth
       
+      if not username is None:
+         self.command_credentials = " --username %s" % username
+      if not password is None:
+         self.command_credentials = " --password %s" % password
       if not user_cred is None:
          self.command_credentials += " --user-cred %s" % user_cred
       if voms:
@@ -97,6 +98,7 @@ class Occi():
       return aux[:aux.find('\n')].strip()
 
 
+
 class Flavor():
    
    def __init__(self, occi):
@@ -122,6 +124,7 @@ class Flavor():
          if name in self.describe(value)['title']:
             resources.append(value)
       return resources
+
 
 
 class Image():
@@ -155,6 +158,7 @@ class Image():
       return resources
      
 
+
 class Compute():
    
    def __init__(self, occi):
@@ -177,7 +181,7 @@ class Compute():
       id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
-      if not status in ['inactive','error','stopped']:
+      if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
          ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
       else:
          ip = 'None'
@@ -191,7 +195,7 @@ class Compute():
       
       return Server(self.occi, name, id, hostname, status, ip, os, flavor)
       
-      
+            
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
       meta = {}
       meta['occi.core.title'] = name
@@ -204,25 +208,6 @@ class Compute():
 
    
 
-class Network():
-   
-   def __init__(self, occi):
-      self.occi = occi
-      
-   def list(self):
-      return self.occi._list('network')
-
-
-
-class Storage():
-   
-   def __init__(self, occi):
-      self.occi = occi
-      
-   def list(self):
-      return self.occi._list('storage')
-   
-   
 class Server():
    
    created = None
@@ -257,20 +242,3 @@ class Server():
                 'flavor':self.flavor,
                 'created':self.created}
       return json.dumps(result)
-      
-
-
-#occi = Occi("https://egi-cloud.pd.infn.it:8787/",user_cred='/tmp/x509up_u0')
-
-#print occi.flavors.list()
-#for im in occi.images.list():
-#   print occi.images.describe(im)
-#print occi.images.find('Cern')
-#occi --endpoint https://cloud.cesga.es:3202/ --action create --resource compute --mixin os_tpl#uuid_fedcloud_cernvm_virtual_machine_publicimagelist_267 --mixin resource_tpl#medium --context user_data=file:///var/lib/vcycle/user_data/lvillazovm2:cern-prod_cloud --attribute occi.core.title='vcycle-1407334781'  --auth x509 --user-cred /tmp/x509up_u0 --voms
-#server = occi.servers.create('lvillazoVM','c64908ae-86ca-4be3-bcb3-6077aa6b5d32', 'hpc',user_data='file://$PWD/tmpfedcloud.login')
-#print server
-#server.delete()
-#server = occi.servers.create('lvillazoVM','uuid_fedcloud_cernvm_virtual_machine_publicimagelist_267','medium',user_data='file://$PWD/tmpfedcloud.login')
-
-
-
