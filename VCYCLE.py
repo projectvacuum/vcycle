@@ -48,7 +48,7 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' ]
+  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' , 'type' ]
 
   tenancyIntOptions = [ 'max_machines' ]
 
@@ -102,6 +102,7 @@ def readConf(requirePassword=True):
       
       tenancy['tenancy_name'] = parser.get(tenancySectionName,'tenancy_name') 
       tenancy['url'] = parser.get(tenancySectionName,'url')
+      tenancy['type'] = parser.get(tenancySectionName,'type')
       
       if parser.has_option(tenancySectionName,'proxy'):
          tenancy['proxy'] = parser.get(tenancySectionName,'proxy') 

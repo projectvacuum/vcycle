@@ -33,7 +33,7 @@
 
 include VERSION
 
-INSTALL_FILES=vcycled vcycle VCYCLE.py vcycle-cgi vcycled.init \
+INSTALL_FILES=vcycled vcycle VCYCLE.py occi.py vcycleOcci.py vcycleOpenstack.py vcycleBase.py vcycle-cgi vcycled.init \
           vcycled.logrotate VERSION CHANGES 
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
@@ -54,7 +54,7 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d
-	cp vcycled vcycle VCYCLE.py vcycle-cgi \
+	cp vcycled vcycle VCYCLE.py vcycle-cgi occi.py vcycleOcci.py vcycleOpenstack.py vcycleBase.py \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin
 	cp VERSION CHANGES \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/doc
