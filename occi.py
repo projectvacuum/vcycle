@@ -165,12 +165,18 @@ class Compute():
       self.occi = occi
       
       
-   def list(self, detailed=None):
+   def list(self, detailed=True, action=None):
       servers = []
       list_servers = self.occi._list('compute')
       for server in list_servers:
          try:
-            servers.append(self.describe(server))
+            if detailed:
+               ob = self.describe(server)
+               servers.append(ob)
+               if not action is None:
+                  action(ob)
+            else:
+               servers.append(server)
          except Exception,e:
             pass
       return servers
