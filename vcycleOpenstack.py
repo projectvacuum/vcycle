@@ -154,15 +154,23 @@ class vcycleOpenstack(vcycleBase):
        return 'vcycle-' + str(uuid.uuid4())
    
    
-   def _create_machine(self, client, serverName, tenancyName, vmtypeName):
-      return client.servers.create(serverName, 
+   def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):
+      meta={ 'cern-services'   : 'false',
+             'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
+             'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
+             'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
+           }
+      if proxy :
+         return client.servers.create(serverName, 
                client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
                client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
                key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
-               meta={ 'cern-services'   : 'false',
-                 'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
-                 'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
-                 'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
-               }, 
+               meta=meta, 
                userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
+      else:
+         return client.servers.create(serverName, 
+                client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+                client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+                meta=meta, 
+                userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
 

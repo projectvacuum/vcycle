@@ -73,7 +73,8 @@ class vcycleOcci(vcycleBase):
    def _server_name(self):
       return 'vcycle-' + str(int(time.time()))
       
-   def _create_machine(self, client, serverName, tenancyName, vmtypeName):
+      
+   def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):
       return client.servers.create(serverName,
                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],

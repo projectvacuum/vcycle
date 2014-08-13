@@ -2,8 +2,10 @@ import VCYCLE
 import os
 import uuid
 import time, random
+import abc
 
 class vcycleBase(object):
+   __metaclass__ = abc.ABCMeta
    
    creationsPerCycle = 5
    
@@ -73,7 +75,7 @@ class vcycleBase(object):
 
             else:
                VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
-               errorMessage = self.createMachine(client, tenancyName, vmtypeName)
+               errorMessage = self.createMachine(client, tenancyName, vmtypeName,proxy='proxy' in tenancy)
                if errorMessage:
                   VCYCLE.logLine(errorMessage)
                else:
@@ -128,7 +130,7 @@ class vcycleBase(object):
       return (totalRunning , totalFound)
 
 
-   def createMachine(self, client, tenancyName, vmtypeName):
+   def createMachine(self, client, tenancyName, vmtypeName, proxy=False):
       serverName = self._server_name()
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
@@ -145,7 +147,7 @@ class vcycleBase(object):
       VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
       try:
-         server = self._create_machine(client, serverName, tenancyName, vmtypeName)
+         server = self._create_machine(client, serverName, tenancyName, vmtypeName, proxy=proxy)
 
       except Exception as e:
          return 'Error creating new server: ' + str(e)
@@ -159,25 +161,31 @@ class vcycleBase(object):
       return None
 
 
+   @abc.abstractmethod
    def _create_client(self):
       pass
 
    
+   @abc.abstractmethod
    def _retrieve_properties(self):
       pass
 
    
+   @abc.abstractmethod
    def _update_properties(self, server, tenancy, tenancyName, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
       pass
    
    
+   @abc.abstractmethod
    def _delete(self, server):
       pass
    
    
+   @abc.abstractmethod
    def _server_name(self):
       pass
 
 
-   def _create_machine(self, client, serverName, tenancyName, vmtypeName):
+   @abc.abstractmethod
+   def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):
       pass
