@@ -48,7 +48,7 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username' ]
+  #tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' ]
 
   tenancyIntOptions = [ 'max_machines' ]
 
@@ -91,13 +91,25 @@ def readConf(requirePassword=True):
       tenancy = {}
       
       # Get the options from this section for this tenancy
-        
-      for opt in tenancyStrOptions:
-        if parser.has_option(tenancySectionName, opt):
-          tenancy[opt] = parser.get(tenancySectionName, opt)
-        else:
-          return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
-
+      if not parser.has_option(tenancySectionName, 'tenancy_name') :
+         return 'Option tenancy_name required in [' + tenancySectionName + ']'
+      
+      if not parser.has_option(tenancySectionName, 'url') :
+         return 'Option url required in [' + tenancySectionName + ']'
+      
+      if not parser.has_option(tenancySectionName, 'proxy') and not parser.has_option(tenancySectionName, 'username'):
+         return 'Option proxy or username is required in [' + tenancySectionName + ']'
+      
+      tenancy['tenancy_name'] = parser.get(tenancySectionName,'tenancy_name') 
+      tenancy['url'] = parser.get(tenancySectionName,'url')
+      
+      if parser.has_option(tenancySectionName,'proxy'):
+         tenancy['proxy'] = parser.get(tenancySectionName,'proxy') 
+         requirePassword = False
+      else:
+         tenancy['username'] = parser.get(tenancySectionName,'username') 
+      
+      
       for opt in tenancyIntOptions:
         try:
           tenancy[opt] = int(parser.get(tenancySectionName, opt))
