@@ -48,7 +48,7 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' ]
+  #tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' ]
 
   tenancyIntOptions = [ 'max_machines' ]
 
