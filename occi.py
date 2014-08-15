@@ -104,8 +104,10 @@ class Flavor():
    def __init__(self, occi):
       self.occi = occi
       
+      
    def list(self):
       return self.occi._list('resource_tpl')
+   
    
    def describe(self, name):
       result_describe = self.occi._describe(name)
