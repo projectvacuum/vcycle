@@ -83,7 +83,8 @@ def oneCycle(tenancyName, tenancy):
     runningPerVmtype[vmtypeName]       = 0
         
   novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
-                                        project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
+                                        project_id=tenancy['tenancy_name'], auth_url=tenancy['url'],
+                                        insecure=True)
 
   try:
     serversList = novaClient.servers.list(detailed=True)
