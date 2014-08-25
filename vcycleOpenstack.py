@@ -99,6 +99,9 @@ class vcycleOpenstack(vcycleBase):
       
       
    def _delete(self, server, tenancy, vmtypeName, properties):
+      if server.status  == 'BUILD':
+         return
+      
       if ( 
            (
              # We always delete if in SHUTOFF state and not transitioning
@@ -133,7 +136,6 @@ class vcycleOpenstack(vcycleBase):
                server.status  == 'SHUTOFF' or
                server.status  == 'ERROR'   or 
                server.status  == 'DELETED' or          
-               server.status  == 'BUILD'   or 
                (server.status == 'ACTIVE' and properties['powerState'] != '1')
              )
              and
