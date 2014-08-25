@@ -60,7 +60,7 @@ class Occi():
    def _create(self, mix_os, mix_resource, user_data, attributes={}):
       '''Create a new resource'''
       command = "occi --endpoint %s --action create --resource compute --mixin os_tpl#%s --mixin resource_tpl#%s" \
-      " --context user_data=%s " % (self.endpoint, mix_os, mix_resource, user_data)
+      " --context user_data=\"%s\" " % (self.endpoint, mix_os, mix_resource, user_data)
       
       for key, value in attributes.iteritems():
          command += "--attribute %s='%s' " % (key, value)
@@ -194,6 +194,11 @@ class Compute():
       else:
          ip = 'None'
       
+      if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
+         console = description['attributes']['org']['openstack']['compute']['console']['vnc']
+      else:
+         console = None
+         
       #check os and flavor
       os = description['mixins'][1]
       os = self.occi.images.describe(os[os.index('#')+1:])
@@ -201,7 +206,7 @@ class Compute():
       flavor = description['mixins'][0]
       flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
       
-      return Server(self.occi, name, id, hostname, status, ip, os, flavor)
+      return Server(self.occi, name, id, hostname, status, ip, os, flavor, console)
       
             
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
@@ -221,7 +226,7 @@ class Server():
    created = None
    updated = None
    
-   def __init__(self, occi, resource, id, name, status, ip, os, flavor):
+   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console):
       self.occi = occi
       self.resource = resource
       self.id = id
@@ -235,6 +240,7 @@ class Server():
       else:
          self.created = None
       self.updated = self.created
+      self.console = console
       
    def delete(self):
       return self.occi._delete(self.resource)
@@ -248,5 +254,6 @@ class Server():
                 'ip':self.ip,
                 'os': self.os,
                 'flavor':self.flavor,
-                'created':self.created}
+                'created':self.created,
+                'console':self.console}
       return json.dumps(result)
