@@ -14,7 +14,7 @@ class vcycleOcci(vcycleBase):
          return Occi(tenancy['url'],
                                 username=tenancy['username'],
                                 password=tenancy['password'],
-                                auth='digest',
+                                auth=tenancy['auth'],
                                 voms=False)
    
    
@@ -61,7 +61,7 @@ class vcycleOcci(vcycleBase):
    
    
    def _delete(self, server, tenancy, vmtypeName, properties):
-      if server.status in ['inactive','error','stopped'] or (server.status == 'active' and
+      if server.status in ['inactive','error','stopped','cancel'] or (server.status == 'active' and
         ((int(time.time()) - properties['startTime']) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) :
          VCYCLE.logLine('Deleting ' + server.name)
          try:
