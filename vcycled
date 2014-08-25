@@ -41,6 +41,7 @@ import random
 import time
 import shutil
 import calendar
+import threading
 
 from vcycleOpenstack import vcycleOpenstack
 from vcycleOcci import vcycleOcci
@@ -118,15 +119,23 @@ if __name__ == '__main__':
 
         VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
         
+        threads = list()
         for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
            if tenancy['type'] == 'openstack':
               vOpen = vcycleOpenstack()
            else:
               vOpen = vcycleOcci()
-           vOpen.oneCycle(tenancyName, tenancy)
+           try:
+              threads.append(threading.Thread(target=vOpen.oneCycle(tenancyName, tenancy)))
+              #vOpen.oneCycle(tenancyName, tenancy)
+           except Exception,e:
+              VCYCLE.logLine(e.message)
           
 #        cleanupDirectories()
-
+        for thread in threads:
+           thread.start()
+        for thread in threads:
+           thread.join()
         VCYCLE.logLine('================ End cycle ================')
 
         # Flush logging to the filesystem 
