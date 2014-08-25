@@ -103,6 +103,7 @@ def readConf(requirePassword=True):
       tenancy['tenancy_name'] = parser.get(tenancySectionName,'tenancy_name') 
       tenancy['url'] = parser.get(tenancySectionName,'url')
       tenancy['type'] = parser.get(tenancySectionName,'type')
+      tenancy['auth'] = parser.get(tenancySectionName,'auth')
       
       if parser.has_option(tenancySectionName,'proxy'):
          tenancy['proxy'] = parser.get(tenancySectionName,'proxy') 
