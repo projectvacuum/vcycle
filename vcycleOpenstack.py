@@ -152,7 +152,7 @@ class vcycleOpenstack(vcycleBase):
           VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
           
           
-   def _server_name(self):
+   def _server_name(self, name=None):
        return 'vcycle-' + str(uuid.uuid4())
    
    

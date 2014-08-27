@@ -70,8 +70,11 @@ class vcycleOcci(vcycleBase):
             VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
       
       
-   def _server_name(self):
-      return 'vcycle-' + str(int(time.time()))
+   def _server_name(self,name=None):
+      if not name is None:
+         return 'vcycle-' + name + '-' + str(int(time.time()))
+      else:
+         return 'vcycle-' + str(int(time.time()))
       
       
    def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):

@@ -131,7 +131,7 @@ class vcycleBase(object):
 
 
    def createMachine(self, client, tenancyName, vmtypeName, proxy=False):
-      serverName = self._server_name()
+      serverName = self._server_name(name=tenancyName)
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machineoutputs')
@@ -182,7 +182,7 @@ class vcycleBase(object):
    
    
    @abc.abstractmethod
-   def _server_name(self):
+   def _server_name(self,name=None):
       pass
 
 
