@@ -236,7 +236,8 @@ class Server():
       self.os = os
       self.flavor = flavor
       if 'vcycle' in name:
-         self.created = name[len('vcycle-'):]
+         aux = name.split('-')
+         self.created = aux[len(aux)-1]
       else:
          self.created = None
       self.updated = self.created
