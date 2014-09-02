@@ -105,9 +105,9 @@ def readConf(requirePassword=True):
           return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
 
       try:
-        # We use ROT-13 (A -> N etc) encoding so browsing around casually doesn't
+        # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
         # reveal passwords in a memorable way. 
-        tenancy['password'] = parser.get(tenancySectionName, 'password').encode('rot13')
+        tenancy['password'] = ''.join([ chr(ord(c)+1) for c in parser.get(tenancySectionName, 'password')])
       except:
         if requirePassword:
           return 'Option password is required in [' + tenancySectionName + ']'
