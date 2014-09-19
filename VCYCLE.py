@@ -36,6 +36,7 @@ import os
 import sys
 import time
 import json
+import string
 import tempfile
 import ConfigParser
 
@@ -87,7 +88,10 @@ def readConf(requirePassword=True):
       
     else:
       tenancyName = split1[1]
-# NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
+      
+      if string.translate(tenancyName, None, '0123456789abcdefghijklmnopqrstuvwyz-_') != '':
+        return 'Name of tenancy section [tenancy ' + tenancyName + '] can only contain a-z 0-9 - or _'
+      
       tenancy = {}
       
       # Get the options from this section for this tenancy
@@ -114,6 +118,11 @@ def readConf(requirePassword=True):
         else:
           tenancy['password'] = ''
 
+      try:
+        tenancy['delete_old_files'] = bool(parser.get(tenancySectionName, 'delete_old_files'))
+      except:
+        tenancy['delete_old_files'] = True
+
       # Get the options for each vmtype section associated with this tenancy
 
       vmtypes = {}
@@ -125,7 +134,10 @@ def readConf(requirePassword=True):
 
           if split2[1] == tenancyName:
             vmtypeName = split2[2]
-# NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
+
+            if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwyz-_') != '':
+              return 'Name of vmtype section [vmtype ' + tenancyName + ' ' + vmtypeName + '] can only contain a-z 0-9 - or _'
+      
             vmtype = {}
 
             for opt in vmtypeStrOptions:              
@@ -149,7 +161,12 @@ def readConf(requirePassword=True):
               vmtype['heartbeat_seconds'] = int(parser.get(vmtypeSectionName, 'heartbeat_seconds'))
             except:
               pass
-                      
+
+            try:
+              vmtype['target_share'] = float(parser.get(vmtypeSectionName, 'target_share'))
+            except:
+              return 'Option target_share required in [' + vmtypeSectionName + ']'
+            
             if tenancyName not in lastFizzles:
               lastFizzles[tenancyName] = {}
               
