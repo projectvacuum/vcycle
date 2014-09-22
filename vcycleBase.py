@@ -12,7 +12,7 @@ class vcycleBase(object):
    def __init__(self):
       pass
    
-   def oneCycle(self, tenancyName, tenancy):
+   def oneCycle(self, tenancyName, tenancy, servers):
       VCYCLE.logLine('Processing tenancy ' + tenancyName)
   
       totalRunning = 0
@@ -26,18 +26,23 @@ class vcycleBase(object):
          notPassedFizzleSeconds[vmtypeName] = 0
          foundPerVmtype[vmtypeName]         = 0
          runningPerVmtype[vmtypeName]       = 0
-         
-      client = self._create_client(tenancy)
       
+      self.tenancyName = tenancyName
+      self.servers = servers
+      self.tenancy = tenancy 
+      self.client = self._create_client()
+      
+      #Update the servers running on the site   
       try:
-         serversList = client.servers.list(detailed=True)
+         self._servers_list()
       except Exception as e:
          VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
          return
       
-      for oneServer in serversList:
-         (totalRunning, totalFound) = self.for_server_in_list(oneServer, tenancy, tenancyName, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
-      
+      servers_in_tenancy = servers[tenancyName].copy()
+      for oneServer in servers_in_tenancy:
+         (totalRunning, totalFound) = self.for_server_in_list(servers_in_tenancy[oneServer], totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
+            
       VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
       for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
          VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
@@ -75,7 +80,7 @@ class vcycleBase(object):
 
             else:
                VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
-               errorMessage = self.createMachine(client, tenancyName, vmtypeName,proxy='proxy' in tenancy)
+               errorMessage = self.createMachine(vmtypeName, servers, proxy='proxy' in tenancy)
                if errorMessage:
                   VCYCLE.logLine(errorMessage)
                else:
@@ -90,14 +95,15 @@ class vcycleBase(object):
             return
          
    
-   def for_server_in_list(self,server, tenancy, 
-                          tenancyName, totalRunning, totalFound,
+   def for_server_in_list(self, server, totalRunning, totalFound,
                           notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype):
+      
+      servers = self.servers[self.tenancyName]
       # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
       totalFound += 1
       
       # Just in case other VMs are in this tenancy
-      if server.name[:7] != 'vcycle-':
+      if server is None or server.name[:7] != 'vcycle-':
         return (totalRunning , totalFound)
      
       try:
@@ -108,8 +114,8 @@ class vcycleBase(object):
          return (totalRunning , totalFound)
       else:
          # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
-         if fileTenancyName != tenancyName:        
-            VCYCLE.logLine('Skipping ' + server.name + ' which is in ' + tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
+         if fileTenancyName != self.tenancyName:        
+            VCYCLE.logLine('Skipping ' + server.name + ' which is in ' + self.tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
             return (totalRunning , totalFound)
 
       try:
@@ -125,12 +131,14 @@ class vcycleBase(object):
         foundPerVmtype[vmtypeName] += 1
         
       properties = self._retrieve_properties(server, vmtypeName)
-      totalRunning = self._update_properties(server, tenancy, tenancyName, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
-      self._delete(server, tenancy, vmtypeName, properties)
+      totalRunning = self._update_properties(server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
+      self._delete(server, vmtypeName, properties)
+      servers.pop(server.id, None)
       return (totalRunning , totalFound)
 
 
-   def createMachine(self, client, tenancyName, vmtypeName, proxy=False):
+   def createMachine(self, vmtypeName, servers, proxy=False):
+      tenancyName = self.tenancyName
       serverName = self._server_name(name=tenancyName)
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
@@ -147,17 +155,21 @@ class vcycleBase(object):
       VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
       try:
-         server = self._create_machine(client, serverName, tenancyName, vmtypeName, proxy=proxy)
-
+         server = self._create_machine(serverName, vmtypeName, proxy=proxy)
+         if not server is None:
+            servers[self.tenancyName][server.id] = server
       except Exception as e:
          return 'Error creating new server: ' + str(e)
-
-      VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', server.id, 0644)
+      
+      if not server is None:
+         VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', server.id, 0644)
       VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
       VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
 
-      VCYCLE.logLine('Created ' + serverName + ' (' + server.id + ') for ' + vmtypeName + ' within ' + tenancyName)
-
+      if not server is None:
+         VCYCLE.logLine('Created ' + serverName + ' (' + server.id + ') for ' + vmtypeName + ' within ' + tenancyName)
+      else:
+         VCYCLE.logLine('Created ' + serverName + ' for ' + vmtypeName + ' within ' + tenancyName)
       return None
 
 
@@ -165,6 +177,11 @@ class vcycleBase(object):
    def _create_client(self):
       pass
 
+
+   @abc.abstractmethod
+   def _servers_list(self):
+      pass
+   
    
    @abc.abstractmethod
    def _retrieve_properties(self):
@@ -172,12 +189,16 @@ class vcycleBase(object):
 
    
    @abc.abstractmethod
-   def _update_properties(self, server, tenancy, tenancyName, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+   def _update_properties(self, server, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
       pass
    
    
    @abc.abstractmethod
-   def _delete(self, server):
+   def _describe(self, server):
+      pass
+   
+   @abc.abstractmethod
+   def _delete(self, server, vmtypeName, properties):
       pass
    
    
@@ -187,5 +208,5 @@ class vcycleBase(object):
 
 
    @abc.abstractmethod
-   def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):
+   def _create_machine(self, serverName, vmtypeName, proxy=False):
       pass

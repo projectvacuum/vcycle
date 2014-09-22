@@ -81,7 +81,7 @@ if __name__ == '__main__':
       # Close stdin now
       si = file('/dev/null', 'r')
       os.dup2(si.fileno(), sys.stdin.fileno())
-  
+      servers = {}
       while True:
 
         # Close and reopen stdout->log file, in case of logrotate
@@ -121,21 +121,23 @@ if __name__ == '__main__':
         
         threads = list()
         for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
+           if not tenancyName in servers:
+              servers[tenancyName] = {}
            if tenancy['type'] == 'openstack':
               vOpen = vcycleOpenstack()
            else:
               vOpen = vcycleOcci()
            try:
-              threads.append(threading.Thread(target=vOpen.oneCycle(tenancyName, tenancy)))
-              #vOpen.oneCycle(tenancyName, tenancy)
+              #threads.append(threading.Thread(target=vOpen.oneCycle(tenancyName, tenancy)))
+              vOpen.oneCycle(tenancyName, tenancy, servers)
            except Exception,e:
               VCYCLE.logLine(e.message)
           
 #        cleanupDirectories()
-        for thread in threads:
-           thread.start()
-        for thread in threads:
-           thread.join()
+        #for thread in threads:
+        #   thread.start()
+        #for thread in threads:
+        #   thread.join()
         VCYCLE.logLine('================ End cycle ================')
 
         # Flush logging to the filesystem 

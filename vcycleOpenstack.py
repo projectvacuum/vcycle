@@ -7,7 +7,8 @@ from novaclient.client import Client
 class vcycleOpenstack(vcycleBase):
    
    
-   def _create_client(self, tenancy):
+   def _create_client(self):
+      tenancy = self.tenancy
       if 'proxy' in tenancy:
          import novaclient
          import novaclient.auth_plugin
@@ -21,6 +22,14 @@ class vcycleOpenstack(vcycleBase):
          novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
                                                project_id=tenancy['tenancy_name'], auth_url=tenancy['url'])
       return novaClient
+   
+   
+   def _servers_list(self):
+      serversList = self.client.servers.list(detailed=False)
+      for server in serversList:
+         if not server.id in self.servers[self.tenancyName]:
+            self.servers[self.tenancyName][server.id] = server
+      return serversList
    
    
    def _retrieve_properties(self, server, vmtypeName):
@@ -67,7 +76,10 @@ class vcycleOpenstack(vcycleBase):
       return properties
       
    
-   def _update_properties(self, server, tenancy, tenancyName, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+   def _update_properties(self, server, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+      tenancy = self.tenancy
+      tenancyName = self.tenancyName
+      
       if server.status == 'SHUTOFF' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
         VCYCLE.logLine(server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
@@ -98,7 +110,12 @@ class vcycleOpenstack(vcycleBase):
       return totalRunning
       
       
-   def _delete(self, server, tenancy, vmtypeName, properties):
+   def _describe(self, server):
+      pass
+      
+      
+   def _delete(self, server, vmtypeName, properties):
+      tenancy = self.tenancy
       if server.status  == 'BUILD':
          return
       
@@ -156,22 +173,23 @@ class vcycleOpenstack(vcycleBase):
        return 'vcycle-' + str(uuid.uuid4())
    
    
-   def _create_machine(self, client, serverName, tenancyName, vmtypeName, proxy=False):
+   def _create_machine(self, serverName, vmtypeName, proxy=False):
+      tenancyName = self.tenancyName
       meta={ 'cern-services'   : 'false',
              'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
              'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
              'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
            }
       if proxy :
-         return client.servers.create(serverName, 
-               client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-               client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
+         return self.client.servers.create(serverName, 
+               self.client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+               self.client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
                meta=meta, 
                userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
       else:
-         return client.servers.create(serverName, 
-                client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-                client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+         return self.client.servers.create(serverName, 
+                self.client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+                self.client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
                 meta=meta, 
                 key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
                 userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())

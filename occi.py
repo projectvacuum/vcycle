@@ -185,7 +185,24 @@ class Compute():
    
    
    def describe(self, name):
-      description = self.occi._describe(name)
+      error_counter = 0
+      def call_describe():
+         try:
+            return self.occi._describe(name)
+         except Exception,e:
+            if "Timeout" in e:
+               error_counter = error_counter + 1
+               if error_counter >= 3:
+                  raise e
+               return call_describe()
+            else:
+               raise e
+      
+      try:
+         description = call_describe()
+      except Exception:
+         return None
+      
       id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
