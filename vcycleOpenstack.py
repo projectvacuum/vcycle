@@ -25,7 +25,7 @@ class vcycleOpenstack(vcycleBase):
    
    
    def _servers_list(self):
-      serversList = self.client.servers.list(detailed=False)
+      serversList = self.client.servers.list(detailed=True)
       for server in serversList:
          if not server.id in self.servers[self.tenancyName]:
             self.servers[self.tenancyName][server.id] = server
