@@ -1,6 +1,5 @@
 import VCYCLE
 import os
-import uuid
 import time, random
 import abc
 
@@ -198,7 +197,7 @@ class vcycleBase(object):
    
    
    @abc.abstractmethod
-   def _retrieve_properties(self):
+   def _retrieve_properties(self, server, vmtypeName):
       '''Returns the properties of a VM. It is an abstract method'''
       pass
 
