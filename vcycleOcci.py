@@ -5,9 +5,10 @@ import time
 from occi import Occi
 
 class vcycleOcci(vcycleBase):
-   
+   '''Class to create VMs using OCCI interface'''
    
    def _create_client(self):
+      '''Created a new OCCI client'''
       tenancy = self.tenancy
       if 'proxy' in tenancy:
           return Occi(tenancy['url'],user_cred=tenancy['proxy'])
@@ -21,6 +22,7 @@ class vcycleOcci(vcycleBase):
    
    #Return a list of the running servers on the site
    def _servers_list(self):
+      '''Returns a list of all servers created and not deleted in the tenancy'''
       serversList = []
       servers_client = self.client.servers.list(detailed=False)
       
@@ -42,6 +44,7 @@ class vcycleOcci(vcycleBase):
    
          
    def _retrieve_properties(self, server, vmtypeName):
+      '''Returns the server's properties'''
       properties = {}
       properties['startTime'] = int(server.created)
               
@@ -61,6 +64,7 @@ class vcycleOcci(vcycleBase):
    
    
    def _update_properties(self, server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+      '''Updates the server's properties'''
       if server.status in ['inactive','error','stopped']:
          VCYCLE.logLine(server.name + ' was a fizzle!' + str(int(time.time()) - properties['startTime']) + ' seconds')
       
@@ -84,10 +88,12 @@ class vcycleOcci(vcycleBase):
    
    
    def _describe(self, server):
+      '''Returns the descripion of a server'''
       return self.client.servers.describe(server)
    
    
    def _delete(self, server, vmtypeName, properties):
+      '''Deletes a server'''
       if server.status in ['inactive','error','stopped','cancel'] or (server.status == 'active' and
         ((int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) :
          VCYCLE.logLine('Deleting ' + server.name)
@@ -98,6 +104,7 @@ class vcycleOcci(vcycleBase):
       
       
    def _server_name(self, name=None):
+      '''Returns the server name'''
       if not name is None:
          return 'vcycle-' + name + '-' + str(int(time.time()))
       else:
@@ -105,6 +112,7 @@ class vcycleOcci(vcycleBase):
       
       
    def _create_machine(self, serverName, vmtypeName, proxy=False):
+      '''Creates a new VM using OCCI interface'''
       tenancyName = self.tenancyName
       return self.client.servers.create(serverName,
                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],

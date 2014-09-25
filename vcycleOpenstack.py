@@ -5,9 +5,10 @@ import uuid
 import time , calendar
 from novaclient.client import Client
 class vcycleOpenstack(vcycleBase):
-   
+   '''Class to create VMs using OpenStack interface'''
    
    def _create_client(self):
+      '''Created a new Openstack client'''
       tenancy = self.tenancy
       if 'proxy' in tenancy:
          import novaclient
@@ -25,6 +26,7 @@ class vcycleOpenstack(vcycleBase):
    
    
    def _servers_list(self):
+      '''Returns a list of all servers created and not deleted in the tenancy'''
       serversList = self.client.servers.list(detailed=True)
       for server in serversList:
          if not server.id in self.servers[self.tenancyName]:
@@ -33,6 +35,7 @@ class vcycleOpenstack(vcycleBase):
    
    
    def _retrieve_properties(self, server, vmtypeName):
+      '''Returns the server's properties'''
       properties = {}
       properties['createdTime']  = calendar.timegm(time.strptime(server.created, "%Y-%m-%dT%H:%M:%SZ"))
       properties['updatedTime']  = calendar.timegm(time.strptime(server.updated, "%Y-%m-%dT%H:%M:%SZ"))
@@ -77,6 +80,7 @@ class vcycleOpenstack(vcycleBase):
       
    
    def _update_properties(self, server, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+      '''Updates the server's properties'''
       tenancy = self.tenancy
       tenancyName = self.tenancyName
       
@@ -111,10 +115,13 @@ class vcycleOpenstack(vcycleBase):
       
       
    def _describe(self, server):
+      '''Returns the descripion of a server. This method is empty because when the server is created,
+      Openstack returns directly all the vm description'''
       pass
       
       
    def _delete(self, server, vmtypeName, properties):
+      '''Deletes a server'''
       tenancy = self.tenancy
       if server.status  == 'BUILD':
          return
@@ -170,10 +177,12 @@ class vcycleOpenstack(vcycleBase):
           
           
    def _server_name(self, name=None):
-       return 'vcycle-' + str(uuid.uuid4())
+      '''Returns the server name'''
+      return 'vcycle-' + str(uuid.uuid4())
    
    
    def _create_machine(self, serverName, vmtypeName, proxy=False):
+      '''Creates a new VM using OCCI interface'''
       tenancyName = self.tenancyName
       meta={ 'cern-services'   : 'false',
              'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',

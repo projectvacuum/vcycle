@@ -5,6 +5,7 @@ import time, random
 import abc
 
 class vcycleBase(object):
+   '''Base Class where other class inherit'''
    __metaclass__ = abc.ABCMeta
    
    creationsPerCycle = 5
@@ -13,6 +14,12 @@ class vcycleBase(object):
       pass
    
    def oneCycle(self, tenancyName, tenancy, servers):
+      '''Principal method.
+      Checks every vm running on all tenants. 
+      If the vm is stopped or it was running more than 
+      a period of time the vm will be deleted. 
+      If there are free space, the method will create new vms.'''
+  
       VCYCLE.logLine('Processing tenancy ' + tenancyName)
   
       totalRunning = 0
@@ -39,6 +46,7 @@ class vcycleBase(object):
          VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
          return
       
+      #Get the running and total found servers inside tenancy
       servers_in_tenancy = servers[tenancyName].copy()
       for oneServer in servers_in_tenancy:
          (totalRunning, totalFound) = self.for_server_in_list(servers_in_tenancy[oneServer], totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
@@ -97,6 +105,8 @@ class vcycleBase(object):
    
    def for_server_in_list(self, server, totalRunning, totalFound,
                           notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype):
+      '''Executes for every server found in the tenancy, if the server is stopped or it has been running
+      more than an specific time, the method will delete the server.'''
       
       servers = self.servers[self.tenancyName]
       # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
@@ -138,6 +148,8 @@ class vcycleBase(object):
 
 
    def createMachine(self, vmtypeName, servers, proxy=False):
+      '''Creates a new VM'''
+      
       tenancyName = self.tenancyName
       serverName = self._server_name(name=tenancyName)
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
@@ -175,38 +187,46 @@ class vcycleBase(object):
 
    @abc.abstractmethod
    def _create_client(self):
+      '''Creates a new Client. It is an abstract method'''
       pass
 
 
    @abc.abstractmethod
    def _servers_list(self):
+      '''Returns a list with of the servers created in a tenancy. It is an abstract method'''
       pass
    
    
    @abc.abstractmethod
    def _retrieve_properties(self):
+      '''Returns the properties of a VM. It is an abstract method'''
       pass
 
    
    @abc.abstractmethod
    def _update_properties(self, server, vmtypeName,runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
+      '''Updates the properties of a VM'''
       pass
    
    
    @abc.abstractmethod
    def _describe(self, server):
+      '''Returns the description of a VM.'''
       pass
    
    @abc.abstractmethod
    def _delete(self, server, vmtypeName, properties):
+      '''Deletes a VM'''
       pass
    
    
    @abc.abstractmethod
    def _server_name(self,name=None):
+      '''Returns the name of a VM'''
       pass
 
 
    @abc.abstractmethod
    def _create_machine(self, serverName, vmtypeName, proxy=False):
+      '''Creates a new VM inside a tenancy'''
       pass
