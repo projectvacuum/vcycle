@@ -121,8 +121,8 @@ class Flavor():
       
    def find(self, name=None):
       resources = []
-      list = self.list()
-      for value in list:
+      local_list = self.list()
+      for value in local_list:
          if name in self.describe(value)['title']:
             resources.append(value)
       return resources
@@ -152,8 +152,8 @@ class Image():
       
    def find(self, name=None):
       resources = []
-      list = self.list()
-      for value in list:
+      local_list = self.list()
+      for value in local_list:
          description = self.describe(value)
          if name in description['title']:
             resources.append(description)
@@ -179,7 +179,7 @@ class Compute():
                   action(ob)
             else:
                servers.append(server)
-         except Exception,e:
+         except Exception:
             pass
       return servers
    
@@ -203,7 +203,7 @@ class Compute():
       except Exception:
          return None
       
-      id = description['attributes']['occi']['core']['id']
+      vm_id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
@@ -223,7 +223,7 @@ class Compute():
       flavor = description['mixins'][0]
       flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
       
-      return Server(self.occi, name, id, hostname, status, ip, os, flavor, console)
+      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console)
       
             
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
