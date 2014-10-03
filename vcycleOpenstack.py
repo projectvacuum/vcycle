@@ -124,7 +124,7 @@ class vcycleOpenstack(vcycleBase):
       '''Deletes a server'''
       tenancy = self.tenancy
       if server.status  == 'BUILD':
-         return
+         return False
       
       if ( 
            (
@@ -172,9 +172,10 @@ class vcycleOpenstack(vcycleBase):
         VCYCLE.logLine('Deleting ' + server.name)
         try:
           server.delete()
+          return True
         except Exception as e:
           VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
-          
+      return False
           
    def _server_name(self, name=None):
       '''Returns the server name'''

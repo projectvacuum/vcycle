@@ -213,8 +213,10 @@ class Compute():
       
       if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
          console = description['attributes']['org']['openstack']['compute']['console']['vnc']
+         state = description['attributes']['org']['openstack']['compute']['state']
       else:
          console = None
+         state = None
          
       #check os and flavor
       os = description['mixins'][1]
@@ -223,7 +225,7 @@ class Compute():
       flavor = description['mixins'][0]
       flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
       
-      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console)
+      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console, state)
       
             
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
@@ -243,7 +245,7 @@ class Server():
    created = None
    updated = None
    
-   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console):
+   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console, state=None):
       self.occi = occi
       self.resource = resource
       self.id = id
@@ -259,6 +261,7 @@ class Server():
          self.created = None
       self.updated = self.created
       self.console = console
+      self.state = None
       
    def delete(self):
       return self.occi._delete(self.resource)

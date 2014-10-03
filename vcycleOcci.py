@@ -94,13 +94,18 @@ class vcycleOcci(vcycleBase):
    
    def _delete(self, server, vmtypeName, properties):
       '''Deletes a server'''
+      if server.state == 'building':
+         return False
+      
       if server.status in ['inactive','error','stopped','cancel'] or (server.status == 'active' and
         ((int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) :
          VCYCLE.logLine('Deleting ' + server.name)
          try:
             server.delete()
+            return True
          except Exception as e:
             VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
+      return False
       
       
    def _server_name(self, name=None):
