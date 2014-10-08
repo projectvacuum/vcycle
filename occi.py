@@ -219,6 +219,7 @@ class Compute():
          state = None
          
       #check os and flavor
+      os = None
       if len(description['mixins']) > 1:
         os = description['mixins'][1]
         os = self.occi.images.describe(os[os.index('#')+1:])
