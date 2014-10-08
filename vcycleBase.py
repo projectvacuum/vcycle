@@ -114,7 +114,7 @@ class vcycleBase(object):
       # Just in case other VMs are in this tenancy
       if server is None or server.name[:7] != 'vcycle-':
         return (totalRunning , totalFound)
-     
+      
       try:
          fileTenancyName = open('/var/lib/vcycle/machines/' + server.name + '/tenancy_name', 'r').read().strip()
       except:
@@ -141,8 +141,8 @@ class vcycleBase(object):
         
       properties = self._retrieve_properties(server, vmtypeName)
       totalRunning = self._update_properties(server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
-      self._delete(server, vmtypeName, properties)
-      servers.pop(server.id, None)
+      if self._delete(server, vmtypeName, properties):
+         servers.pop(server.id, None)
       return (totalRunning , totalFound)
 
 
