@@ -185,21 +185,25 @@ class Compute():
    
    
    def describe(self, name):
-      error_counter = 0
-      def call_describe():
+      def call_describe(name, error_counter=0):
          try:
             return self.occi._describe(name)
          except Exception,e:
-            if "Timeout" in e:
+            if "Timeout" in e.message:
                error_counter = error_counter + 1
                if error_counter >= 3:
                   raise e
-               return call_describe()
+               return call_describe(name, error_counter)
+            if "no idea" in e.message:
+               error_counter = error_counter + 1
+               if error_counter >= 3:
+                  raise e
+               return call_describe(name[name.find('/compute/'):],error_counter)
             else:
                raise e
       
       try:
-         description = call_describe()
+         description = call_describe(name)
       except Exception:
          return None
       
@@ -238,7 +242,10 @@ class Compute():
    
    
    def delete(self, resource):
-      return self.occi._delete(resource)
+      try:
+         return self.occi._delete(resource)
+      except Exception,e:
+         return self.occi._delete(resource[resource.find('/compute/'):])
 
    
 
