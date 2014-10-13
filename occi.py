@@ -210,11 +210,11 @@ class Compute():
       vm_id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
+      ip = []
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
-         ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
-      else:
-         ip = 'None'
-      
+         for link in description['links']:
+            ip.append(link['attributes']['occi']['networkinterface']['address'])
+            
       if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
          console = description['attributes']['org']['openstack']['compute']['console']['vnc']
          state = description['attributes']['org']['openstack']['compute']['state']
