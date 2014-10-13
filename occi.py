@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE
 import json
 from datetime import datetime
 import logging
+import itertools
 
 
 class Occi():
@@ -79,7 +80,18 @@ class Occi():
          result = self.process_std(command)
       finally:
          return result
-      
+
+   
+   def _link(self, resource , to_link): 
+      '''Links network or storage to resource'''
+      command = "occi --endpoint %s --action link --resource %s --link %s"  % (self.endpoint, resource , to_link)
+      command += self.command_credentials
+      result = None
+      try:
+         result = self.process_std(command)
+      finally:
+         return result
+
 
    def process_std(self,command):
       logging.info(command)
@@ -212,8 +224,10 @@ class Compute():
       status = description['attributes']['occi']['compute']['state']
       ip = []
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
-         for link in description['links']:
+         for link in itertools.ifilter(lambda x: 'networkinterface' in x['attributes']['occi'], description['links'] ):
             ip.append(link['attributes']['occi']['networkinterface']['address'])
+         #for link in description['links']:
+         #   ip.append(link['attributes']['occi']['networkinterface']['address'])
             
       if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
          console = description['attributes']['org']['openstack']['compute']['console']['vnc']
@@ -248,6 +262,9 @@ class Compute():
          return self.occi._delete(resource[resource.find('/compute/'):])
 
    
+   def link(self, resource, network):
+      return self.occi._link(resource, network)
+
 
 class Server():
    
@@ -271,9 +288,14 @@ class Server():
       self.updated = self.created
       self.console = console
       self.state = None
+   
       
    def delete(self):
       return self.occi._delete(self.resource)
+   
+   
+   def link(self, to_link):
+      return self.occi._link(self.resource, to_link)
    
    
    def __repr__(self):
