@@ -54,10 +54,17 @@ class vcycleOcci(vcycleBase):
       except:
          properties['heartbeatTime'] = None
          properties['heartbeatStr'] = '-'
-
-      VCYCLE.logLine(server.name + ' ' +
+      
+      if len(server.ip) > 0:
+         VCYCLE.logLine(server.name + ' ' +
                     (vmtypeName + ' ')[:16] +
-                    (server.ip + ' ')[:16] +
+                    (server.ip[0] + ' ')[:16] +
+                    (server.status + ' ')[:8]
+                    )
+      else:
+         VCYCLE.logLine(server.name + ' ' +
+                    (vmtypeName + ' ')[:16] +
+                    ('0.0.0.0' + ' ')[:16] +
                     (server.status + ' ')[:8]
                     )
       return properties
@@ -97,8 +104,12 @@ class vcycleOcci(vcycleBase):
       if server.state == 'building':
          return False
       
-      if server.status in ['inactive','error','stopped','cancel'] or (server.status == 'active' and
-        ((int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) :
+      
+      if server.status in ['inactive','error','stopped','cancel'] or self._condition_walltime(server, vmtypeName, properties) :
+         if self._condition_walltime(server, vmtypeName, properties):
+            VCYCLE.logLine("%s Walltime!!: %s > %s" % 
+                           (server.name, (int(time.time()) - properties['startTime']),
+                           self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])  )
          VCYCLE.logLine('Deleting ' + server.name)
          try:
             server.delete()
@@ -119,8 +130,16 @@ class vcycleOcci(vcycleBase):
    def _create_machine(self, serverName, vmtypeName, proxy=False):
       '''Creates a new VM using OCCI interface'''
       tenancyName = self.tenancyName
-      return self.client.servers.create(serverName,
+      server = self.client.servers.create(serverName,
                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
                 VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
                 user_data="file:///var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName) )
+      if 'network' in VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]:
+         server.link(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['network'])
+      return server
+   
+   
+   def _condition_walltime(self, server, vmtypeName, properties):
+      return (server.status == 'active' and
+        ((int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds']))
       
