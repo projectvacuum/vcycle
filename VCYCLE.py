@@ -48,11 +48,11 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' ]
+  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'proxy' , 'type', 'auth' ]
 
   tenancyIntOptions = [ 'max_machines' ]
 
-  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' ]
+  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn', 'network' ]
 
   vmtypeIntOptions = [ 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ]
 
@@ -102,6 +102,12 @@ def readConf(requirePassword=True):
       
       tenancy['tenancy_name'] = parser.get(tenancySectionName,'tenancy_name') 
       tenancy['url'] = parser.get(tenancySectionName,'url')
+      tenancy['type'] = parser.get(tenancySectionName,'type')
+      
+      if not parser.has_option(tenancySectionName, 'auth'):
+         tenancy['auth'] = 'x509'
+      else:
+         tenancy['auth'] = parser.get(tenancySectionName,'auth')
       
       if parser.has_option(tenancySectionName,'proxy'):
          tenancy['proxy'] = parser.get(tenancySectionName,'proxy') 
@@ -139,9 +145,11 @@ def readConf(requirePassword=True):
             vmtype = {}
 
             for opt in vmtypeStrOptions:              
-              if parser.has_option(vmtypeSectionName, opt):
+              if parser.has_option(vmtypeSectionName, opt) :
                 vmtype[opt] = parser.get(vmtypeSectionName, opt)
               else:
+                if opt is 'network':
+                   continue
                 return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
 
             for opt in vmtypeIntOptions:

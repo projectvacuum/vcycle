@@ -2,6 +2,8 @@ from subprocess import Popen, PIPE
 import json
 from datetime import datetime
 import logging
+import itertools
+
 
 
 class Occi():
@@ -60,7 +62,7 @@ class Occi():
    def _create(self, mix_os, mix_resource, user_data, attributes={}):
       '''Create a new resource'''
       command = "occi --endpoint %s --action create --resource compute --mixin os_tpl#%s --mixin resource_tpl#%s" \
-      " --context user_data=%s " % (self.endpoint, mix_os, mix_resource, user_data)
+      " --context user_data=\"%s\" " % (self.endpoint, mix_os, mix_resource, user_data)
       
       for key, value in attributes.iteritems():
          command += "--attribute %s='%s' " % (key, value)
@@ -79,7 +81,18 @@ class Occi():
          result = self.process_std(command)
       finally:
          return result
-      
+
+   
+   def _link(self, resource , to_link): 
+      '''Links network or storage to resource'''
+      command = "occi --endpoint %s --action link --resource %s --link %s"  % (self.endpoint, resource , to_link)
+      command += self.command_credentials
+      result = None
+      try:
+         result = self.process_std(command)
+      finally:
+         return result
+
 
    def process_std(self,command):
       logging.info(command)
@@ -104,8 +117,10 @@ class Flavor():
    def __init__(self, occi):
       self.occi = occi
       
+      
    def list(self):
       return self.occi._list('resource_tpl')
+   
    
    def describe(self, name):
       result_describe = self.occi._describe(name)
@@ -119,8 +134,8 @@ class Flavor():
       
    def find(self, name=None):
       resources = []
-      list = self.list()
-      for value in list:
+      local_list = self.list()
+      for value in local_list:
          if name in self.describe(value)['title']:
             resources.append(value)
       return resources
@@ -150,8 +165,8 @@ class Image():
       
    def find(self, name=None):
       resources = []
-      list = self.list()
-      for value in list:
+      local_list = self.list()
+      for value in local_list:
          description = self.describe(value)
          if name in description['title']:
             resources.append(description)
@@ -165,37 +180,74 @@ class Compute():
       self.occi = occi
       
       
-   def list(self):
+   def list(self, detailed=True, action=None):
       servers = []
       list_servers = self.occi._list('compute')
       for server in list_servers:
          try:
-            servers.append(self.describe(server))
-         except Exception,e:
+            if detailed:
+               ob = self.describe(server)
+               servers.append(ob)
+               if not action is None:
+                  action(ob)
+            else:
+               servers.append(server)
+         except Exception:
             pass
       return servers
    
    
    def describe(self, name):
-      description = self.occi._describe(name)
-      id = description['attributes']['occi']['core']['id']
+      def call_describe(name, error_counter=0):
+         try:
+            return self.occi._describe(name)
+         except Exception,e:
+            if "Timeout" in e.message:
+               error_counter = error_counter + 1
+               if error_counter >= 3:
+                  raise e
+               return call_describe(name, error_counter)
+            if "no idea" in e.message:
+               error_counter = error_counter + 1
+               if error_counter >= 3:
+                  raise e
+               return call_describe(name[name.find('/compute/'):],error_counter)
+            else:
+               raise e
+      
+      try:
+         description = call_describe(name)
+      except Exception:
+         return None
+      
+      vm_id = description['attributes']['occi']['core']['id']
       hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
+      ip = []
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
-         ip = description['links'][0]['attributes']['occi']['networkinterface']['address']
+         for link in itertools.ifilter(lambda x: 'networkinterface' in x['attributes']['occi'], description['links'] ):
+            ip.append(link['attributes']['occi']['networkinterface']['address'])
+         #for link in description['links']:
+         #   ip.append(link['attributes']['occi']['networkinterface']['address'])
+            
+      if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
+         console = description['attributes']['org']['openstack']['compute']['console']['vnc']
+         state = description['attributes']['org']['openstack']['compute']['state']
       else:
-         ip = 'None'
-      
+         console = None
+         state = None
+         
       #check os and flavor
-      os = description['mixins'][1]
-      os = self.occi.images.describe(os[os.index('#')+1:])
+      os = None
+      if len(description['mixins']) > 1:
+        os = description['mixins'][1]
+        os = self.occi.images.describe(os[os.index('#')+1:])
       
       flavor = description['mixins'][0]
       flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
+      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console, state)
+
       
-      return Server(self.occi, name, id, hostname, status, ip, os, flavor)
-      
-            
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
       meta = {}
       meta['occi.core.title'] = name
@@ -204,16 +256,24 @@ class Compute():
    
    
    def delete(self, resource):
-      return self.occi._delete(resource)
+      try:
+         return self.occi._delete(resource)
+      except Exception,e:
+         return self.occi._delete(resource[resource.find('/compute/'):])
 
    
+   def link(self, resource, network):
+      return self.occi._link(resource, network)
+
+
 
 class Server():
    
    created = None
    updated = None
    
-   def __init__(self, occi, resource, id, name, status, ip, os, flavor):
+
+   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console, state=None):
       self.occi = occi
       self.resource = resource
       self.id = id
@@ -223,13 +283,21 @@ class Server():
       self.os = os
       self.flavor = flavor
       if 'vcycle' in name:
-         self.created = name[len('vcycle-'):]
+         aux = name.split('-')
+         self.created = aux[len(aux)-1]
       else:
          self.created = None
       self.updated = self.created
+      self.console = console
+      self.state = None
+   
       
    def delete(self):
       return self.occi._delete(self.resource)
+   
+   
+   def link(self, to_link):
+      return self.occi._link(self.resource, to_link)
    
    
    def __repr__(self):
@@ -240,5 +308,6 @@ class Server():
                 'ip':self.ip,
                 'os': self.os,
                 'flavor':self.flavor,
-                'created':self.created}
+                'created':self.created,
+                'console':self.console}
       return json.dumps(result)
