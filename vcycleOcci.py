@@ -79,10 +79,10 @@ class vcycleOcci(vcycleBase):
          # These ones are running properly
          totalRunning += 1
 
-      if vmtypeName not in runningPerVmtype:
-         runningPerVmtype[vmtypeName] = 1
-      else:
-         runningPerVmtype[vmtypeName] += 1
+         if vmtypeName not in runningPerVmtype:
+            runningPerVmtype[vmtypeName] = 1
+         else:
+            runningPerVmtype[vmtypeName] += 1
 
       # These ones are starting/running
       if server.status == 'active' and (int(time.time()) - properties['startTime']) < self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
