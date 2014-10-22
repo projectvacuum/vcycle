@@ -183,7 +183,7 @@ class vcycleOpenstack(vcycleBase):
    
    
    def _create_machine(self, serverName, vmtypeName, proxy=False):
-      '''Creates a new VM using OCCI interface'''
+      '''Creates a new VM using Openstack interface'''
       tenancyName = self.tenancyName
       meta={ 'cern-services'   : 'false',
              'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
