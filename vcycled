@@ -45,6 +45,7 @@ import threading
 
 from vcycleOpenstack import vcycleOpenstack
 from vcycleOcci import vcycleOcci
+from vcycleDBCE import vcycleDBCE
 import VCYCLE
 
 sleepSeconds      = 60
@@ -125,6 +126,8 @@ if __name__ == '__main__':
               servers[tenancyName] = {}
            if tenancy['type'] == 'openstack':
               vOpen = vcycleOpenstack()
+           elif tenancy['type'] == 'dbce':
+              vOpen = vcycleDBCE()
            else:
               vOpen = vcycleOcci()
            try:
