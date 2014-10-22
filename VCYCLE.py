@@ -52,7 +52,7 @@ def readConf(requirePassword=True):
 
   tenancyIntOptions = [ 'max_machines' ]
 
-  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn', 'network' ]
+  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn', 'network', 'public_key' ]
 
   vmtypeIntOptions = [ 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ]
 
@@ -148,7 +148,7 @@ def readConf(requirePassword=True):
               if parser.has_option(vmtypeSectionName, opt) :
                 vmtype[opt] = parser.get(vmtypeSectionName, opt)
               else:
-                if opt is 'network':
+                if opt is 'network' or 'public_key':
                    continue
                 return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
 
