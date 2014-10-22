@@ -42,7 +42,7 @@ class vcycleBase(object):
       try:
          self._servers_list()
       except Exception as e:
-         VCYCLE.logLine('novaClient.servers.list() fails with exception ' + str(e))
+         VCYCLE.logLine('client.servers.list() fails with exception ' + str(e))
          return
       
       #Get the running and total found servers inside tenancy
@@ -143,6 +143,8 @@ class vcycleBase(object):
       totalRunning = self._update_properties(server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
       if self._delete(server, vmtypeName, properties):
          servers.pop(server.id, None)
+         foundPerVmtype[vmtypeName] -= 1
+         totalFound -= 1
       return (totalRunning , totalFound)
 
 
