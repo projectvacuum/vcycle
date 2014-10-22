@@ -37,16 +37,15 @@ class Occi():
       try:
          result_command = self.process_std(command)
       except Exception,e:
-         if "sslv3 alert certificate expired" in e.message:
-            raise e
-         else:
-            logging.error(e)
-            return []
-      result = []
-      for  line in result_command.split('\n'):
-         if len(line) > 0:
-            result.append(line[line.find('#')+1:])
-      return result
+         message = e.args[0]
+         message = message[message.find('Message:')+len("Message:"):len(message)-1]
+         raise Exception(message)
+      else:
+         result = []
+         for  line in result_command.split('\n'):
+            if len(line) > 0:
+               result.append(line[line.find('#')+1:])
+         return result
 
 
    def _describe(self,resource):
@@ -202,12 +201,12 @@ class Compute():
          try:
             return self.occi._describe(name)
          except Exception,e:
-            if "Timeout" in e.message:
+            if "Timeout" in e.args[0]:
                error_counter = error_counter + 1
                if error_counter >= 3:
                   raise e
                return call_describe(name, error_counter)
-            if "no idea" in e.message:
+            if "no idea" in e.args[0]:
                error_counter = error_counter + 1
                if error_counter >= 3:
                   raise e
@@ -290,14 +289,18 @@ class Server():
       self.updated = self.created
       self.console = console
       self.state = None
+      self.network = None
    
       
    def delete(self):
+      if not self.network is None:
+         self.occi._delete(self.network)
       return self.occi._delete(self.resource)
    
    
    def link(self, to_link):
-      return self.occi._link(self.resource, to_link)
+      self.network = self.occi._link(self.resource, to_link)
+      return self.network
    
    
    def __repr__(self):
