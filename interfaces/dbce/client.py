@@ -1,7 +1,7 @@
 import requests
 from requests.auth import HTTPBasicAuth
 import json
-from interfaces.dbce.models.models import *
+from models.models import * 
 import abc
 
 domain_name = ""
