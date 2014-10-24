@@ -43,8 +43,7 @@ GNUTAR ?= tar
 vcycle.tgz: $(TGZ_FILES)
 	mkdir -p TEMPDIR/vcycle/interfaces/dbce/models
 	cp $(TGZ_FILES) TEMPDIR/vcycle
-	cp ./interfaces/dbce/models/models.py  TEMPDIR/vcycle/interfaces/dbce/models/
-	cp ./interfaces/dbce/client.py  TEMPDIR/vcycle/interfaces/dbce/
+	cp -r ./interfaces/*  TEMPDIR/vcycle/interfaces/
 	cd TEMPDIR ; $(GNUTAR) zcvf ../vcycle.tgz --owner=root --group=root vcycle
 	rm -R TEMPDIR
 
@@ -61,10 +60,8 @@ install: $(INSTALL_FILES)
 
 	cp vcycled vcycle VCYCLE.py vcycle-cgi occi.py vcycleOcci.py vcycleDBCE.py vcycleOpenstack.py vcycleBase.py  \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin
-	cp ./interfaces/dbce/client.py \
-	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/dbce
-	cp ./interfaces/dbce/models/models.py \
-	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/models
+	cp -r ./interfaces/* \
+	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/
 	cp VERSION CHANGES \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/doc
 	cp vcycled.init \
