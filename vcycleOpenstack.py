@@ -28,9 +28,6 @@ class vcycleOpenstack(vcycleBase):
    def _servers_list(self):
       '''Returns a list of all servers created and not deleted in the tenancy'''
       serversList = self.client.servers.list(detailed=True)
-      for server in serversList:
-         if not server.id in self.servers[self.tenancyName]:
-            self.servers[self.tenancyName][server.id] = server
       return serversList
    
    

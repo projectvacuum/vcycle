@@ -12,7 +12,7 @@ class vcycleBase(object):
    def __init__(self):
       pass
    
-   def oneCycle(self, tenancyName, tenancy, servers):
+   def oneCycle(self, tenancyName, tenancy):
       '''Principal method.
       Checks every vm running on all tenants. 
       If the vm is stopped or it was running more than 
@@ -34,21 +34,19 @@ class vcycleBase(object):
          runningPerVmtype[vmtypeName]       = 0
       
       self.tenancyName = tenancyName
-      self.servers = servers
       self.tenancy = tenancy 
       self.client = self._create_client()
       
       #Update the servers running on the site   
       try:
-         self._servers_list()
+         servers_in_tenancy = self._servers_list()
       except Exception as e:
          VCYCLE.logLine('client.servers.list() fails with exception ' + str(e))
          return
       
       #Get the running and total found servers inside tenancy
-      servers_in_tenancy = servers[tenancyName].copy()
       for oneServer in servers_in_tenancy:
-         (totalRunning, totalFound) = self.for_server_in_list(servers_in_tenancy[oneServer], totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
+         (totalRunning, totalFound) = self.for_server_in_list(oneServer, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
             
       VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
       for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
@@ -87,7 +85,7 @@ class vcycleBase(object):
 
             else:
                VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
-               errorMessage = self.createMachine(vmtypeName, servers, proxy='proxy' in tenancy)
+               errorMessage = self.createMachine(vmtypeName, proxy='proxy' in tenancy)
                if errorMessage:
                   VCYCLE.logLine(errorMessage)
                else:
@@ -107,7 +105,6 @@ class vcycleBase(object):
       '''Executes for every server found in the tenancy, if the server is stopped or it has been running
       more than an specific time, the method will delete the server.'''
       
-      servers = self.servers[self.tenancyName]
       # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
       totalFound += 1
       
@@ -142,15 +139,13 @@ class vcycleBase(object):
       properties = self._retrieve_properties(server, vmtypeName)
       totalRunning = self._update_properties(server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
       if self._delete(server, vmtypeName, properties):
-         servers.pop(server.id, None)
          foundPerVmtype[vmtypeName] -= 1
          totalFound -= 1
       return (totalRunning , totalFound)
 
 
-   def createMachine(self, vmtypeName, servers, proxy=False):
+   def createMachine(self, vmtypeName, proxy=False):
       '''Creates a new VM'''
-      
       tenancyName = self.tenancyName
       serverName = self._server_name(name=tenancyName)
       os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
@@ -169,8 +164,6 @@ class vcycleBase(object):
 
       try:
          server = self._create_machine(serverName, vmtypeName, proxy=proxy)
-         if not server is None:
-            servers[self.tenancyName][server.id] = server
       except Exception as e:
          return 'Error creating new server: ' + str(e)
       

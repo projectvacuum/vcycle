@@ -23,24 +23,7 @@ class vcycleOcci(vcycleBase):
    #Return a list of the running servers on the site
    def _servers_list(self):
       '''Returns a list of all servers created and not deleted in the tenancy'''
-      serversList = []
-      servers_client = self.client.servers.list(detailed=False)
-      
-      #Remove from list servers deleted from the site
-      aux_servers = self.servers[self.tenancyName].copy()
-      for server in aux_servers:
-         if not server in servers_client:
-            self.servers[self.tenancyName].pop(server,None)
-      
-      #Add servers      
-      for server in servers_client:
-         serv = self.servers[self.tenancyName]
-      
-         if not server in serv or (server in serv and serv[server] != None and 'vcycle' in serv[server].name):
-            serv[server] = self.client.servers.describe(server)
-         serversList.append(serv[server])
-      
-      return serversList
+      return self.client.servers.list(detailed=True)
    
          
    def _retrieve_properties(self, server, vmtypeName):

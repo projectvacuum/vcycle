@@ -3,7 +3,8 @@ import os
 import VCYCLE
 import uuid
 import time , calendar
-from interfaces.dbce.client import DBCE
+import interfaces.dbce.client
+
 
 class vcycleDBCE(vcycleBase):
    
@@ -13,7 +14,7 @@ class vcycleDBCE(vcycleBase):
       '''Create a new DBCE client'''
       tenancy = self.tenancy
       self.provider_name = tenancy['tenancy_name']
-      dbceClient = DBCE(tenancy['url'], tenancy['username'], tenancy['password'])
+      dbceClient = interfaces.dbce.client.DBCE(tenancy['url'], tenancy['username'], tenancy['password'])
       return dbceClient
    
    

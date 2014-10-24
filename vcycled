@@ -132,7 +132,7 @@ if __name__ == '__main__':
               vOpen = vcycleOcci()
            try:
               #threads.append(threading.Thread(target=vOpen.oneCycle(tenancyName, tenancy)))
-              vOpen.oneCycle(tenancyName, tenancy, servers)
+              vOpen.oneCycle(tenancyName, tenancy)
            except Exception,e:
               VCYCLE.logLine(e.message)
           
