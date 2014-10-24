@@ -52,7 +52,7 @@ class vcycleDBCE(vcycleBase):
         properties['heartbeatTime'] = None
         properties['heartbeatStr'] = '-'
       
-      VCYCLE.logLine(server.name + ' ' + 
+      VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
               (server.status + '       ')[:8] + 
@@ -70,7 +70,7 @@ class vcycleDBCE(vcycleBase):
       tenancyName = self.tenancyName
       
       if server.status == 'SHUTOFF' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
+        VCYCLE.logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
           VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
         except:
@@ -126,13 +126,13 @@ class vcycleDBCE(vcycleBase):
            ):
           
          
-        VCYCLE.logLine('Deleting ' + server.name)
+        VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
         try:
           self.client.machine.delete(server.id)
           self.servers_contextualized.pop(server.id, None)
           return True
         except Exception as e:
-          VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
+          VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
           
    def _server_name(self, name=None):
@@ -160,6 +160,6 @@ class vcycleDBCE(vcycleBase):
                pass
             else:
                subprocess.check_call("ssh -tt -i /home/lvillazo/dbce/id_rsa -o StrictHostKeyChecking=no dbce@%s 'chmod u+x build.sh;chmod u+x kvimg_context_script.sh;sudo nohup ./build.sh >> build.log 2>&1'&" % interface['address']['ip'], shell=True, stderr=subprocess.STDOUT)
-               VCYCLE.logLine('Contextualized ' + server.name)
+               VCYCLE.logLine(self.tenancyName, 'Contextualized ' + server.name)
                self.servers_contextualized[server.id]['contextualized'] = True
             

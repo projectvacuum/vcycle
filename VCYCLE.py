@@ -37,10 +37,12 @@ import sys
 import time
 import json
 import tempfile
+import logging
 import ConfigParser
 
 tenancies    = None
 lastFizzles = {}
+loggers = {}
 
 def readConf(requirePassword=True):
 
@@ -228,6 +230,20 @@ def makeJsonFile(targetDirectory):
   except Exception as e:
     logLine('Writing JSON fails with ' + str(e))
 
-def logLine(text):
-  sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')
-  sys.stderr.flush()
+def logLine(tenancy, text):
+  global loggers
+  if not tenancy in loggers:
+     logger = logging.getLogger(tenancy)
+     logger.propagate = False
+     logger.setLevel(logging.DEBUG)
+     # create file handler which logs even debug messages
+     fh = logging.FileHandler("/var/log/vcycle-%s.log" % tenancy)
+     fh.setLevel(logging.DEBUG)
+     formatter = logging.Formatter('%(asctime)s - %(message)s')
+     fh.setFormatter(formatter)
+     logger.addHandler(fh)
+     loggers[tenancy] = logger
+
+  loggers[tenancy].debug(text)
+  #sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')
+  #sys.stderr.flush()

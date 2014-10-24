@@ -19,7 +19,7 @@ class vcycleBase(object):
       a period of time the vm will be deleted. 
       If there are free space, the method will create new vms.'''
   
-      VCYCLE.logLine('Processing tenancy ' + tenancyName)
+      VCYCLE.logLine(tenancyName, 'Processing tenancy ' + tenancyName)
   
       totalRunning = 0
       totalFound   = 0
@@ -41,16 +41,16 @@ class vcycleBase(object):
       try:
          servers_in_tenancy = self._servers_list()
       except Exception as e:
-         VCYCLE.logLine('client.servers.list() fails with exception ' + str(e))
+         VCYCLE.logLine(tenancyName, 'client.servers.list() fails with exception ' + str(e))
          return
       
       #Get the running and total found servers inside tenancy
       for oneServer in servers_in_tenancy:
          (totalRunning, totalFound) = self.for_server_in_list(oneServer, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
             
-      VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
+      VCYCLE.logLine(tenancyName, 'Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
       for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
-         VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
+         VCYCLE.logLine(tenancyName, 'vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
       
       # Now decide whether to create new VMs
       createdThisCycle = 0
@@ -66,28 +66,28 @@ class vcycleBase(object):
             vmtype = tenancy['vmtypes'][vmtypeName]
     
             if totalFound >= tenancy['max_machines']:
-               VCYCLE.logLine('Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
+               VCYCLE.logLine(tenancyName, 'Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
                return
 
             elif foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
-               VCYCLE.logLine('Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
+               VCYCLE.logLine(tenancyName, 'Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
 
             elif createdThisCycle >= self.creationsPerCycle:
-               VCYCLE.logLine('Free capacity found ... but already created %d this cycle' % createdThisCycle )
+               VCYCLE.logLine(tenancyName, 'Free capacity found ... but already created %d this cycle' % createdThisCycle )
                return
 
             elif int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds']):
-               VCYCLE.logLine('Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
+               VCYCLE.logLine(tenancyName, 'Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
         
             elif (int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
-                VCYCLE.logLine('Free capacity found for %s ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
+                VCYCLE.logLine(tenancyName, 'Free capacity found for %s ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
                 (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
 
             else:
-               VCYCLE.logLine('Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
+               VCYCLE.logLine(tenancyName, 'Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
                errorMessage = self.createMachine(vmtypeName, proxy='proxy' in tenancy)
                if errorMessage:
-                  VCYCLE.logLine(errorMessage)
+                  VCYCLE.logLine(tenancyName, errorMessage)
                else:
                   createdThisCycle                   += 1
                   createdThisPass                    += 1
@@ -104,7 +104,7 @@ class vcycleBase(object):
                           notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype):
       '''Executes for every server found in the tenancy, if the server is stopped or it has been running
       more than an specific time, the method will delete the server.'''
-      
+      tenancyName = self.tenancyName
       # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
       totalFound += 1
       
@@ -116,19 +116,19 @@ class vcycleBase(object):
          fileTenancyName = open('/var/lib/vcycle/machines/' + server.name + '/tenancy_name', 'r').read().strip()
       except:
          # Not one of ours? Cleaned up directory too early?
-         VCYCLE.logLine('Skipping ' + server.name + ' which has no tenancy name')
+         VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
          return (totalRunning , totalFound)
       else:
          # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
          if fileTenancyName != self.tenancyName:        
-            VCYCLE.logLine('Skipping ' + server.name + ' which is in ' + self.tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
+            VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which is in ' + self.tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
             return (totalRunning , totalFound)
 
       try:
          vmtypeName = open('/var/lib/vcycle/machines/' + server.name + '/vmtype_name', 'r').read().strip()
       except:
          # Not one of ours? Something went wrong?
-         VCYCLE.logLine('Skipping ' + server.name + ' which has no vmtype name')
+         VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no vmtype name')
          return (totalRunning , totalFound)
 
       if vmtypeName not in foundPerVmtype:
@@ -173,9 +173,9 @@ class vcycleBase(object):
       VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
 
       if not server is None:
-         VCYCLE.logLine('Created ' + serverName + ' (' + server.id + ') for ' + vmtypeName + ' within ' + tenancyName)
+         VCYCLE.logLine(tenancyName, 'Created ' + serverName + ' (' + server.id + ') for ' + vmtypeName + ' within ' + tenancyName)
       else:
-         VCYCLE.logLine('Created ' + serverName + ' for ' + vmtypeName + ' within ' + tenancyName)
+         VCYCLE.logLine(tenancyName, 'Created ' + serverName + ' for ' + vmtypeName + ' within ' + tenancyName)
       return None
 
 

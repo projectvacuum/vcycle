@@ -52,102 +52,62 @@ sleepSeconds      = 60
 creationsPerCycle = 5
 
 
+def cycle(tenancyName, tenancy):
+   while True:
+      try:
+         pf = open('/var/run/vcycled.pid', 'r')
+         pid = int(pf.read().strip())
+         pf.close()
+         if pid != os.getpid():
+            print 'new /var/run/vcycled.pid - exiting'
+            break
+      except:
+         print 'no /var/run/vcycled.pid - exiting'
+         break
+   
+      VCYCLE.logLine(tenancyName, '=============== Start cycle ===============')
+      if tenancy['type'] == 'openstack':
+         vOpen = vcycleOpenstack()
+      elif tenancy['type'] == 'dbce':
+         vOpen = vcycleDBCE()
+      else:
+         vOpen = vcycleOcci()
+      try:
+         vOpen.oneCycle(tenancyName, tenancy)
+      except Exception,e:
+         VCYCLE.logLine(tenancyName, e.message)
+      VCYCLE.logLine(tenancyName, '================ End cycle ================')
+      time.sleep(sleepSeconds)
+      
+
 #
 # PROGRAM MAIN
 #
 
 if __name__ == '__main__':
-  
-  if (os.fork() != 0):
-    sys.exit() # first parent
+   if os.fork() != 0:
+      sys.exit() # first parent
+   else:
+      os.chdir("/")
+      os.setsid()
+      os.umask(0)
 
-  else:
-    os.chdir("/")
-    os.setsid()
-    os.umask(0) 
-
-    if os.fork() != 0:
+   if os.fork() != 0:
       sys.exit() # second parent
-
-    else:
-
+   else:
       try:
-        f = open('/var/run/vcycled.pid', 'w')
-        f.write(str(os.getpid()) + '\n')
-        f.close()
+         f = open('/var/run/vcycled.pid', 'w')
+         f.write(str(os.getpid()) + '\n')
+         f.close()
       except:
-        print 'Failed to create /var/run/vcycled.pid - exiting'
-        sys.exit(1)
-
-      # Close stdin now
-      si = file('/dev/null', 'r')
-      os.dup2(si.fileno(), sys.stdin.fileno())
-      servers = {}
-      while True:
-
-        # Close and reopen stdout->log file, in case of logrotate
-        try:
-          close(so)
-        except:
-          pass
-
-        so = file('/var/log/vcycled', 'a+')
-        os.dup2(so.fileno(), sys.stdout.fileno())
-          
-        # Close and reopen stderr->log file, in case of logrotate
-        try:
-          close(se)
-        except:
-          pass
-
-        se = file('/var/log/vcycled', 'a+', 0)     
-        os.dup2(se.fileno(), sys.stderr.fileno())
-
-        try:
-          pf = open('/var/run/vcycled.pid', 'r')
-          pid = int(pf.read().strip())
-          pf.close()
+         print 'Failed to create /var/run/vcycled.pid - exiting'
+         sys.exit(1)
+   
        
-          if pid != os.getpid():
-            print 'new /var/run/vcycled.pid - exiting'
-            break
-                
-        except:
-          print 'no /var/run/vcycled.pid - exiting'
-          break
-
-        VCYCLE.logLine('=============== Start cycle ===============')
-
-        VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
+   VCYCLE.readConf()
+   for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
+      threading.Thread(target=cycle,args=(tenancyName,tenancy)).start()
         
-        threads = list()
-        for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
-           if not tenancyName in servers:
-              servers[tenancyName] = {}
-           if tenancy['type'] == 'openstack':
-              vOpen = vcycleOpenstack()
-           elif tenancy['type'] == 'dbce':
-              vOpen = vcycleDBCE()
-           else:
-              vOpen = vcycleOcci()
-           try:
-              #threads.append(threading.Thread(target=vOpen.oneCycle(tenancyName, tenancy)))
-              vOpen.oneCycle(tenancyName, tenancy)
-           except Exception,e:
-              VCYCLE.logLine(e.message)
-          
-#        cleanupDirectories()
-        #for thread in threads:
-        #   thread.start()
-        #for thread in threads:
-        #   thread.join()
-        VCYCLE.logLine('================ End cycle ================')
 
-        # Flush logging to the filesystem 
-        sys.stdout.flush()
-        sys.stderr.flush()
- 
-        time.sleep(sleepSeconds)
-
-    sys.exit(0) # if we break out of the while loop then we exit
+  
 

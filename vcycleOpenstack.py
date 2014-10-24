@@ -62,7 +62,7 @@ class vcycleOpenstack(vcycleBase):
         properties['heartbeatTime'] = None
         properties['heartbeatStr'] = '-'
       
-      VCYCLE.logLine(server.name + ' ' + 
+      VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
               (server.status + '       ')[:8] + 
@@ -82,7 +82,7 @@ class vcycleOpenstack(vcycleBase):
       tenancyName = self.tenancyName
       
       if server.status == 'SHUTOFF' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
+        VCYCLE.logLine(self.tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
           VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
         except:
@@ -166,12 +166,12 @@ class vcycleOpenstack(vcycleBase):
              )             
            )
          ):
-        VCYCLE.logLine('Deleting ' + server.name)
+        VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
         try:
           server.delete()
           return True
         except Exception as e:
-          VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
+          VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
           
    def _server_name(self, name=None):

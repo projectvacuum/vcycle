@@ -39,13 +39,13 @@ class vcycleOcci(vcycleBase):
          properties['heartbeatStr'] = '-'
       
       if len(server.ip) > 0:
-         VCYCLE.logLine(server.name + ' ' +
+         VCYCLE.logLine(self.tenancyName, server.name + ' ' +
                     (vmtypeName + ' ')[:16] +
                     (server.ip[0] + ' ')[:16] +
                     (server.status + ' ')[:8]
                     )
       else:
-         VCYCLE.logLine(server.name + ' ' +
+         VCYCLE.logLine(self.tenancyName, server.name + ' ' +
                     (vmtypeName + ' ')[:16] +
                     ('0.0.0.0' + ' ')[:16] +
                     (server.status + ' ')[:8]
@@ -56,7 +56,7 @@ class vcycleOcci(vcycleBase):
    def _update_properties(self, server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
       '''Updates the server's properties'''
       if server.status in ['inactive','error','stopped']:
-         VCYCLE.logLine(server.name + ' was a fizzle!' + str(int(time.time()) - properties['startTime']) + ' seconds')
+         VCYCLE.logLine(self.tenancyName, server.name + ' was a fizzle!' + str(int(time.time()) - properties['startTime']) + ' seconds')
       
       if server.status == 'active':
          # These ones are running properly
@@ -90,15 +90,15 @@ class vcycleOcci(vcycleBase):
       
       if server.status in ['inactive','error','stopped','cancel'] or self._condition_walltime(server, vmtypeName, properties) :
          if self._condition_walltime(server, vmtypeName, properties):
-            VCYCLE.logLine("%s Walltime!!: %s > %s" % 
+            VCYCLE.logLine(self.tenancyName, "%s Walltime!!: %s > %s" % 
                            (server.name, (int(time.time()) - properties['startTime']),
                            self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])  )
-         VCYCLE.logLine('Deleting ' + server.name)
+         VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
          try:
             server.delete()
             return True
          except Exception as e:
-            VCYCLE.logLine('Delete ' + server.name + ' fails with ' + str(e))
+            VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
       
       
