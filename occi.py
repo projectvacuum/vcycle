@@ -220,7 +220,8 @@ class Compute():
          return None
       
       vm_id = description['attributes']['occi']['core']['id']
-      hostname = description['attributes']['occi']['compute']['hostname']
+      if 'hostname' in description['attributes']['occi']['compute']:
+         hostname = description['attributes']['occi']['compute']['hostname']
       status = description['attributes']['occi']['compute']['state']
       ip = []
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
@@ -229,7 +230,7 @@ class Compute():
          #for link in description['links']:
          #   ip.append(link['attributes']['occi']['networkinterface']['address'])
             
-      if "org" in description['attributes'] and "openstack" in description['attributes']['org']:
+      if "org" in description['attributes'] and "openstack" in description['attributes']['org'] and "compute" in description['attributes']['org']['openstack']:
          console = description['attributes']['org']['openstack']['compute']['console']['vnc']
          state = description['attributes']['org']['openstack']['compute']['state']
       else:
