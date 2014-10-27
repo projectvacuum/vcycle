@@ -132,6 +132,11 @@ def readConf(requirePassword=True):
         else:
           tenancy['password'] = ''
 
+      try:
+         tenancy['delete_old_files'] = bool(parser.get(tenancySectionName, 'delete_old_files'))
+      except:
+         tenancy['delete_old_files'] = True
+
       # Get the options for each vmtype section associated with this tenancy
 
       vmtypes = {}
@@ -143,7 +148,7 @@ def readConf(requirePassword=True):
 
           if split2[1] == tenancyName:
             vmtypeName = split2[2]
-# NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
+            # NEED TO CHECK THIS IS JUST a-z,0-9,-,_,.
             vmtype = {}
 
             for opt in vmtypeStrOptions:              

@@ -2,6 +2,7 @@ import VCYCLE
 import os
 import time, random
 import abc
+import shutil
 
 class vcycleBase(object):
    '''Base Class where other class inherit'''
@@ -27,6 +28,7 @@ class vcycleBase(object):
       notPassedFizzleSeconds = {}
       foundPerVmtype         = {}
       runningPerVmtype       = {}
+      serverNames            = []
 
       for vmtypeName,vmtype in tenancy['vmtypes'].iteritems(): 
          notPassedFizzleSeconds[vmtypeName] = 0
@@ -47,10 +49,15 @@ class vcycleBase(object):
       #Get the running and total found servers inside tenancy
       for oneServer in servers_in_tenancy:
          (totalRunning, totalFound) = self.for_server_in_list(oneServer, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
-            
+         if not oneServer is None and oneServer.name[:7] == 'vcycle-':
+            serverNames.append(oneServer.name)
+                  
       VCYCLE.logLine(tenancyName, 'Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
       for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
          VCYCLE.logLine(tenancyName, 'vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
+      
+      # Get rid of directories about old VMs
+      self.cleanupDirectories(tenancyName, serverNames)
       
       # Now decide whether to create new VMs
       createdThisCycle = 0
@@ -68,21 +75,16 @@ class vcycleBase(object):
             if totalFound >= tenancy['max_machines']:
                VCYCLE.logLine(tenancyName, 'Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
                return
-
             elif foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
                VCYCLE.logLine(tenancyName, 'Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
-
             elif createdThisCycle >= self.creationsPerCycle:
                VCYCLE.logLine(tenancyName, 'Free capacity found ... but already created %d this cycle' % createdThisCycle )
                return
-
             elif int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds']):
                VCYCLE.logLine(tenancyName, 'Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
-        
             elif (int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
                 VCYCLE.logLine(tenancyName, 'Free capacity found for %s ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
                 (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
-
             else:
                VCYCLE.logLine(tenancyName, 'Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
                errorMessage = self.createMachine(vmtypeName, proxy='proxy' in tenancy)
@@ -177,6 +179,47 @@ class vcycleBase(object):
       else:
          VCYCLE.logLine(tenancyName, 'Created ' + serverName + ' for ' + vmtypeName + ' within ' + tenancyName)
       return None
+
+
+   def cleanupDirectories(self, tenancyName, serverNames):
+      if not VCYCLE.tenancies[tenancyName]['delete_old_files']:
+         return
+
+      try:
+         dirslist = os.listdir('/var/lib/vcycle/machines/')
+      except:
+         return
+      
+      # Go through the per-machine directories
+      for onedir in dirslist:
+         # Get the tenancy name
+         try:
+            fileTenancyName = open('/var/lib/vcycle/machines/' + onedir + '/tenancy_name', 'r').read().strip()        
+         except:
+            continue
+
+         # Ignore if not in this tenancy, unless not in any defined tenancy
+         if fileTenancyName in VCYCLE.tenancies and (fileTenancyName != tenancyName):
+            continue
+         try:
+            onedirCtime = int(os.stat('/var/lib/vcycle/machines/' + onedir).st_ctime)
+         except:
+            continue
+        
+         # Ignore directories created in the last 60 minutes to avoid race conditions
+         # (with other Vcycle instances? OpenStack latencies?)
+         if onedirCtime > (time.time() - 3600):
+            continue
+
+         # If the VM still exists then no deletion either
+         if onedir in serverNames:
+            continue
+
+         try:
+            shutil.rmtree('/var/lib/vcycle/machines/' + onedir)
+            VCYCLE.logLine('Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
+         except:
+            VCYCLE.logLine('Failed deleting /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
 
 
    @abc.abstractmethod
