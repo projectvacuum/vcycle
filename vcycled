@@ -75,7 +75,7 @@ def cycle(tenancyName, tenancy):
       try:
          vOpen.oneCycle(tenancyName, tenancy)
       except Exception,e:
-         VCYCLE.logLine(tenancyName, e.message)
+         VCYCLE.logLine(tenancyName, str(e))
       VCYCLE.logLine(tenancyName, '================ End cycle ================')
       time.sleep(sleepSeconds)
       
