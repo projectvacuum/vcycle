@@ -118,7 +118,10 @@ class vcycleBase(object):
          fileTenancyName = open('/var/lib/vcycle/machines/' + server.name + '/tenancy_name', 'r').read().strip()
       except:
          # Not one of ours? Cleaned up directory too early?
+         server.delete()
          VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
+         VCYCLE.logLine(tenancyName, 'Deleted ' + server.name + ' which has no tenancy name')
+         totalFound -= 1
          return (totalRunning , totalFound)
       else:
          # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
@@ -217,9 +220,9 @@ class vcycleBase(object):
 
          try:
             shutil.rmtree('/var/lib/vcycle/machines/' + onedir)
-            VCYCLE.logLine('Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
+            VCYCLE.logLine(tenancyName, 'Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
          except:
-            VCYCLE.logLine('Failed deleting /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
+            VCYCLE.logLine(tenancyName, 'Failed deleting /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
 
 
    @abc.abstractmethod
