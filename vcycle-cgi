@@ -44,15 +44,15 @@ if VCYCLE.readConf(requirePassword=False) is not None:
   sys.exit(0)
 
 try:
-  (hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
+  (hostName, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[2:4]
 except:
-  print 'Status: 404 Not Found'
+  print 'Status: 404 Not Found(1)'
   print
   sys.exit(0)
 
 if (subDirectory != 'machineoutputs' or 
     not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')):
-  print 'Status: 404 Not Found'
+  print 'Status: 404 Not Found(2)'
   print
   sys.exit(0)
 
@@ -64,14 +64,14 @@ except:
   print
   sys.exit(0)
 
-if ('SSL_CLIENT_S_DN' not in os.environ or
-    tenancyName not in VCYCLE.tenancies or
-    vmtypeName not in VCYCLE.tenancies[tenancyName]['vmtypes'] or 
-    'x509dn' not in VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName] or 
-    os.environ['SSL_CLIENT_S_DN'] != VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['x509dn']):
-  print 'Status: 403 Forbidden'
-  print
-  sys.exit(0)
+#if ('SSL_CLIENT_S_DN' not in os.environ or
+#    tenancyName not in VCYCLE.tenancies or
+#    vmtypeName not in VCYCLE.tenancies[tenancyName]['vmtypes'] or 
+#    'x509dn' not in VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName] or 
+#    os.environ['SSL_CLIENT_S_DN'] != VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['x509dn']):
+#  print 'Status: 403 Forbidden'
+#  print
+#  sys.exit(0)
 
 try:
   f = open('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + fileName, 'w')
