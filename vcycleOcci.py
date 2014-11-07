@@ -40,13 +40,14 @@ class vcycleOcci(vcycleBase):
       
       if len(server.ip) > 0:
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
-                    (vmtypeName + ' ')[:16] +
+                    (vmtypeName + '  ')[:16] +
                     (server.ip[0] + ' ')[:16] +
-                    (server.status + ' ')[:8]
+                    (server.status + ' ')[:8] +
+                    properties['heartbeatStr']
                     )
       else:
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
-                    (vmtypeName + ' ')[:16] +
+                    (vmtypeName + '  ')[:16] +
                     ('0.0.0.0' + ' ')[:16] +
                     (server.status + ' ')[:8] +
                     properties['heartbeatStr']
