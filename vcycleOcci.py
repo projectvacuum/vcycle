@@ -48,7 +48,8 @@ class vcycleOcci(vcycleBase):
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
                     (vmtypeName + ' ')[:16] +
                     ('0.0.0.0' + ' ')[:16] +
-                    (server.status + ' ')[:8]
+                    (server.status + ' ')[:8] +
+                    properties['heartbeatStr']
                     )
       return properties
    

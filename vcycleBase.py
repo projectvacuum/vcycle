@@ -15,7 +15,7 @@ class vcycleBase(object):
    
    def oneCycle(self, tenancyName, tenancy):
       '''Principal method.
-      Checks every vm running on all tenants. 
+      Checks every vm running. 
       If the vm is stopped or it was running more than 
       a period of time the vm will be deleted. 
       If there are free space, the method will create new vms.'''
