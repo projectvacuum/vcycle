@@ -49,11 +49,11 @@ def readConf(requirePassword=True):
   
   tenancies = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username' ]
+  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'vcycle_space' ]
 
   tenancyIntOptions = [ 'max_machines' ]
 
-  vmtypeStrOptions = [ 'ce_name', 'image_name', 'flavor_name', 'root_key_name', 'x509dn' ]
+  vmtypeStrOptions = [ 'image_name', 'flavor_name', 'root_key_name', 'x509dn' ]
 
   vmtypeIntOptions = [ 'max_machines', 'backoff_seconds', 'fizzle_seconds', 'max_wallclock_seconds' ]
 

@@ -8,3 +8,4 @@
 - Allow connections to unauthenticated HTTPS servers for now
 - Proper cleanup of old machine directories
 - Target shares for vmtypes within tenancies
+- Add vcycle_space by analogy with vac_space in tenancies

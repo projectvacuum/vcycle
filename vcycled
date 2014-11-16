@@ -357,7 +357,7 @@ def createMachine(novaClient, tenancyName, vmtypeName):
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/phys_cores',    '1',        0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_vmtype',    vmtypeName, 0644)
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',     VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['ce_name'], 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',     VCYCLE.tenancies[tenancyName]['vcycle_space'], 0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/shutdown_time', str(int(time.time()) + VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
