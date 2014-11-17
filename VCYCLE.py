@@ -35,7 +35,6 @@
 import os
 import sys
 import time
-import json
 import string
 import tempfile
 import ConfigParser
@@ -200,32 +199,6 @@ def createFile(targetname, contents, mode=None):
     return True
   except:
     return False
-
-def makeJsonFile(targetDirectory):
-  # Create a dictionary containing the keys and values from the given directory
-  # and then write to .json in that directory
-  
-  outputDict = {}
-  
-  try:
-    filesList = os.listdir(targetDirectory)
-  except Exception as e:
-         logLine('Listing directory ' + targetDirectory + ' fails with ' + str(e))
-  else:
-    for oneFile in filesList:
-     if oneFile[0] != '.' and not os.path.isdir(targetDirectory + '/' + oneFile):
-       try:
-         outputDict[oneFile] = open(targetDirectory + '/' + oneFile).read()
-       except Exception as e:
-         logLine('Failed reading ' + targetDirectory + '/' + oneFile + ' with ' + str(e))
-         pass
-
-  try:
-    f = open(targetDirectory + '/.json', 'w')
-    json.dump(outputDict, f)
-    f.close()   
-  except Exception as e:
-    logLine('Writing JSON fails with ' + str(e))
 
 def logLine(text):
   sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')

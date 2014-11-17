@@ -380,9 +380,6 @@ def createMachine(novaClient, tenancyName, vmtypeName):
     return 'Error creating new server: ' + str(e)
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
-# No more?
-#  VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
-#  VCYCLE.makeJsonFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
 
   VCYCLE.logLine('Created ' + serverName + ' (' + newServer.id + ') for ' + vmtypeName + ' within ' + tenancyName)
 
