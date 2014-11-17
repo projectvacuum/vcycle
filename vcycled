@@ -289,7 +289,7 @@ def oneCycle(tenancyName, tenancy):
   
   # Now decide whether to create new VMs
 
-  createdThisCycle = 0
+  creationsThisCycle = 0
 
   # Keep going till limits exhausted
   while True:
@@ -298,8 +298,8 @@ def oneCycle(tenancyName, tenancy):
       VCYCLE.logLine('Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
       return
 
-    if createdThisCycle >= creationsPerCycle:
-      VCYCLE.logLine('Already reached limit of %d created this cycle' % createdThisCycle )
+    if creationsThisCycle >= creationsPerCycle:
+      VCYCLE.logLine('Already reached limit of %d machine creations this cycle' % creationsThisCycle )
       return
 
     vmtypeNames = tenancy['vmtypes'].keys()
@@ -332,10 +332,11 @@ def oneCycle(tenancyName, tenancy):
 
       errorMessage = createMachine(novaClient, tenancyName, vmtypeNameToCreate)
 
+      creationsThisCycle += 1
+
       if errorMessage:
         VCYCLE.logLine(errorMessage)
       else:
-        createdThisCycle                           += 1
         totalFound                                 += 1
         foundPerVmtype[vmtypeNameToCreate]         += 1
         notPassedFizzleSeconds[vmtypeNameToCreate] += 1
