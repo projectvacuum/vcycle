@@ -127,14 +127,20 @@ def cleanupMachineoutputs():
            for hostNameDir in hostNamesDirslist:
            
                 hostNameDirCtime = int(os.stat('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir).st_ctime)
+
+                try: 
+                     expirationDays = spaces[spaceName][vmtypeDir]['machineoutputs_days']
+                except:
+                     # use the default if something goes wrong (configuration file changed?)
+                     expirationDays = 3.0
            
-                if hostNameDirCtime < (time.time() - (86400 * spaces[spaceName][vmtypeDir][machineoutputs_days])):
+                if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
                 
-                   try:
-                        shutil.rmtree('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir)
-                        VCYCLE.logLine('Deleted /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
-                   except:
-                        VCYCLE.logLine('Failed deleting /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+                     try:
+                          shutil.rmtree('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir)
+                          VCYCLE.logLine('Deleted /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+                     except:
+                          VCYCLE.logLine('Failed deleting /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
 
 def oneCycle(spaceName, space):
 
@@ -336,6 +342,7 @@ def oneCycle(spaceName, space):
   # Get rid of directories about old VMs
   
   cleanupDirectories(spaceName, serverNames)
+  cleanupMachineoutputs()
   
   # Now decide whether to create new VMs
 
