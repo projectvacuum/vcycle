@@ -223,19 +223,19 @@ def logMachineoutputs(hostName, vmtypeName, spaceName):
     return
    
   try:
-    # Get the list of files that the VM wrote in its /etc/machineoutputs
-    outputs = os.listdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')
-  except:
-    logLine('Failed reading /var/lib/vcycle/machines/' + hostName + '/machineoutputs')
-    return
-        
-  try:
     os.makedirs('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName,
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
   except:
     logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName)
     return
       
+  try:
+    # Get the list of files that the VM wrote in its /etc/machineoutputs
+    outputs = os.listdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')
+  except:
+    logLine('Failed reading /var/lib/vcycle/machines/' + hostName + '/machineoutputs')
+    return
+        
   if outputs:
     # Go through the files one by one, adding them to the machineoutputs directory
     for oneOutput in outputs:
