@@ -151,12 +151,6 @@ def readConf(requirePassword=True):
               except:
                 return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
 
-            for opt in vmtypeBooleanOptions:
-              try:
-                vmtype[opt] = int(parser.get(vmtypeSectionName, opt))
-              except:
-                return 'Option ' + opt + ' required in [' + vmtypeSectionName + ']'
-
             try:
               vmtype['heartbeat_file'] = parser.get(vmtypeSectionName, 'heartbeat_file')
             except:
