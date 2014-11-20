@@ -24,13 +24,14 @@ For ease of management, any configuration file ending in .conf in the
 directory /etc/vcycle.d will be read, in 
 alphanumeric order by name, and then /etc/vcycle.conf is read if present. 
 
-.SH [TENANCY ...] SECTIONS
+.SH [SPACE ...] SECTIONS
 
-One [tenancy ...] section must exist for each tenancy or project in which
-VMs will be created, with Vcycle's name for the tenancy given in the section
-name, such as [tenancy exampleproject]. The Vcycle admin has a free choice of 
-what names to give each tenancy, but the name must only consist of lowercase 
-letters, numbers, periods, underscores, and hyphens. 
+One [space ...] section must exist for each tenancy, project, or account in which
+VMs will be created, with Vcycle's name for the space given in the section
+name, such as [space project1.example.com]. The Vcycle admin has a free choice
+of what names to give each space, but the name must only consist of lowercase 
+letters, numbers, periods, and hyphens so it can be used as the DNS name of
+a virtual CE elsewhere in the system.
 
 .B tenancy_name
 is the 
@@ -52,9 +53,9 @@ is the
 
 .SH [VMTYPE ... ...] SECTIONS
 
-One [vmtype ... ...] section must exist for each vmtype in a tenancy, with
-the name of the tenancy and the vmtype given in the section name, such as 
-[vmtype exampleproject examplevm].
+One [vmtype ... ...] section must exist for each vmtype in a space, with
+the name of the space and the vmtype given in the section name, such as 
+[vmtype project1.example.com examplevm].
 A vmtype name must only consist of lowercase letters, numbers, periods,
 underscores, and hyphens. 
 

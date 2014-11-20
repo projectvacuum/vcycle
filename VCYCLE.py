@@ -39,18 +39,18 @@ import string
 import tempfile
 import ConfigParser
 
-tenancies    = None
+spaces    = None
 lastFizzles = {}
 
 def readConf(requirePassword=True):
 
-  global tenancies, lastFizzles
+  global spaces, lastFizzles
   
-  tenancies = {}
+  spaces = {}
 
-  tenancyStrOptions = [ 'tenancy_name', 'url', 'username', 'vcycle_space' ]
+  spaceStrOptions = [ 'tenancy_name', 'url', 'username' ]
 
-  tenancyIntOptions = [ 'max_machines' ]
+  spaceIntOptions = [ 'max_machines' ]
 
   vmtypeStrOptions = [ 'image_name', 'flavor_name', 'root_key_name', 'x509dn' ]
 
@@ -74,55 +74,55 @@ def readConf(requirePassword=True):
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
 
-  # First look for tenancy sections
+  # First look for space sections
 
-  for tenancySectionName in parser.sections():
-    split1 = tenancySectionName.lower().split(None,1)
+  for spaceSectionName in parser.sections():
+    split1 = spaceSectionName.lower().split(None,1)
 
     if split1[0] == 'vmtype':    
       continue
       
-    elif split1[0] != 'tenancy':
+    elif split1[0] != 'space':
       return 'Section type ' + split1[0] + ' not recognised'
       
     else:
-      tenancyName = split1[1]
+      spaceName = split1[1]
       
-      if string.translate(tenancyName, None, '0123456789abcdefghijklmnopqrstuvwyz-_') != '':
-        return 'Name of tenancy section [tenancy ' + tenancyName + '] can only contain a-z 0-9 - or _'
+      if string.translate(spaceName, None, '0123456789abcdefghijklmnopqrstuvwyz-_') != '':
+        return 'Name of space section [space ' + spaceName + '] can only contain a-z 0-9 - or _'
       
-      tenancy = {}
+      space = {}
       
-      # Get the options from this section for this tenancy
+      # Get the options from this section for this space
         
-      for opt in tenancyStrOptions:
-        if parser.has_option(tenancySectionName, opt):
-          tenancy[opt] = parser.get(tenancySectionName, opt)
+      for opt in spaceStrOptions:
+        if parser.has_option(spaceSectionName, opt):
+          space[opt] = parser.get(spaceSectionName, opt)
         else:
-          return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
+          return 'Option ' + opt + ' required in [' + spaceSectionName + ']'
 
-      for opt in tenancyIntOptions:
+      for opt in spaceIntOptions:
         try:
-          tenancy[opt] = int(parser.get(tenancySectionName, opt))
+          space[opt] = int(parser.get(spaceSectionName, opt))
         except:
-          return 'Option ' + opt + ' required in [' + tenancySectionName + ']'
+          return 'Option ' + opt + ' required in [' + spaceSectionName + ']'
 
       try:
         # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
         # reveal passwords in a memorable way. 
-        tenancy['password'] = ''.join([ chr(ord(c)-1) for c in parser.get(tenancySectionName, 'password')])
+        space['password'] = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
       except:
         if requirePassword:
-          return 'Option password is required in [' + tenancySectionName + ']'
+          return 'Option password is required in [' + spaceSectionName + ']'
         else:
-          tenancy['password'] = ''
+          space['password'] = ''
 
       try:
-        tenancy['delete_old_files'] = bool(parser.get(tenancySectionName, 'delete_old_files'))
+        space['delete_old_files'] = bool(parser.get(spaceSectionName, 'delete_old_files'))
       except:
-        tenancy['delete_old_files'] = True
+        space['delete_old_files'] = True
 
-      # Get the options for each vmtype section associated with this tenancy
+      # Get the options for each vmtype section associated with this space
 
       vmtypes = {}
 
@@ -131,11 +131,11 @@ def readConf(requirePassword=True):
 
         if split2[0] == 'vmtype':
 
-          if split2[1] == tenancyName:
+          if split2[1] == spaceName:
             vmtypeName = split2[2]
 
             if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwyz-_') != '':
-              return 'Name of vmtype section [vmtype ' + tenancyName + ' ' + vmtypeName + '] can only contain a-z 0-9 - or _'
+              return 'Name of vmtype section [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 - or _'
       
             vmtype = {}
 
@@ -166,19 +166,19 @@ def readConf(requirePassword=True):
             except:
               return 'Option target_share required in [' + vmtypeSectionName + ']'
             
-            if tenancyName not in lastFizzles:
-              lastFizzles[tenancyName] = {}
+            if spaceName not in lastFizzles:
+              lastFizzles[spaceName] = {}
               
-            if vmtypeName not in lastFizzles[tenancyName]:
-              lastFizzles[tenancyName][vmtypeName] = int(time.time()) - vmtype['backoff_seconds']
+            if vmtypeName not in lastFizzles[spaceName]:
+              lastFizzles[spaceName][vmtypeName] = int(time.time()) - vmtype['backoff_seconds']
 
             vmtypes[vmtypeName] = vmtype
 
       if len(vmtypes) < 1:
-        return 'No vmtypes defined for tenancy ' + tenancyName + ' - each tenancy must have at least one vmtype'
+        return 'No vmtypes defined for space ' + spaceName + ' - each space must have at least one vmtype'
 
-      tenancy['vmtypes']     = vmtypes
-      tenancies[tenancyName] = tenancy
+      space['vmtypes']  = vmtypes
+      spaces[spaceName] = space
 
   return None
 

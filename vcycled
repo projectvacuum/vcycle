@@ -48,9 +48,9 @@ import VCYCLE
 sleepSeconds      = 60
 creationsPerCycle = 5
 
-def cleanupDirectories(tenancyName, serverNames):
+def cleanupDirectories(spaceName, serverNames):
 
-  if not VCYCLE.tenancies[tenancyName]['delete_old_files']:
+  if not VCYCLE.spaces[spaceName]['delete_old_files']:
       return
 
   try:
@@ -61,14 +61,14 @@ def cleanupDirectories(tenancyName, serverNames):
   # Go through the per-machine directories
   for onedir in dirslist:
 
-      # Get the tenancy name
+      # Get the space name
       try:
-        fileTenancyName = open('/var/lib/vcycle/machines/' + onedir + '/tenancy_name', 'r').read().strip()        
+        fileSpaceName = open('/var/lib/vcycle/machines/' + onedir + '/space_name', 'r').read().strip()
       except:
         continue
 
-      # Ignore if not in this tenancy, unless not in any defined tenancy
-      if fileTenancyName in VCYCLE.tenancies and (fileTenancyName != tenancyName):
+      # Ignore if not in this space, unless not in any defined space
+      if fileSpaceName in VCYCLE.spaces and (fileSpaceName != spaceName):
         continue
 
       try:
@@ -87,13 +87,13 @@ def cleanupDirectories(tenancyName, serverNames):
 
       try:
         shutil.rmtree('/var/lib/vcycle/machines/' + onedir)
-        VCYCLE.logLine('Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
+        VCYCLE.logLine('Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileSpaceName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
       except:
-        VCYCLE.logLine('Failed deleting /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
+        VCYCLE.logLine('Failed deleting /var/lib/vcycle/machines/' + onedir + ' (' + fileSpaceName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
 
-def oneCycle(tenancyName, tenancy):
+def oneCycle(spaceName, space):
 
-  VCYCLE.logLine('Processing tenancy ' + tenancyName)
+  VCYCLE.logLine('Processing space ' + spaceName)
   
   totalRunning = 0
   totalFound   = 0
@@ -103,14 +103,14 @@ def oneCycle(tenancyName, tenancy):
   runningPerVmtype       = {}
   weightedPerVmtype      = {}
 
-  for vmtypeName,vmtype in tenancy['vmtypes'].iteritems(): 
+  for vmtypeName,vmtype in space['vmtypes'].iteritems(): 
     notPassedFizzleSeconds[vmtypeName] = 0
     foundPerVmtype[vmtypeName]         = 0
     runningPerVmtype[vmtypeName]       = 0
     weightedPerVmtype[vmtypeName]      = 0.0
         
-  novaClient = novaclient.client.Client('1.1', username=tenancy['username'], api_key=tenancy['password'],
-                                        project_id=tenancy['tenancy_name'], auth_url=tenancy['url'],
+  novaClient = novaclient.client.Client('1.1', username=space['username'], api_key=space['password'],
+                                        project_id=space['tenancy_name'], auth_url=space['url'],
                                         insecure=True)
 
   try:
@@ -123,25 +123,25 @@ def oneCycle(tenancyName, tenancy):
 
   for oneServer in serversList:
 
-      # This includes VMs that we didn't create and won't manage, to avoid going above tenancy limit
+      # This includes VMs that we didn't create and won't manage, to avoid going above space limit
       totalFound += 1
 
-      # Just in case other VMs are in this tenancy
+      # Just in case other VMs are in this space
       if oneServer.name[:7] != 'vcycle-':
         continue
 
       serverNames.append(oneServer.name)
 
       try:
-        fileTenancyName = open('/var/lib/vcycle/machines/' + oneServer.name + '/tenancy_name', 'r').read().strip()
+        fileSpaceName = open('/var/lib/vcycle/machines/' + oneServer.name + '/space_name', 'r').read().strip()
       except:
         # Not one of ours? Cleaned up directory too early?
-        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no tenancy name')
+        VCYCLE.logLine('Skipping ' + oneServer.name + ' which has no space name')
         continue
       else:
         # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
-        if fileTenancyName != tenancyName:        
-          VCYCLE.logLine('Skipping ' + oneServer.name + ' which is in ' + tenancy['tenancy_name'] + ' but has tenancy_name=' + fileTenancyName)
+        if fileSpaceName != spaceName:        
+          VCYCLE.logLine('Skipping ' + oneServer.name + ' which is in ' + space['space_name'] + ' but has space_name=' + fileSpaceName)
           continue
 
       try:
@@ -156,7 +156,7 @@ def oneCycle(tenancyName, tenancy):
       else:
         foundPerVmtype[vmtypeName] += 1
         
-      weightedPerVmtype[vmtypeName] += (1.0 / VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['target_share'])
+      weightedPerVmtype[vmtypeName] += (1.0 / VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['target_share'])
 
       createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
       updatedTime  = calendar.timegm(time.strptime(oneServer.updated, "%Y-%m-%dT%H:%M:%SZ"))
@@ -201,10 +201,10 @@ def oneCycle(tenancyName, tenancy):
               ('%5.2f' % ((time.time() - startTime)/3600.0)) + ' ' +
               heartbeatStr)
               
-      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < space['vmtypes'][vmtypeName]['fizzle_seconds']:
         VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
         try:
-          VCYCLE.lastFizzles[tenancyName][vmtypeName] = updatedTime
+          VCYCLE.lastFizzles[spaceName][vmtypeName] = updatedTime
         except:
           # In case vmtype removed from configuration while VMs still existed
           pass
@@ -218,10 +218,10 @@ def oneCycle(tenancyName, tenancy):
         else:
           runningPerVmtype[vmtypeName] += 1
 
-      # These ones are starting/running, but not yet passed tenancy['vmtypes'][vmtypeName]['fizzle_seconds']
+      # These ones are starting/running, but not yet passed space['vmtypes'][vmtypeName]['fizzle_seconds']
       if ((oneServer.status == 'ACTIVE' or 
            oneServer.status == 'BUILD') and 
-          ((int(time.time()) - startTime) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds'])):
+          ((int(time.time()) - startTime) < space['vmtypes'][vmtypeName]['fizzle_seconds'])):
           
         if vmtypeName not in notPassedFizzleSeconds:
           notPassedFizzleSeconds[vmtypeName]  = 1
@@ -241,18 +241,18 @@ def oneCycle(tenancyName, tenancy):
            or 
            (
              # ACTIVE gets deleted if longer than max VM lifetime 
-             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])
+             oneServer.status == 'ACTIVE' and taskState == 'None' and ((int(time.time()) - startTime) > space['vmtypes'][vmtypeName]['max_wallclock_seconds'])
            )
            or 
            (
              # ACTIVE gets deleted if heartbeat defined in configuration but not updated by the VM
-             'heartbeat_file' in tenancy['vmtypes'][vmtypeName] and
-             'heartbeat_seconds' in tenancy['vmtypes'][vmtypeName] and
+             'heartbeat_file' in space['vmtypes'][vmtypeName] and
+             'heartbeat_seconds' in space['vmtypes'][vmtypeName] and
              oneServer.status == 'ACTIVE' and taskState == 'None' and 
-             ((int(time.time()) - startTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']) and
+             ((int(time.time()) - startTime) > space['vmtypes'][vmtypeName]['heartbeat_seconds']) and
              (
               (heartbeatTime is None) or 
-              ((int(time.time()) - heartbeatTime) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'])
+              ((int(time.time()) - heartbeatTime) > space['vmtypes'][vmtypeName]['heartbeat_seconds'])
              )              
            )
            or
@@ -278,14 +278,14 @@ def oneCycle(tenancyName, tenancy):
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
-  VCYCLE.logLine('Tenancy ' + tenancyName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
+  VCYCLE.logLine('space ' + spaceName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
 
-  for vmtypeName,vmtype in tenancy['vmtypes'].iteritems():
+  for vmtypeName,vmtype in space['vmtypes'].iteritems():
     VCYCLE.logLine('vmtype ' + vmtypeName + ' has %d ACTIVE:running out of %d found in any state' % (runningPerVmtype[vmtypeName], foundPerVmtype[vmtypeName]))
 
   # Get rid of directories about old VMs
   
-  cleanupDirectories(tenancyName, serverNames)
+  cleanupDirectories(spaceName, serverNames)
   
   # Now decide whether to create new VMs
 
@@ -294,32 +294,32 @@ def oneCycle(tenancyName, tenancy):
   # Keep going till limits exhausted
   while True:
   
-    if totalFound >= tenancy['max_machines']:
-      VCYCLE.logLine('Reached limit (%d) on number of machines to create for tenancy %s' % (tenancy['max_machines'], tenancyName))
+    if totalFound >= space['max_machines']:
+      VCYCLE.logLine('Reached limit (%d) on number of machines to create for space %s' % (space['max_machines'], spaceName))
       return
 
     if creationsThisCycle >= creationsPerCycle:
       VCYCLE.logLine('Already reached limit of %d machine creations this cycle' % creationsThisCycle )
       return
 
-    vmtypeNames = tenancy['vmtypes'].keys()
+    vmtypeNames = space['vmtypes'].keys()
     random.shuffle(vmtypeNames)
 
     # Go through vmtypes, finding the one to create (if any)
     vmtypeNameToCreate = None
   
     for vmtypeName in vmtypeNames:
-      vmtype = tenancy['vmtypes'][vmtypeName]
+      vmtype = space['vmtypes'][vmtypeName]
     
       if foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
         VCYCLE.logLine('Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
 
-      elif int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds']):
-        VCYCLE.logLine('Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName]) )
+      elif int(time.time()) < (VCYCLE.lastFizzles[spaceName][vmtypeName] + vmtype['backoff_seconds']):
+        VCYCLE.logLine('Free capacity found for %s ... but only %d seconds after last fizzle' % (vmtypeName, int(time.time()) - VCYCLE.lastFizzles[spaceName][vmtypeName]) )
         
-      elif (int(time.time()) < (VCYCLE.lastFizzles[tenancyName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
+      elif (int(time.time()) < (VCYCLE.lastFizzles[spaceName][vmtypeName] + vmtype['backoff_seconds'] + vmtype['fizzle_seconds'])) and (notPassedFizzleSeconds[vmtypeName] > 0):
         VCYCLE.logLine('Free capacity found for %s ... but still within fizzleSeconds+backoffSeconds(%d) of last fizzle (%ds ago) and %d running but not yet passed fizzleSeconds (%d)' % 
-               (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
+               (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[spaceName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
 
       elif vmtypeNameToCreate is None:
         vmtypeNameToCreate = vmtypeName
@@ -328,9 +328,9 @@ def oneCycle(tenancyName, tenancy):
         vmtypeNameToCreate = vmtypeName
 
     if vmtypeNameToCreate:
-      VCYCLE.logLine('Free capacity found for ' + vmtypeNameToCreate + ' within ' + tenancyName + ' ... creating')
+      VCYCLE.logLine('Free capacity found for ' + vmtypeNameToCreate + ' within ' + spaceName + ' ... creating')
 
-      errorMessage = createMachine(novaClient, tenancyName, vmtypeNameToCreate)
+      errorMessage = createMachine(novaClient, spaceName, vmtypeNameToCreate)
 
       creationsThisCycle += 1
 
@@ -340,48 +340,48 @@ def oneCycle(tenancyName, tenancy):
         totalFound                                 += 1
         foundPerVmtype[vmtypeNameToCreate]         += 1
         notPassedFizzleSeconds[vmtypeNameToCreate] += 1
-        weightedPerVmtype[vmtypeNameToCreate]      += (1.0 / VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeNameToCreate]['target_share'])
+        weightedPerVmtype[vmtypeNameToCreate]      += (1.0 / VCYCLE.spaces[spaceName]['vmtypes'][vmtypeNameToCreate]['target_share'])
 
     else:
-      VCYCLE.logLine('No more free capacity and/or suitable vmtype found within ' + tenancyName)
+      VCYCLE.logLine('No more free capacity and/or suitable vmtype found within ' + spaceName)
       return
 
-def createMachine(novaClient, tenancyName, vmtypeName):
+def createMachine(novaClient, spaceName, vmtypeName):
  
   serverName = 'vcycle-' + str(uuid.uuid4())
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machineoutputs')
 
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name',  vmtypeName,  0644)
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/tenancy_name', tenancyName, 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name', vmtypeName,  0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/space_name',  spaceName,   0644)
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/phys_cores',    '1',        0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_vmtype',    vmtypeName, 0644)
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',     VCYCLE.tenancies[tenancyName]['vcycle_space'], 0644)
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/shutdown_time', str(int(time.time()) + VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',     spaceName,  0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/shutdown_time', str(int(time.time()) + VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
   try:
     newServer = novaClient.servers.create(serverName, 
-          novaClient.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-          novaClient.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
-          key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
+          novaClient.images.find(name=VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['image_name']),
+          novaClient.flavors.find(name=VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['flavor_name']), 
+          key_name=VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['root_key_name'],
           meta={ 'cern-services'   : 'false',
                  'machinefeatures' : 'http://'  + os.uname()[1] + '/' + serverName + '/machinefeatures',
                  'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
                  'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
                }, 
-          userdata=open('/var/lib/vcycle/user_data/' + tenancyName + '/' + vmtypeName, 'r').read())
+          userdata=open('/var/lib/vcycle/user_data/' + spaceName + '/' + vmtypeName, 'r').read())
 
   except Exception as e:
     return 'Error creating new server: ' + str(e)
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_uuid', newServer.id, 0644)
 
-  VCYCLE.logLine('Created ' + serverName + ' (' + newServer.id + ') for ' + vmtypeName + ' within ' + tenancyName)
+  VCYCLE.logLine('Created ' + serverName + ' (' + newServer.id + ') for ' + vmtypeName + ' within ' + spaceName)
 
   return None
 
@@ -453,8 +453,8 @@ if __name__ == '__main__':
 
         VCYCLE.logLine('readConf errors: ' + str(VCYCLE.readConf()))
         
-        for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
-          oneCycle(tenancyName, tenancy)
+        for spaceName, space in VCYCLE.spaces.iteritems():
+          oneCycle(spaceName, space)
           
         VCYCLE.logLine('================ End cycle ================')
 
