@@ -34,6 +34,7 @@
 
 import os
 import sys
+import stat
 import time
 import string
 import tempfile
@@ -171,6 +172,11 @@ def readConf(requirePassword=True):
               vmtype['log_machineoutputs'] = True
             else:
               vmtype['log_machineoutputs'] = False
+
+            if parser.has_option(vmtypeSectionName, 'machineoutputs_days'):
+              vmtype['machineoutputs_days'] = float(parser.get(vmtypeSectionName, 'machineoutputs_days'))
+            else:
+              vmtype['machineoutputs_days'] = 3.0
 
             if spaceName not in lastFizzles:
               lastFizzles[spaceName] = {}
