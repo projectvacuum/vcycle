@@ -246,7 +246,7 @@ def oneCycle(spaceName, space):
            or 
            (
              # ACTIVE gets deleted if heartbeat defined in configuration but not updated by the VM
-             'heartbeat_file' in space['vmtypes'][vmtypeName] and
+             'heartbeat_file'    in space['vmtypes'][vmtypeName] and
              'heartbeat_seconds' in space['vmtypes'][vmtypeName] and
              oneServer.status == 'ACTIVE' and taskState == 'None' and 
              ((int(time.time()) - startTime) > space['vmtypes'][vmtypeName]['heartbeat_seconds']) and
@@ -273,10 +273,14 @@ def oneCycle(spaceName, space):
            )
          ):
         VCYCLE.logLine('Deleting ' + oneServer.name)
+
         try:
           oneServer.delete()
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
+
+        if space['vmtypes'][vmtypeName]['log_machineoutputs']:
+          VCYCLE.logMachineoutputs(oneServer.name, vmtypeName, spaceName)
 
   VCYCLE.logLine('space ' + spaceName + ' has %d ACTIVE:running vcycle VMs out of %d found in any state for any vmtype or none' % (totalRunning, totalFound))
 

@@ -11,3 +11,4 @@
 - createdThisCycle becomes creationsThisCycle to track attempts not just
   successes in case all creations always fail
 - Remove JSON files from httpd
+- Add log_machineoutputs option to vmtypes
