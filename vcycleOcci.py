@@ -2,6 +2,7 @@ from vcycleBase import vcycleBase
 import os
 import VCYCLE
 import time
+import datetime
 from occi import Occi
 
 class vcycleOcci(vcycleBase):
@@ -57,7 +58,8 @@ class vcycleOcci(vcycleBase):
    
    def _update_properties(self, server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning):
       '''Updates the server's properties'''
-      if server.status in ['inactive','error','stopped']:
+      seconds = (datetime.datetime.now() - datetime.datetime.fromtimestamp(float(server.created))).seconds
+      if server.status in ['inactive','error','stopped'] and server.state != 'building' and seconds > self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds'] :
          VCYCLE.logLine(self.tenancyName, server.name + ' was a fizzle!' + str(int(time.time()) - properties['startTime']) + ' seconds')
       
       if server.status == 'active':
@@ -86,16 +88,24 @@ class vcycleOcci(vcycleBase):
    
    def _delete(self, server, vmtypeName, properties):
       '''Deletes a server'''
-      if server.state == 'building':
+      seconds = (datetime.datetime.now() - datetime.datetime.fromtimestamp(float(server.created))).seconds
+      if server.state == 'building' or server.state == 'waiting' or (server.status =='inactive' and seconds < self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']):
          return False
       
       
-      if server.status in ['inactive','error','stopped','cancel'] or self._condition_walltime(server, vmtypeName, properties) :
+      if server.status in ['inactive','error','stopped','cancel'] or self._condition_walltime(server, vmtypeName, properties) or \
+         self._condiction_heartbeat(server, vmtypeName, properties) :
+         
          if self._condition_walltime(server, vmtypeName, properties):
             VCYCLE.logLine(self.tenancyName, "%s Walltime!!: %s > %s" % 
                            (server.name, (int(time.time()) - properties['startTime']),
                            self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])  )
+         
+         if self._condiction_heartbeat(server, vmtypeName, properties):
+            VCYCLE.logLine(self.tenancyName, 'Heartbeat lost: %s' % server.name )
+         
          VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
+         
          try:
             server.delete()
             return True
@@ -126,5 +136,22 @@ class vcycleOcci(vcycleBase):
    
    def _condition_walltime(self, server, vmtypeName, properties):
       return (server.status == 'active' and
-        ((int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds']))
+        (int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])
+      
+      
+   def _condiction_heartbeat(self, server, vmtypeName, properties):
+      if not 'heartbeat_file' in self.tenancy['vmtypes'][vmtypeName]:
+         return False
+      
+      if server.status == 'active' and properties['heartbeatTime'] is None and \
+        (int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'] + self.tenancy['vmtypes'][vmtypeName]['backoff_seconds'] + self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+         return True
+      
+      if server.status == 'active' and not properties['heartbeatTime'] is None:
+         if (int(time.time()) - properties['startTime']) <= self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'] + self.tenancy['vmtypes'][vmtypeName]['backoff_seconds'] + self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+            return False
+         elif properties['heartbeatTime'] > self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']:
+            return True
+      return False
+      
       
