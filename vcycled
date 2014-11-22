@@ -422,13 +422,8 @@ def createMachine(novaClient, spaceName, vmtypeName):
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
-  if VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
-   userDataFile = VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-  else
-   userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-
   try:
-    userDataContents = open(userDataFile, 'r').read()  
+    userDataContents = getUserDataContents(spaceName, vmtypeName, serverName)
   except Exception as e:
     return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
 

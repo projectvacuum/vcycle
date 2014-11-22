@@ -15,3 +15,4 @@
   copied from Vac
 - user_data file now in /var/lib/vcycle/vmtypes/SPACE/VMTYPE/user_data
   by default
+- Default and site configured substitutions in user_data templates

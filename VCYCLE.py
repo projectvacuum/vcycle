@@ -40,12 +40,20 @@ import string
 import tempfile
 import ConfigParser
 
-spaces    = None
-lastFizzles = {}
+vcycleVersion = None
+spaces        = None
+lastFizzles   = {}
 
 def readConf(requirePassword=True):
 
-  global spaces, lastFizzles
+  global vcycleVersion, spaces, lastFizzles
+
+  try:
+    f = open('/var/lib/vcycle/doc/VERSION', 'r')
+    vcycleVersion = f.readline().split('=',1)[1].strip()
+    f.close()
+  except:
+    vcycleVersion = '0.0.0'
   
   spaces = {}
 
@@ -166,7 +174,14 @@ def readConf(requirePassword=True):
               vmtype['user_data'] = parser.get(vmtypeSectionName, 'user_data')
             except:
               vmtype['user_data'] = 'user_data'
-              
+
+            for (oneOption,oneValue) in parser.items(vmtypeSectionName):
+              if (oneOption[0:17] == 'user_data_option_') or (oneOption[0:15] == 'user_data_file_'):
+                if string.translate(oneOption, None, '0123456789abcdefghijklmnopqrstuvwyz_') != '':
+                  return 'Name of user_data_xxx (' + oneOption + ') must only contain a-z 0-9 and _'
+                else:
+                  vmtype[oneOption] = parser.get(vmtypeSectionName, oneOption)
+
             try:
               vmtype['target_share'] = float(parser.get(vmtypeSectionName, 'target_share'))
             except:
@@ -257,3 +272,47 @@ def logMachineoutputs(hostName, vmtypeName, spaceName):
         except:
           logLine('Failed copying /var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput + 
                   ' to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
+
+def getUserDataContents(spaceName, vmtypeName, serverName):
+
+  if spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
+   userDataFile = spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+  else
+   userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+
+  try:
+    userDataContents = open(userDataFile, 'r').read()  
+  except Exception as e:
+    return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
+
+  # Default substitutions
+  userDataContents = userDataContents.replace('##user_data_space##',         spaceName)
+  userDataContents = userDataContents.replace('##user_data_vmtype##',        vmtypeName)
+  userDataContents = userDataContents.replace('##user_data_vm_hostname##',   serverName)
+  userDataContents = userDataContents.replace('##user_data_vmlm_version##',  'Vcycle ' + vcycleVersion)
+  userDataContents = userDataContents.replace('##user_data_vmlm_hostname##', os.uname()[1])
+
+  # Site configurable substitutions for this vmtype
+  for oneOption, oneValue in (spaces[spaceName]['vmtypes'][vmtypeName]).iteritems():
+    if oneOption[0:17] == 'user_data_option_':
+      userDataContents = userDataContents.replace('##' + oneOption + '##', oneValue)
+
+    if oneOption[0:15] == 'user_data_file_':
+      try:
+        if oneValue[0] == '/':
+          f = open(oneValue, 'r')
+        else:
+          f = open('/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + oneValue, 'r')
+                           
+          userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
+          f.close()
+      except:
+        raise NameError('Failed to read ' + oneValue + ' for ' + oneOption)
+
+  try:
+    o = open('/var/lib/vcycle/machines/' + serverName + '/' + '/user_data', 'w')
+    o.write(userDataContents)
+    o.close()
+  except:
+    raise NameError('Failed to writing /var/lib/vcycle/machines/' + serverName + '/user_data')
+      
