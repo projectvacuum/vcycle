@@ -45,7 +45,7 @@ fi
 /var/lib/vcycle/bin
 /var/lib/vcycle/doc
 /var/lib/vcycle/tmp
-/var/lib/vcycle/user_data
+/var/lib/vcycle/vmtypes
 /var/lib/vcycle/machines
 /var/lib/vcycle/machineoutputs
 /etc/rc.d/init.d/vcycled

@@ -49,7 +49,7 @@ install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/var/lib/vcycle/bin \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/doc \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/user_data \
+	         $(RPM_BUILD_ROOT)/var/lib/vcycle/vmtypes \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machineoutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \

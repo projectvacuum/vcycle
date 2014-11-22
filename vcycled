@@ -413,13 +413,24 @@ def createMachine(novaClient, spaceName, vmtypeName):
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/vmtype_name', vmtypeName,  0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/space_name',  spaceName,   0644)
 
-  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/phys_cores',    '1',        0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_vmtype',    vmtypeName, 0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/vac_space',     spaceName,  0644)
+
+  VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/phys_cores',    '1',        0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/machinefeatures/shutdown_time', str(int(time.time()) + VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/cpu_limit_secs',  str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
+
+  if VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
+   userDataFile = VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+  else
+   userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+
+  try:
+    userDataContents = open(userDataFile, 'r').read()  
+  except Exception as e:
+    return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
 
   try:
     newServer = novaClient.servers.create(serverName, 
@@ -431,7 +442,7 @@ def createMachine(novaClient, spaceName, vmtypeName):
                  'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + serverName + '/jobfeatures',
                  'machineoutputs'  : 'https://' + os.uname()[1] + '/' + serverName + '/machineoutputs'
                }, 
-          userdata=open('/var/lib/vcycle/user_data/' + spaceName + '/' + vmtypeName, 'r').read())
+          userdata=userDataContents)
 
   except Exception as e:
     return 'Error creating new server: ' + str(e)

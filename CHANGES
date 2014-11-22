@@ -13,3 +13,5 @@
 - Remove JSON files from httpd
 - Add log_machineoutputs and machineoutputs_days options to vmtypes, 
   copied from Vac
+- user_data file now in /var/lib/vcycle/vmtypes/SPACE/VMTYPE/user_data
+  by default

@@ -163,6 +163,11 @@ def readConf(requirePassword=True):
               pass
 
             try:
+              vmtype['user_data'] = parser.get(vmtypeSectionName, 'user_data')
+            except:
+              vmtype['user_data'] = 'user_data'
+              
+            try:
               vmtype['target_share'] = float(parser.get(vmtypeSectionName, 'target_share'))
             except:
               return 'Option target_share required in [' + vmtypeSectionName + ']'
