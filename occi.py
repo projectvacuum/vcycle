@@ -94,13 +94,13 @@ class Occi():
 
 
    def process_std(self,command):
-      logging.info(command)
+      
       (result,err_result)=Popen(command,shell=True,stdout=PIPE,stderr=PIPE).communicate()
       
       if len(err_result) > 0:
-         raise Exception(err_result)
+         raise Exception(command)
       if len(err_result) == 0  and len(result) == 0 :
-         raise Exception("Unexpected error happens.Check params")
+         raise Exception(command)
    
       return result
 
@@ -220,32 +220,45 @@ class Compute():
          return None
       
       vm_id = description['attributes']['occi']['core']['id']
+      
       if 'hostname' in description['attributes']['occi']['compute']:
          hostname = description['attributes']['occi']['compute']['hostname']
+      elif 'title' in description['attributes']['occi']['core']:
+         hostname = description['attributes']['occi']['core']['title']
+         
       status = description['attributes']['occi']['compute']['state']
       ip = []
+      network = None
       if not status in ['inactive','error','stopped'] and len(description['links']) > 0:
          for link in itertools.ifilter(lambda x: 'networkinterface' in x['attributes']['occi'], description['links'] ):
             ip.append(link['attributes']['occi']['networkinterface']['address'])
-         #for link in description['links']:
-         #   ip.append(link['attributes']['occi']['networkinterface']['address'])
-            
-      if "org" in description['attributes'] and "openstack" in description['attributes']['org'] and "compute" in description['attributes']['org']['openstack']:
-         console = description['attributes']['org']['openstack']['compute']['console']['vnc']
-         state = description['attributes']['org']['openstack']['compute']['state']
-      else:
+            if 'public' in link['attributes']['occi']['core']['target']:
+               network = link['attributes']['occi']['core']['id']
+      elif status in ['inactive','stopped'] and len(description['links']) > 0:
+         for link in description['links']:
+            if 'public' in link['target']:
+               network = link['id']
+               
+      try:      
+         if "org" in description['attributes'] and "openstack" in description['attributes']['org'] and "compute" in description['attributes']['org']['openstack']:
+            console = description['attributes']['org']['openstack']['compute']['console']['vnc']
+            state = description['attributes']['org']['openstack']['compute']['state']
+         else:
+            console = None
+            state = None
+      except:
          console = None
          state = None
          
       #check os and flavor
       os = None
-      if len(description['mixins']) > 1:
-        os = description['mixins'][1]
-        os = self.occi.images.describe(os[os.index('#')+1:])
-      
-      flavor = description['mixins'][0]
-      flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
-      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console, state)
+      #if len(description['mixins']) > 1:
+      #  os = description['mixins'][1]
+      #  os = self.occi.images.describe(os[os.index('#')+1:])
+      flavor = None
+      #flavor = description['mixins'][0]
+      #flavor = self.occi.flavors.describe(flavor[flavor.index('#')+1:])
+      return Server(self.occi, name, vm_id, hostname, status, ip, os, flavor, console, state, network)
 
       
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
@@ -273,7 +286,7 @@ class Server():
    updated = None
    
 
-   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console, state=None):
+   def __init__(self, occi, resource, id, name, status, ip, os, flavor, console, state=None, network=None):
       self.occi = occi
       self.resource = resource
       self.id = id
@@ -289,14 +302,15 @@ class Server():
          self.created = None
       self.updated = self.created
       self.console = console
-      self.state = None
-      self.network = None
+      self.state = state
+      self.network = network
    
       
    def delete(self):
+      result = self.occi._delete(self.resource)
       if not self.network is None:
          self.occi._delete(self.network)
-      return self.occi._delete(self.resource)
+      return result
    
    
    def link(self, to_link):
