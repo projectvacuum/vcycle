@@ -37,6 +37,8 @@ import sys
 import stat
 import time
 import string
+import pycurl
+import StringIO
 import tempfile
 import ConfigParser
 
@@ -275,15 +277,36 @@ def logMachineoutputs(hostName, vmtypeName, spaceName):
 
 def getUserDataContents(spaceName, vmtypeName, serverName):
 
-  if spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
-   userDataFile = spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-  else
-   userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+  # Get raw user_data template file, either from network ...
+  if (spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0:7] == 'http://') or (spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0:8] == 'https://'):
+    buffer = StringIO.StringIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, spaces[spaceName]['vmtypes'][vmtypeName]['user_data'])
+    c.setopt(c.WRITEFUNCTION, buffer.write)
+    c.setopt(c.TIMEOUT, 30)
+    c.setopt(c.SSL_VERIFYPEER, 1)
+    c.setopt(c.SSL_VERIFYHOST, 2)
+    c.setopt(c.CAPATH, '/etc/grid-security/certificates')
 
-  try:
-    userDataContents = open(userDataFile, 'r').read()  
-  except Exception as e:
-    return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
+    try:
+      c.perform()
+    except Exception as e:
+      raise NameError('Failed to read ' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data'] + ' (' + str(e) + ')')
+
+    c.close()
+    self.userDataContents = buffer.getvalue()
+
+  # ... or from filesystem
+  else:
+    if spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
+      userDataFile = spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+    else
+     userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
+
+    try:
+      userDataContents = open(userDataFile, 'r').read()  
+    except Exception as e:
+      return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
 
   # Default substitutions
   userDataContents = userDataContents.replace('##user_data_space##',         spaceName)
