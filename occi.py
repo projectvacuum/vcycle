@@ -22,6 +22,9 @@ class Occi():
       if not password is None:
          self.command_credentials = " --password %s" % password
       if not user_cred is None:
+         import os
+         if not os.path.isfile(user_cred):
+            raise Exception("proxy not found: %s" % user_cred)
          self.command_credentials += " --user-cred %s" % user_cred
       if voms:
          self.command_credentials += " --voms"
@@ -95,12 +98,12 @@ class Occi():
 
    def process_std(self,command):
       
-      (result,err_result)=Popen(command,shell=True,stdout=PIPE,stderr=PIPE).communicate()
+      (result,err_result)=Popen(command,bufsize=1,shell=True,stdout=PIPE,stderr=PIPE).communicate()
       
       if len(err_result) > 0:
-         raise Exception(command)
+         raise Exception(err_result)
       if len(err_result) == 0  and len(result) == 0 :
-         raise Exception(command)
+         raise Exception("Unkown Error, check params: %s" % command)
    
       return result
 
@@ -264,6 +267,9 @@ class Compute():
    def create(self, name, image, flavor, meta={}, user_data=None, key_name=None ):
       meta = {}
       meta['occi.core.title'] = name
+      import os
+      if not os.path.isfile(user_data[len("file://"):]):
+         raise Exception("Can't find user data file: %s" % user_data[len("file://"):])
       result = self.occi._create(image, flavor, user_data, meta)
       return self.describe(result)
    
