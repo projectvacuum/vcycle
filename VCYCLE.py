@@ -97,7 +97,7 @@ def readConf(requirePassword=True):
     else:
       spaceName = split1[1]
       
-      if string.translate(spaceName, None, '0123456789abcdefghijklmnopqrstuvwyz-.') != '':
+      if string.translate(spaceName, None, '0123456789abcdefghijklmnopqrstuvwxyz-.') != '':
         return 'Name of space section [space ' + spaceName + '] can only contain a-z 0-9 - or .'
       
       space = {}
@@ -143,7 +143,7 @@ def readConf(requirePassword=True):
           if split2[1] == spaceName:
             vmtypeName = split2[2]
 
-            if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwyz-._') != '':
+            if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwxyz-._') != '':
               return 'Name of vmtype section [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 - _ or .'
       
             vmtype = {}
@@ -177,7 +177,7 @@ def readConf(requirePassword=True):
 
             for (oneOption,oneValue) in parser.items(vmtypeSectionName):
               if (oneOption[0:17] == 'user_data_option_') or (oneOption[0:15] == 'user_data_file_'):
-                if string.translate(oneOption, None, '0123456789abcdefghijklmnopqrstuvwyz_') != '':
+                if string.translate(oneOption, None, '0123456789abcdefghijklmnopqrstuvwxyz_') != '':
                   return 'Name of user_data_xxx (' + oneOption + ') must only contain a-z 0-9 and _'
                 else:
                   vmtype[oneOption] = parser.get(vmtypeSectionName, oneOption)
