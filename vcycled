@@ -423,9 +423,9 @@ def createMachine(novaClient, spaceName, vmtypeName):
   VCYCLE.createFile('/var/lib/vcycle/machines/' + serverName + '/jobfeatures/wall_limit_secs', str(VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']), 0644)
 
   try:
-    userDataContents = getUserDataContents(spaceName, vmtypeName, serverName)
+    userDataContents = VCYCLE.getUserDataContents(spaceName, vmtypeName, serverName)
   except Exception as e:
-    return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
+    return 'Failed getting user_data file (' + str(e) + ')'
 
   try:
     newServer = novaClient.servers.create(serverName, 

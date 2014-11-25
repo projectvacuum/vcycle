@@ -294,13 +294,13 @@ def getUserDataContents(spaceName, vmtypeName, serverName):
       raise NameError('Failed to read ' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data'] + ' (' + str(e) + ')')
 
     c.close()
-    self.userDataContents = buffer.getvalue()
+    userDataContents = buffer.getvalue()
 
   # ... or from filesystem
   else:
     if spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
       userDataFile = spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-    else
+    else:
      userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
 
     try:
