@@ -333,7 +333,7 @@ def oneCycle(spaceName, space):
         except Exception as e:
           VCYCLE.logLine('Delete ' + oneServer.name + ' fails with ' + str(e))
 
-        if space['vmtypes'][vmtypeName]['log_machineoutputs']:
+        if vmtypeName in space['vmtypes'] and space['vmtypes'][vmtypeName]['log_machineoutputs']:
           VCYCLE.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + oneServer.name)
           VCYCLE.logMachineoutputs(oneServer.name, vmtypeName, spaceName)
 
