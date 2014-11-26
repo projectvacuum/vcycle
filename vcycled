@@ -253,7 +253,9 @@ def oneCycle(spaceName, space):
               ('%5.2f' % ((time.time() - startTime)/3600.0)) + ' ' +
               heartbeatStr)
               
-      if oneServer.status == 'SHUTOFF' and (updatedTime - startTime) < space['vmtypes'][vmtypeName]['fizzle_seconds']:
+      if oneServer.status == 'SHUTOFF'  and \
+         vmtypeName in space['vmtypes'] and \
+         (updatedTime - startTime) < space['vmtypes'][vmtypeName]['fizzle_seconds']:
         VCYCLE.logLine(oneServer.name + ' was a fizzle! ' + str(updatedTime - startTime) + ' seconds')
         try:
           VCYCLE.lastFizzles[spaceName][vmtypeName] = updatedTime
