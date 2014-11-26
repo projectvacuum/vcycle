@@ -286,8 +286,12 @@ def getUserDataContents(spaceName, vmtypeName, serverName):
     c.setopt(c.TIMEOUT, 30)
     c.setopt(c.SSL_VERIFYPEER, 1)
     c.setopt(c.SSL_VERIFYHOST, 2)
-    c.setopt(c.CAPATH, '/etc/grid-security/certificates')
 
+    if os.path.isdir('/etc/grid-security/certificates'):
+      c.setopt(c.CAPATH, '/etc/grid-security/certificates')
+    else:
+      logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+                                    
     try:
       c.perform()
     except Exception as e:
