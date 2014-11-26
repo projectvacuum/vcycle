@@ -284,6 +284,7 @@ def getUserDataContents(spaceName, vmtypeName, serverName):
     c.setopt(c.URL, spaces[spaceName]['vmtypes'][vmtypeName]['user_data'])
     c.setopt(c.WRITEFUNCTION, buffer.write)
     c.setopt(c.TIMEOUT, 30)
+    c.setopt(c.FOLLOWLOCATION, True)
     c.setopt(c.SSL_VERIFYPEER, 1)
     c.setopt(c.SSL_VERIFYHOST, 2)
 
