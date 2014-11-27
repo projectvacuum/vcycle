@@ -207,7 +207,7 @@ def oneCycle(spaceName, space):
       else:
         foundPerVmtype[vmtypeName] += 1
 
-      if vmtypeName in weightedPerVmtype:
+      if vmtypeName in weightedPerVmtype and VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['target_share'] >= 0.0:
          weightedPerVmtype[vmtypeName] += (1.0 / VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['target_share'])
 
       createdTime  = calendar.timegm(time.strptime(oneServer.created, "%Y-%m-%dT%H:%M:%SZ"))
