@@ -344,3 +344,5 @@ def getUserDataContents(spaceName, vmtypeName, serverName):
   except:
     raise NameError('Failed to writing /var/lib/vcycle/machines/' + serverName + '/user_data')
       
+  return userDataContents
+  
