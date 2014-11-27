@@ -370,8 +370,12 @@ def oneCycle(spaceName, space):
   
     for vmtypeName in vmtypeNames:
       vmtype = space['vmtypes'][vmtypeName]
+
+      if VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['target_share'] <= 0.0:
+        # Skip over any vmtypes with no target share
+        continue
     
-      if foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
+      elif foundPerVmtype[vmtypeName] >= vmtype['max_machines']:
         VCYCLE.logLine('Reached limit (%d) on number of machines to create for vmtype %s' % (vmtype['max_machines'], vmtypeName))
 
       elif int(time.time()) < (VCYCLE.lastFizzles[spaceName][vmtypeName] + vmtype['backoff_seconds']):
