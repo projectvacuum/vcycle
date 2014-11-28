@@ -21,15 +21,6 @@ class vcycleDBCE(vcycleBase):
    def _servers_list(self):
       '''Returns a list of all servers created and not deleted in the tenancy'''
       serversList = self.client.machine.list(self.provider_name)
-      for server in serversList:
-         if not server.id in self.servers[self.tenancyName]:
-            self.servers[self.tenancyName][server.id] = server
-            if 'vcycle' in server.name:
-               self.servers_contextualized[server.id] = {'server':server,'contextualized':False}
-         if 'vcycle' in server.name and \
-            self.servers_contextualized[server.id]['contextualized'] is False \
-            and server.status == 'STARTED':
-               self._contextualize(server)
       return serversList
    
    
@@ -108,10 +99,10 @@ class vcycleDBCE(vcycleBase):
    def _delete(self, server, vmtypeName, properties):
       '''Deletes a server'''
       tenancy = self.tenancy
-      if server.status  == 'BUILD':
+      if server.status  == 'CREATING':
          return False
       
-      if server.status in ['SHUTOFF','ERROR','DELETED'] or \
+      if server.status in ['SHUTOFF','ERROR','DELETED', 'STOPPED'] or \
         (server.status == 'STARTED' and ((int(time.time()) - properties['startTime']) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) or \
         (
              # STARTED gets deleted if heartbeat defined in configuration but not updated by the VM
@@ -141,25 +132,13 @@ class vcycleDBCE(vcycleBase):
    
    
    def _create_machine(self, serverName, vmtypeName, proxy=False):
+      import base64
       tenancyName = self.tenancyName
+      user_data = open("/var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName), 'r').read()
       template = self.client.machine_template.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
-                                                   int(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+                                                   VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
                                                    self.provider_name)[0]
-   
+      template.user_data = base64.encodestring(user_data)
       server = self.client.machine.create(serverName, serverName, template, self.provider_name, key_data=[VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['public_key']])
-      self.servers_contextualized[server.id] = {'server':server,'contextualized':False}
       return server
    
-   def _contextualize(self, server):
-      for interface in server.network_interfaces:
-         if 'PUBLIC' in interface['id']:
-            try:
-               import subprocess
-               subprocess.check_call("scp -i /home/lvillazo/dbce/id_rsa -o StrictHostKeyChecking=no  /var/lib/vcycle/scripts/* dbce@%s:/home/dbce" % interface['address']['ip'],shell=True, stderr=subprocess.STDOUT)
-            except Exception,e:
-               pass
-            else:
-               subprocess.check_call("ssh -tt -i /home/lvillazo/dbce/id_rsa -o StrictHostKeyChecking=no dbce@%s 'chmod u+x build.sh;chmod u+x kvimg_context_script.sh;sudo nohup ./build.sh >> build.log 2>&1'&" % interface['address']['ip'], shell=True, stderr=subprocess.STDOUT)
-               VCYCLE.logLine(self.tenancyName, 'Contextualized ' + server.name)
-               self.servers_contextualized[server.id]['contextualized'] = True
-            

@@ -68,6 +68,8 @@ class MachineTemplate():
    machine_config = None
    machine_image = None
    credentials = None
+   user_data = None
+   
    
    def __init__(self, id, machine_config, machine_image, credentials=None):
       self.resource = "http://schemas.dmtf.org/cimi/1/MachineTemplate"
@@ -75,7 +77,7 @@ class MachineTemplate():
       self.machine_config = machine_config
       self.machine_image = machine_image
       self.credentials = credentials
-   
+      
    
    @staticmethod
    def create(dictionary):
@@ -97,11 +99,17 @@ class MachineTemplate():
                                },
               'machineImage':{'resourceURI':'http://schemas.dmtf.org/cimi/1/MachineImage',
                               'href': self.machine_image['id']},
-              "networkInterfaces":[{"network":{"networkType":"PUBLIC"}}]
+              "networkInterfaces":[{'network':{'href':'https://ec2-54-170-149-5.eu-west-1.compute.amazonaws.com/cxf/iaas/networks/a0c6fed4-dd75-4973-867b-8c9f31e77406'}},
+                                   {"network":{"networkType":"PUBLIC"}}]
               }
       if not self.credentials is None:
          dict['credentials'] = self.credentials
+      
+      if not self.user_data is None:
+         dict['userData'] = self.user_data
       return dict
+   
+     
       
    
 
@@ -156,7 +164,10 @@ class Machine():
       self.cpu = cpu
       self.memory = memory
       self.disks = disks
-      self.network_interfaces = network_interfaces['machineNetworkInterfaces'][0]['addresses']['machineNetworkInterfaceAddresses']
+      if len(network_interfaces['machineNetworkInterfaces']) > 0:
+         self.network_interfaces = network_interfaces['machineNetworkInterfaces'][0]['addresses']['machineNetworkInterfaceAddresses']
+      else:
+         self.network_interfaces = []
       self.properties = properties
       self.credentials = credentials
       

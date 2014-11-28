@@ -61,10 +61,11 @@ class DBCE():
       request = self.execute("%s/%s" % (self.endpoint,'cxf/multicloud/providerLocations/'))
       for providerLocation in request.json()['providerLocations']:
          id = providerLocation['uid']
-         r_providers = self.execute(providerLocation['provider']['href'])
+         r_providers = self.execute(providerLocation['provider']['href'].replace('cxf','ui'))
          name = r_providers.json()['name']
          self.providers[name] = {'id':id}
-         pools = self.execute("%s/%s" % (self.endpoint, '/cxf/capacity/capacityPools'))
+         pool_endpoint = self.endpoint[:self.endpoint.rfind(":")].replace('http','https')
+         pools = self.execute("%s/%s" % (pool_endpoint, '/ui/capacity/capacityPools'))
          for pool in pools.json()['capacityPools']:
             if pool['providerLocation']['href'] == providerLocation['id']:
                self.providers[name]['pool'] = pool['capacities']['href'][:pool['capacities']['href'].rfind('/')]
@@ -292,11 +293,11 @@ class MachineTemplateOp(Op):
          return templates
       
   
-   def find(self, name, cpus=None, provider = None):
+   def find(self, name, flavor=None, provider = None):
       templates = []
       for t in self.list(provider):
          if t.machine_image['name'].upper().find(name.upper()) >= 0:
-            if (not cpus is None and t.machine_config['compute'] == cpus) or cpus is None:
+            if t.machine_config['name'] == flavor:
                templates.append(t)
       return templates 
    
@@ -368,6 +369,9 @@ class NetworkOp(Op):
       self.status[202] = status_202
       request = requests.delete("%s/%s" % (self.url,network_id))
       return self.status[request.status_code]()
+   
+   
+      
 
 
 
