@@ -412,7 +412,7 @@ def oneCycle(spaceName, space):
 
 def createMachine(novaClient, spaceName, vmtypeName):
  
-  serverName = 'vcycle-' + str(uuid.uuid4())
+  serverName = 'vcycle-' + vmtypeName + '-' + str(uuid.uuid4())
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machinefeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/jobfeatures')
   os.makedirs('/var/lib/vcycle/machines/' + serverName + '/machineoutputs')
