@@ -311,7 +311,7 @@ def getUserDataContents(spaceName, vmtypeName, serverName):
     try:
       userDataContents = open(userDataFile, 'r').read()  
     except Exception as e:
-      return 'Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')'
+      raise NameError('Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')')
 
   # Default substitutions
   userDataContents = userDataContents.replace('##user_data_space##',         spaceName)
