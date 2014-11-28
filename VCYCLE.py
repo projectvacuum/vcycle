@@ -145,8 +145,8 @@ def readConf(requirePassword=True):
           if split2[1] == spaceName:
             vmtypeName = split2[2]
 
-            if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwxyz-._') != '':
-              return 'Name of vmtype section [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 - _ or .'
+            if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwxyz-') != '':
+              return 'Name of vmtype section [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 or -'
       
             vmtype = {}
 
