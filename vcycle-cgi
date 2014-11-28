@@ -50,19 +50,15 @@ except:
   print
   sys.exit(0)
 
-if (subDirectory != 'machineoutputs' or 
-    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')):
-  print 'Status: 404 Not Found(2)'
-  print
-  sys.exit(0)
 
-try:
-  tenancyName = open('/var/lib/vcycle/machines/' + hostName + '/tenancy_name', 'r').read()
-  vmtypeName  = open('/var/lib/vcycle/machines/' + hostName + '/vmtype_name', 'r').read()
-except:
-  print 'Status: 500 Internal Server Error (2)'
-  print
-  sys.exit(0)
+
+#try:
+#  tenancyName = open('/var/lib/vcycle/machines/' + hostName + '/tenancy_name', 'r').read()
+#  vmtypeName  = open('/var/lib/vcycle/machines/' + hostName + '/vmtype_name', 'r').read()
+#except:
+#  print 'Status: 500 Internal Server Error (2)'
+#  print
+#  sys.exit(0)
 
 #if ('SSL_CLIENT_S_DN' not in os.environ or
 #    tenancyName not in VCYCLE.tenancies or
