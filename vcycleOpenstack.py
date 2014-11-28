@@ -194,10 +194,16 @@ class vcycleOpenstack(vcycleBase):
                meta=meta, 
                userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
       else:
+         try:
+            net = self.client.networks.find(label="net01")
+            nics = [{'net-id': net.id}]
+         except Exception:
+            nics = []
          return self.client.servers.create(serverName, 
                 self.client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
                 self.client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
                 meta=meta, 
+                nics=nics,
                 key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
                 userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
 
