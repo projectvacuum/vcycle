@@ -33,7 +33,7 @@
 
 include VERSION
 
-INSTALL_FILES=vcycled vcycle VCYCLE.py occi.py vcycleOcci.py vcycleDBCE.py vcycleOpenstack.py vcycleBase.py vcycle-cgi vcycled.init \
+INSTALL_FILES=vcycled vcycle VCYCLE.py vcycleBase.py vcycle-cgi vcycled.init \
           vcycled.logrotate VERSION CHANGES 
 
           
@@ -42,6 +42,8 @@ TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 GNUTAR ?= tar
 vcycle.tgz: $(TGZ_FILES)
 	mkdir -p TEMPDIR/vcycle/interfaces/dbce/models
+	mkdir -p TEMPDIR/vcycle/interfaces/occi
+	mkdir -p TEMPDIR/vcycle/interfaces/openstack
 	cp $(TGZ_FILES) TEMPDIR/vcycle
 	cp -r ./interfaces/*  TEMPDIR/vcycle/interfaces/
 	cd TEMPDIR ; $(GNUTAR) zcvf ../vcycle.tgz --owner=root --group=root vcycle
@@ -50,6 +52,8 @@ vcycle.tgz: $(TGZ_FILES)
 install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/var/lib/vcycle/bin \
 			 $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/dbce/models \
+			 $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/occi \
+			 $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/openstack \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/doc \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/user_data \
@@ -58,7 +62,7 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d
 
-	cp vcycled vcycle VCYCLE.py vcycle-cgi occi.py vcycleOcci.py vcycleDBCE.py vcycleOpenstack.py vcycleBase.py  \
+	cp vcycled vcycle VCYCLE.py vcycle-cgi vcycleBase.py  \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin
 	cp -r ./interfaces/* \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin/interfaces/
