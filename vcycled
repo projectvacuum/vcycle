@@ -43,9 +43,9 @@ import shutil
 import calendar
 import threading
 
-from vcycleOpenstack import vcycleOpenstack
-from vcycleOcci import vcycleOcci
-from vcycleDBCE import vcycleDBCE
+from interfaces.openstack.vcycleOpenstack import vcycleOpenstack
+from interfaces.occi.vcycleOcci import vcycleOcci
+from interfaces.dbce.vcycleDBCE import vcycleDBCE
 import VCYCLE
 
 sleepSeconds      = 60
