@@ -3,6 +3,7 @@ import os
 import time, random
 import abc
 import shutil
+import math
 
 class vcycleBase(object):
    '''Base Class where other class inherit'''
@@ -21,7 +22,8 @@ class vcycleBase(object):
       If there are free space, the method will create new vms.'''
   
       VCYCLE.logLine(tenancyName, 'Processing tenancy ' + tenancyName)
-  
+      
+      creationsPerCycle = math.floor(tenancy['max_machines'] * 0.1)
       totalRunning = 0
       totalFound   = 0
 

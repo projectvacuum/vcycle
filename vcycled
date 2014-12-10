@@ -49,7 +49,6 @@ from interfaces.dbce.vcycleDBCE import vcycleDBCE
 import VCYCLE
 
 sleepSeconds      = 60
-creationsPerCycle = 5
 
 
 def cycle(tenancyName, tenancy):
