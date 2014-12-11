@@ -120,8 +120,8 @@ class vcycleBase(object):
          fileTenancyName = open('/var/lib/vcycle/machines/' + server.name + '/tenancy_name', 'r').read().strip()
       except:
          # Not one of ours? Cleaned up directory too early?
-         #server.delete()
-         VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
+         server.delete()
+         #VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
          VCYCLE.logLine(tenancyName, 'Deleted ' + server.name + ' which has no tenancy name')
          totalFound -= 1
          return (totalRunning , totalFound)
