@@ -105,7 +105,7 @@ def cleanupDirectories(spaceName, serverNames):
 def cleanupMachineoutputs():
 
   try:
-      spacesDirslist = os.listdir('/var/lib/vcycle/machinesoutputs/')
+      spacesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/')
   except:
       return
       
@@ -113,20 +113,20 @@ def cleanupMachineoutputs():
   for spaceDir in spacesDirslist:
   
       try:
-           vmtypesDirslist = os.listdir('/var/lib/vcycle/machinesoutputs/' + spaceDir)
+           vmtypesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir)
       except:
            continue
 
       for vmtypeDir in vmtypesDirslist:
         
            try:
-                hostNamesDirslist = os.listdir('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir)
+                hostNamesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir)
            except:
                 continue
  
            for hostNameDir in hostNamesDirslist:
            
-                hostNameDirCtime = int(os.stat('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir).st_ctime)
+                hostNameDirCtime = int(os.stat('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir).st_ctime)
 
                 try: 
                      expirationDays = spaces[spaceName][vmtypeDir]['machineoutputs_days']
@@ -137,10 +137,10 @@ def cleanupMachineoutputs():
                 if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
                 
                      try:
-                          shutil.rmtree('/var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir)
-                          VCYCLE.logLine('Deleted /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+                          shutil.rmtree('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir)
+                          VCYCLE.logLine('Deleted /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
                      except:
-                          VCYCLE.logLine('Failed deleting /var/lib/vcycle/machinesoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+                          VCYCLE.logLine('Failed deleting /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
 
 def oneCycle(spaceName, space):
 
