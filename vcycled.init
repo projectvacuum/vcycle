@@ -10,11 +10,11 @@
 
 start() {
 	[ "$EUID" != "0" ] && exit 1
-	[ -x /var/lib/vcycle/bin/vcycled ] || exit 2
+	[ -x /usr/sbin/vcycled ] || exit 2
 
         # Start daemon
         echo -n $"Starting vcycled: "
-        daemon /var/lib/vcycle/bin/vcycled
+        daemon /usr/sbin/vcycled
 	RETVAL=$?
         echo
 	return $RETVAL

@@ -33,8 +33,9 @@
 
 include VERSION
 
-INSTALL_FILES=vcycled vcycle shared.py vacutils.py vcycle-cgi \
-    vcycled.init vcycled.logrotate VERSION CHANGES vcycle-httpd.conf
+INSTALL_FILES=vcycled vcycle shared.py vacutils.py __init__.py \
+              vcycle-cgi vcycle-httpd.conf vcycled.init \
+              vcycled.logrotate VERSION CHANGES
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
