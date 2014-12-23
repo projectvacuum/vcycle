@@ -431,13 +431,13 @@ def createMachine(novaClient, spaceName, vmtypeName):
 
   try:
     userDataContents = vcycle.vacutils.createUserData(shutdownTime     = int(time.time() +
-                                                                             vcycle.shared.vmtypes[vmtypeName]['max_wallclock_seconds']),
+                                                                             vcycle.shared.spaces[spaceName]['vmtypes'][vmtypeName]['max_wallclock_seconds']),
                                                       vmtypesPath      = '/var/lib/vcycle/vmtypes/' + spaceName,
-                                                      options          = vcycle.shared.vmtypes[vmtypeName],
+                                                      options          = vcycle.shared.spaces[spaceName]['vmtypes'][vmtypeName],
                                                       versionString    = 'Vcycle ' + vcycle.shared.vcycleVersion,
                                                       spaceName        = spaceName,
                                                       vmtypeName       = vmtypeName,
-                                                      userDataPath     = vcycle.shared.vmtypes[vmtypeName]['user_data'],
+                                                      userDataPath     = vcycle.shared.spaces[spaceName]['vmtypes'][vmtypeName]['user_data'],
                                                       hostName         = serverName,
                                                       uuidStr          = None)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
   except Exception as e:
