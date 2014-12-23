@@ -9,7 +9,7 @@ Source: vcycle.tgz
 URL: http://www.gridpp.ac.uk/vac/
 Vendor: GridPP
 Packager: Andrew McNab <Andrew.McNab@cern.ch>
-Requires: httpd,mod_ssl,python-novaclient
+Requires: httpd,mod_ssl,python-novaclient,python-pycurl,m2crypto
 
 %description
 VM lifecycle manager daemon for OpenStack etc
@@ -22,10 +22,6 @@ VM lifecycle manager daemon for OpenStack etc
 
 %install
 make install
-mkdir -p $RPM_BUILD_ROOT/usr/sbin
-
-# we are rpm so we can put files in /usr/sbin etc too
-cp -f $RPM_BUILD_ROOT/var/lib/vcycle/bin/vcycle $RPM_BUILD_ROOT/usr/sbin
 
 %preun
 if [ "$1" = "0" ] ; then
@@ -41,12 +37,9 @@ if [ $? = 0 ] ; then
 fi
 
 %files
-/usr/sbin/vcycle
-/var/lib/vcycle/bin
-/var/lib/vcycle/doc
-/var/lib/vcycle/tmp
-/var/lib/vcycle/vmtypes
-/var/lib/vcycle/machines
-/var/lib/vcycle/machineoutputs
+/usr/sbin
+/usr/share/doc/vcycle-%{version}
+/usr/lib64/python2.6/site-packages/vcycle
+/var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled

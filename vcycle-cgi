@@ -35,12 +35,12 @@
 import os
 import sys
 
-import VCYCLE
+import vcycle
 
-if VCYCLE.readConf(requirePassword=False) is not None:
+if vcycle.shared.readConf(requirePassword=False) is not None:
   print 'Status: 500 Internal Server Error (1)'
   print
-  print VCYCLE.readConf(requirePassword=False)
+  print vcycle.shared.readConf(requirePassword=False)
   sys.exit(0)
 
 try:
@@ -65,10 +65,10 @@ except:
   sys.exit(0)
 
 if ('SSL_CLIENT_S_DN' not in os.environ or
-    spaceName not in VCYCLE.spaces or
-    vmtypeName not in VCYCLE.spaces[spaceName]['vmtypes'] or 
-    'x509dn' not in VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName] or 
-    os.environ['SSL_CLIENT_S_DN'] != VCYCLE.spaces[spaceName]['vmtypes'][vmtypeName]['x509dn']):
+    spaceName not in vcycle.shared.spaces or
+    vmtypeName not in vcycle.shared.spaces[spaceName]['vmtypes'] or 
+    'x509dn' not in vcycle.shared.spaces[spaceName]['vmtypes'][vmtypeName] or 
+    os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName]['vmtypes'][vmtypeName]['x509dn']):
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)

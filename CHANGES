@@ -1,4 +1,7 @@
 ==================== Changes in Vcycle version 0.4.0 =====================
+- VCYCLE.py becomes /usr/lib64/python2.6/site-packages/vcycle
+- Put docs in /usr/share/doc/vcycle-VERSION
+- Put vcycled, vcycle, vcycle-cgi in /usr/sbin
 ==================== Changes in Vcycle version 0.3.0 =====================
 - Separate [space ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per space

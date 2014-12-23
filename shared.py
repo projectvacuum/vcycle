@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  VCYCLE.py - vcycle library
+#  shared.py - common functions, classes, and variables for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-4. All rights reserved.
@@ -31,6 +31,8 @@
 #  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 #
+#  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
+#
 
 import os
 import sys
@@ -42,6 +44,8 @@ import StringIO
 import tempfile
 import ConfigParser
 
+import vcycle.vacutils
+
 vcycleVersion = None
 spaces        = None
 lastFizzles   = {}
@@ -51,7 +55,7 @@ def readConf(requirePassword=True):
   global vcycleVersion, spaces, lastFizzles
 
   try:
-    f = open('/var/lib/vcycle/doc/VERSION', 'r')
+    f = open('/var/lib/vcycle/VERSION', 'r')
     vcycleVersion = f.readline().split('=',1)[1].strip()
     f.close()
   except:
@@ -80,7 +84,7 @@ def readConf(requirePassword=True):
         try:
           parser.read('/etc/vcycle.d/' + oneFile)
         except Exception as e:
-          logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
+          vcycle.vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
 
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
@@ -216,27 +220,27 @@ def readConf(requirePassword=True):
 
   return None
 
-def createFile(targetname, contents, mode=None):
-  # Create a text file containing contents in the vcycle tmp directory
-  # then move it into place. Rename is an atomic operation in POSIX,
-  # including situations where targetname already exists.
-   
-  try:
-    ftup = tempfile.mkstemp(prefix='/var/lib/vcycle/tmp/temp',text=True)
-    os.write(ftup[0], contents)
-       
-    if mode: 
-      os.fchmod(ftup[0], mode)
-
-    os.close(ftup[0])
-    os.rename(ftup[1], targetname)
-    return True
-  except:
-    return False
-
-def logLine(text):
-  sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')
-  sys.stderr.flush()
+#def createFile(targetname, contents, mode=None):
+#  # Create a text file containing contents in the vcycle tmp directory
+#  # then move it into place. Rename is an atomic operation in POSIX,
+#  # including situations where targetname already exists.
+#   
+#  try:
+#    ftup = tempfile.mkstemp(prefix='/var/lib/vcycle/tmp/temp',text=True)
+#    os.write(ftup[0], contents)
+#       
+#    if mode: 
+#      os.fchmod(ftup[0], mode)
+#
+#    os.close(ftup[0])
+#    os.rename(ftup[1], targetname)
+#    return True
+#  except:
+#    return False
+#
+#def logLine(text):
+#  sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')
+#  sys.stderr.flush()
 
 def logMachineoutputs(hostName, vmtypeName, spaceName):
 
@@ -248,14 +252,14 @@ def logMachineoutputs(hostName, vmtypeName, spaceName):
     os.makedirs('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName,
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
   except:
-    logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName)
+    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName)
     return
       
   try:
     # Get the list of files that the VM wrote in its /etc/machineoutputs
     outputs = os.listdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')
   except:
-    logLine('Failed reading /var/lib/vcycle/machines/' + hostName + '/machineoutputs')
+    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + hostName + '/machineoutputs')
     return
         
   if outputs:
@@ -272,77 +276,7 @@ def logMachineoutputs(hostName, vmtypeName, spaceName):
           shutil.copyfile('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput,
                           '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
         except:
-          logLine('Failed copying /var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput + 
+          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput + 
                   ' to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
 
-def getUserDataContents(spaceName, vmtypeName, serverName):
-
-  # Get raw user_data template file, either from network ...
-  if (spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0:7] == 'http://') or (spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0:8] == 'https://'):
-    buffer = StringIO.StringIO()
-    c = pycurl.Curl()
-    c.setopt(c.URL, spaces[spaceName]['vmtypes'][vmtypeName]['user_data'])
-    c.setopt(c.WRITEFUNCTION, buffer.write)
-    c.setopt(c.TIMEOUT, 30)
-    c.setopt(c.FOLLOWLOCATION, True)
-    c.setopt(c.SSL_VERIFYPEER, 1)
-    c.setopt(c.SSL_VERIFYHOST, 2)
-
-    if os.path.isdir('/etc/grid-security/certificates'):
-      c.setopt(c.CAPATH, '/etc/grid-security/certificates')
-    else:
-      logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
-                                    
-    try:
-      c.perform()
-    except Exception as e:
-      raise NameError('Failed to read ' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data'] + ' (' + str(e) + ')')
-
-    c.close()
-    userDataContents = buffer.getvalue()
-
-  # ... or from filesystem
-  else:
-    if spaces[spaceName]['vmtypes'][vmtypeName]['user_data'][0] == '/':
-      userDataFile = spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-    else:
-     userDataFile = '/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + spaces[spaceName]['vmtypes'][vmtypeName]['user_data']
-
-    try:
-      userDataContents = open(userDataFile, 'r').read()  
-    except Exception as e:
-      raise NameError('Failed reading user_data file ' + userDataFile + ' (' + str(e) + ')')
-
-  # Default substitutions
-  userDataContents = userDataContents.replace('##user_data_space##',         spaceName)
-  userDataContents = userDataContents.replace('##user_data_vmtype##',        vmtypeName)
-  userDataContents = userDataContents.replace('##user_data_vm_hostname##',   serverName)
-  userDataContents = userDataContents.replace('##user_data_vmlm_version##',  'Vcycle ' + vcycleVersion)
-  userDataContents = userDataContents.replace('##user_data_vmlm_hostname##', os.uname()[1])
-
-  # Site configurable substitutions for this vmtype
-  for oneOption, oneValue in (spaces[spaceName]['vmtypes'][vmtypeName]).iteritems():
-    if oneOption[0:17] == 'user_data_option_':
-      userDataContents = userDataContents.replace('##' + oneOption + '##', oneValue)
-
-    if oneOption[0:15] == 'user_data_file_':
-      try:
-        if oneValue[0] == '/':
-          f = open(oneValue, 'r')
-        else:
-          f = open('/var/lib/vcycle/vmtypes/' + spaceName + '/' + vmtypeName + '/' + oneValue, 'r')
-                           
-          userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
-          f.close()
-      except:
-        raise NameError('Failed to read ' + oneValue + ' for ' + oneOption)
-
-  try:
-    o = open('/var/lib/vcycle/machines/' + serverName + '/' + '/user_data', 'w')
-    o.write(userDataContents)
-    o.close()
-  except:
-    raise NameError('Failed to writing /var/lib/vcycle/machines/' + serverName + '/user_data')
-      
-  return userDataContents
   

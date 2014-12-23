@@ -28,13 +28,13 @@
 #  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 #
-#  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vac/
+#  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
 #
 
 include VERSION
 
-INSTALL_FILES=vcycled vcycle VCYCLE.py vcycle-cgi vcycled.init \
-          vcycled.logrotate VERSION CHANGES vcycle-httpd.conf
+INSTALL_FILES=vcycled vcycle shared.py vacutils.py vcycle-cgi \
+    vcycled.init vcycled.logrotate VERSION CHANGES vcycle-httpd.conf
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
@@ -46,18 +46,24 @@ vcycle.tgz: $(TGZ_FILES)
 	rm -R TEMPDIR
 
 install: $(INSTALL_FILES)
-	mkdir -p $(RPM_BUILD_ROOT)/var/lib/vcycle/bin \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/doc \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
+	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
+ 	         $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle \
+ 	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
+ 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
+ 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/vmtypes \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machineoutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d
-	cp vcycled vcycle VCYCLE.py vcycle-cgi \
-	   $(RPM_BUILD_ROOT)/var/lib/vcycle/bin
+	cp vcycled vcycle vcycle-cgi \
+	   $(RPM_BUILD_ROOT)/usr/sbin
+	cp __init__.py shared.py vacutils.py \
+	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
 	cp VERSION CHANGES vcycle-httpd.conf \
-	   $(RPM_BUILD_ROOT)/var/lib/vcycle/doc
+	   $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION)
+	cp VERSION \
+	   $(RPM_BUILD_ROOT)/var/lib/vcycle
 	cp vcycled.init \
 	   $(RPM_BUILD_ROOT)/etc/rc.d/init.d/vcycled
 	cp vcycled.logrotate \
