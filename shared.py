@@ -188,6 +188,23 @@ def readConf(requirePassword=True):
                 else:
                   vmtype[oneOption] = parser.get(vmtypeSectionName, oneOption)
 
+            if parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
+                not parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
+                 return 'user_data_proxy_cert given but user_data_proxy_key missing (they can point to the same file if necessary)'
+             elif not parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
+                  parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
+                 return 'user_data_proxy_key given but user_data_proxy_cert missing (they can point to the same file if necessary)'
+             elif parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
+                  parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
+                 vmtype['user_data_proxy_cert'] = parser.get(vmtypeSectionName, 'user_data_proxy_cert')
+                 vmtype['user_data_proxy_key']  = parser.get(vmtypeSectionName, 'user_data_proxy_key')
+             
+             if parser.has_option(vmtypeSectionName, 'legacy_proxy') and \
+                parser.get(vmtypeSectionName, 'legacy_proxy').strip().lower() == 'true':
+                 vmtype['legacy_proxy'] = True
+             else:
+                 vmtype['legacy_proxy'] = False
+
             try:
               vmtype['target_share'] = float(parser.get(vmtypeSectionName, 'target_share'))
             except:
