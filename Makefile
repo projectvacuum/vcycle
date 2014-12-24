@@ -56,7 +56,8 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machineoutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
-	         $(RPM_BUILD_ROOT)/etc/logrotate.d
+	         $(RPM_BUILD_ROOT)/etc/logrotate.d \
+	         $(RPM_BUILD_ROOT)/etc/vcycle.d
 	cp vcycled vcycle vcycle-cgi \
 	   $(RPM_BUILD_ROOT)/usr/sbin
 	cp __init__.py shared.py vacutils.py \

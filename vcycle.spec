@@ -43,3 +43,4 @@ fi
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
+/etc/vcycle.d
