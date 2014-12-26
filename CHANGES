@@ -4,6 +4,7 @@
 - Put vcycled, vcycle, vcycle-cgi in /usr/sbin
 - Add user_data_proxy_cert/user_data_proxy_key/legacy_proxy options in
   vmtypes to put a proxy in user_data rather than a hostcert/hostkey
+- creationsPerCycle calculated as 10% of max_machines in the space
 ==================== Changes in Vcycle version 0.3.0 =====================
 - Separate [space ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per space

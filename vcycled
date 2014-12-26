@@ -46,7 +46,6 @@ import novaclient.client
 import vcycle
 
 sleepSeconds      = 60
-creationsPerCycle = 5
 
 def cleanupDirectories(spaceName, serverNames):
 
@@ -349,6 +348,7 @@ def oneCycle(spaceName, space):
   
   # Now decide whether to create new VMs
 
+  creationsPerCycle  = int(0.9999999 + space['max_machines'] * 0.1)
   creationsThisCycle = 0
 
   # Keep going till limits exhausted
