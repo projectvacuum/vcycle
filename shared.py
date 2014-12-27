@@ -48,11 +48,12 @@ import vcycle.vacutils
 
 vcycleVersion = None
 spaces        = None
+oldSpaces        = None
 lastFizzles   = {}
 
-def readConf(requirePassword=True):
+def oldReadConf(requirePassword=True):
 
-  global vcycleVersion, spaces, lastFizzles
+  global vcycleVersion, oldSpaces, lastFizzles
 
   try:
     f = open('/var/lib/vcycle/VERSION', 'r')
@@ -61,7 +62,7 @@ def readConf(requirePassword=True):
   except:
     vcycleVersion = '0.0.0'
   
-  spaces = {}
+  oldSpaces = {}
 
   spaceStrOptions = [ 'tenancy_name', 'url', 'username' ]
 
@@ -191,18 +192,18 @@ def readConf(requirePassword=True):
             if parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                 not parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
                  return 'user_data_proxy_cert given but user_data_proxy_key missing (they can point to the same file if necessary)'
-             elif not parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
+            elif not parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                   parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
                  return 'user_data_proxy_key given but user_data_proxy_cert missing (they can point to the same file if necessary)'
-             elif parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
+            elif parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                   parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
                  vmtype['user_data_proxy_cert'] = parser.get(vmtypeSectionName, 'user_data_proxy_cert')
                  vmtype['user_data_proxy_key']  = parser.get(vmtypeSectionName, 'user_data_proxy_key')
              
-             if parser.has_option(vmtypeSectionName, 'legacy_proxy') and \
+            if parser.has_option(vmtypeSectionName, 'legacy_proxy') and \
                 parser.get(vmtypeSectionName, 'legacy_proxy').strip().lower() == 'true':
                  vmtype['legacy_proxy'] = True
-             else:
+            else:
                  vmtype['legacy_proxy'] = False
 
             try:
@@ -233,31 +234,9 @@ def readConf(requirePassword=True):
         return 'No vmtypes defined for space ' + spaceName + ' - each space must have at least one vmtype'
 
       space['vmtypes']  = vmtypes
-      spaces[spaceName] = space
+      oldSpaces[spaceName] = space
 
   return None
-
-#def createFile(targetname, contents, mode=None):
-#  # Create a text file containing contents in the vcycle tmp directory
-#  # then move it into place. Rename is an atomic operation in POSIX,
-#  # including situations where targetname already exists.
-#   
-#  try:
-#    ftup = tempfile.mkstemp(prefix='/var/lib/vcycle/tmp/temp',text=True)
-#    os.write(ftup[0], contents)
-#       
-#    if mode: 
-#      os.fchmod(ftup[0], mode)
-#
-#    os.close(ftup[0])
-#    os.rename(ftup[1], targetname)
-#    return True
-#  except:
-#    return False
-#
-#def logLine(text):
-#  sys.stderr.write(time.strftime('%b %d %H:%M:%S [') + str(os.getpid()) + ']: ' + text + '\n')
-#  sys.stderr.flush()
 
 def logMachineoutputs(hostName, vmtypeName, spaceName):
 
