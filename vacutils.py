@@ -166,6 +166,7 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
            userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
            f.close()
         except:
+           print vmtypesPath + '/' + vmtypeName + '/' + oneValue
            raise NameError('Failed to read ' + oneValue + ' for ' + oneOption)          
 
    return userDataContents

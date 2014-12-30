@@ -53,6 +53,7 @@ install: $(INSTALL_FILES)
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/vmtypes \
+	         $(RPM_BUILD_ROOT)/var/lib/vcycle/spaces \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machineoutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
