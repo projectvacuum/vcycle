@@ -60,7 +60,7 @@ class MachineState:
    
 class Machine:
 
-  def __init__(self, name, state, ip, createdTime, startedTime, updatedTime):
+  def __init__(self, name, state, ip, createdTime, startedTime, updatedTime, uuidStr):
 
     # Store values from api-specific calling function
     self.name         = name
@@ -69,6 +69,7 @@ class Machine:
     self.createdTime  = createdTime
     self.startedTime  = startedTime
     self.updatedTime  = updatedTime
+    self.uuidStr      = uuidStr
     
     # Record when the machine started (rather than just being created)
     if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
@@ -109,7 +110,7 @@ class Machine:
 
     try:        
       if (self.state == starting or self.state == running) and \
-         ((int(time.time()) - startTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds):
+         ((int(time.time()) - startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds):
         spaces[self.spaceName].vmtypes[self.vmtypeName].notPassedFizzle += 1
     except:
       pass
@@ -129,6 +130,56 @@ class Machine:
                             str(self.startedTime) + '-' +
                             str(self.updatedTime) + ' ' +
                             str(self.heartbeatTime))
+
+  def destroy(self):
+  
+    try:
+      spaces[self.spaceName].httpJSON(spaces[self.spaceName].computeURL + '/servers/' + self.uuidStr,
+                                      request = 'DELETE',
+                                      headers = [ 'X-Auth-Token: ' + spaces[self.spaceName].token ])
+    except Exception as e:
+      raise NameError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
+
+    if self.spaceName and self.vmtypeName and spaces[self.spaceName].vmtypes[self.vmtypeName].log_machineoutputs:
+      vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
+      self.logMachineOutputs()
+
+  def logMachineOutputs(self):
+
+    if os.path.exists('/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name):
+      # Copy (presumably) already exists so don't need to do anything
+      return
+   
+    try:
+      os.makedirs('/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name,
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    except:
+      vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
+      return
+      
+    try:
+      # Get the list of files that the VM wrote in its /etc/machineoutputs
+      outputs = os.listdir('/var/lib/vcycle/machines/' + self.name + '/machineoutputs')
+    except:
+      vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + self.name + '/machineoutputs')
+      return
+        
+    if outputs:
+      # Go through the files one by one, adding them to the machineoutputs directory
+      for oneOutput in outputs:
+
+        try:
+          # first we try a hard link, which is efficient in time and space used
+          os.link('/var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput,
+                  '/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
+        except:
+          try:
+            # if linking failed (different filesystems?) then we try a copy
+            shutil.copyfile('/var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput,
+                            '/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
+          except:
+            vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput + 
+                                    ' to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
 
 class Vmtype:
 
@@ -325,19 +376,17 @@ class BaseSpace:
 
   def httpJSON(self, url, request = None, headers = None):
 
-#    print 'Start httpJSON',url,request,headers
-
     self.curl.setopt(pycurl.URL, str(url))
 
-#    print 'after set url'
-
-    if request:
+    if not request:
+      self.curl.setopt(pycurl.HTTPGET, True)
+    elif str(request).lower() == 'delete':
+      self.curl.setopt(pycurl.CUSTOMREQUEST, 'DELETE')
+    else:
       try:
         self.curl.setopt(pycurl.POSTFIELDS, json.dumps(request))
       except Exception as e:
         raise NameError('JSON encoding of "' + str(request) + '" fails (' + str(e) + ')')
-    else:
-      self.curl.setopt(pycurl.HTTPGET, True)
 
     outputBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
@@ -349,7 +398,7 @@ class BaseSpace:
 
     self.curl.setopt(pycurl.HTTPHEADER, allHeaders)
 
-#    self.curl.setopt(pycurl.VERBOSE, 2)
+    self.curl.setopt(pycurl.VERBOSE, 2)
 
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
@@ -368,15 +417,49 @@ class BaseSpace:
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
       raise NameError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
+    if str(request).lower() == 'delete':
+      return None
+
     try:
       return json.loads(outputBuffer.getvalue())
     except Exception as e:
       raise NameError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
 
   def cleanupMachines(self):
-  
-    # setLastFizzleTime() here too
-    print 'We do not actually clean up old machines yet ...'
+    # Delete machines. We do not update totals here: next cycle is good enough.
+      
+    for machineName,machine in self.machines.iteritems():
+
+      # Store last fizzle time for shutdown     
+      if machine.state == MachineState.shutdown and \
+         machine.vmtypeName and \
+         machine.vmtypeName in self.vmtypes and \
+         machine.startedTime and \
+         (machine.updatedTime > self.vmtypes[machine.vmtypeName].lastFizzleTime) and \
+         ((machine.updatedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds):
+        self.vmtypes[machine.vmtypeName].setLastFizzleTime(machine.updatedTime)
+    
+      # Delete machines as appropriate
+      if machine.state == MachineState.shutdown:
+        machine.destroy()
+      elif machine.state == MachineState.failed:
+        machine.destroy()
+      elif machine.state == MachineState.running and \
+           (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].max_wallclock_seconds)):
+        machine.destroy()
+      elif machine.state == MachineState.running and \
+           self.vmtypes[machine.vmtypeName].heartbeat_file and \
+           self.vmtypes[machine.vmtypeName].heartbeat_seconds and \
+           machine.startedTime and \
+           (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].fizzle_seconds)) and \
+           (
+            (machine.heartbeatTime is None) or 
+            (machine.heartbeatTime < (int(time.time()) - self.vmtypes[machine.vmtypeName].heartbeat_seconds))
+           ):
+        machine.destroy()
+      #
+      # Also destroy machines with powerState != 1 for +15mins?
+      #
 
   def makeMachines(self):
 
@@ -613,6 +696,8 @@ class OpenstackSpace(BaseSpace):
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
         continue
+        
+      uuidStr = str(oneServer['id'])
 
       try:
         ip = str(oneServer['addresses']['CERN_NETWORK'][0]['addr'])
@@ -656,7 +741,8 @@ class OpenstackSpace(BaseSpace):
                                                                ip          = ip,
                                                                createdTime = createdTime,
                                                                startedTime = startedTime,
-                                                               updatedTime = updatedTime)
+                                                               updatedTime = updatedTime,
+                                                               uuidStr     = uuidStr)
 
   def getFlavorID(self, vmtypeName):
   # Get the "flavor" ID (## "We're all living in Amerika!" ##)
@@ -733,7 +819,7 @@ class OpenstackSpace(BaseSpace):
                 }
 
       if self.vmtypes[vmtypeName].root_public_key:
-        request['key_name'] = self.vmtypes[vmtypeName].root_public_key
+        request['server']['key_name'] = self.vmtypes[vmtypeName].root_public_key
         
     except Exception as e:
       raise NameError('Failed to create new machine: ' + str(e))
@@ -745,7 +831,7 @@ class OpenstackSpace(BaseSpace):
     except Exception as e:
       raise NameError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(response['servers']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(response['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
 
     return machineName
 
@@ -811,42 +897,5 @@ def readConf():
       raise NameError('Section type ' + sectionType + 'not recognised')
 
   # else: Skip over vmtype sections, which are parsed during the class initialization
-
-def logMachineoutputs(hostName, vmtypeName, spaceName):
-
-  if os.path.exists('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName):
-    # Copy (presumably) already exists so don't need to do anything
-    return
-   
-  try:
-    os.makedirs('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName,
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-  except:
-    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName)
-    return
-      
-  try:
-    # Get the list of files that the VM wrote in its /etc/machineoutputs
-    outputs = os.listdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')
-  except:
-    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + hostName + '/machineoutputs')
-    return
-        
-  if outputs:
-    # Go through the files one by one, adding them to the machineoutputs directory
-    for oneOutput in outputs:
-
-      try:
-        # first we try a hard link, which is efficient in time and space used
-        os.link('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput,
-                '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
-      except:
-        try:
-          # if linking failed (different filesystems?) then we try a copy
-          shutil.copyfile('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput,
-                          '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
-        except:
-          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + oneOutput + 
-                  ' to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + hostName + '/' + oneOutput)
 
   
