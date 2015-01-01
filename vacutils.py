@@ -79,7 +79,7 @@ def secondsToHHMMSS(seconds):
    mm, ss = divmod(ss, 60)
    return '%02d:%02d:%02d' % (hh, mm, ss)
 
-def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName, vmtypeName, userDataPath, hostName, uuidStr):
+def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName, vmtypeName, userDataPath, hostName, uuidStr, userAgent = None):
    
    # Get raw user_data template file, either from network ...
    if (userDataPath[0:7] == 'http://') or (userDataPath[0:8] == 'https://'):
@@ -91,7 +91,10 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
      c.setopt(c.FOLLOWLOCATION, True)
      c.setopt(c.SSL_VERIFYPEER, 1)
      c.setopt(c.SSL_VERIFYHOST, 2)
-        
+     
+     if userAgent:
+       c.setopt(c.USERAGENT, userAgent)
+               
      if os.path.isdir('/etc/grid-security/certificates'):
        c.setopt(c.CAPATH, '/etc/grid-security/certificates')
      else:
@@ -166,7 +169,6 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
            userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
            f.close()
         except:
-           print vmtypesPath + '/' + vmtypeName + '/' + oneValue
            raise NameError('Failed to read ' + oneValue + ' for ' + oneOption)          
 
    return userDataContents

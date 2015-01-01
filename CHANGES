@@ -6,6 +6,7 @@
   vmtypes to put a proxy in user_data rather than a hostcert/hostkey
 - creationsPerCycle calculated as 10% of max_machines in the space
 - Recast using BaseSpace, OpenstackSpace, and Vmtype objects
+- Vcycle manages key pairs and boot images automatically
 ==================== Changes in Vcycle version 0.3.0 =====================
 - Separate [space ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per space

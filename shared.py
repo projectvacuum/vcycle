@@ -3,7 +3,7 @@
 #  shared.py - common functions, classes, and variables for Vcycle
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-4. All rights reserved.
+#  Copyright (c) 2013-5. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -41,6 +41,7 @@ import sys
 import stat
 import time
 import json
+import shutil
 import string
 import pycurl
 import random
@@ -52,40 +53,46 @@ import ConfigParser
 
 import vcycle.vacutils
 
-vcycleVersion = None
-spaces        = None
+class VcycleError(Exception):
+  pass
+
+vcycleVersion       = None
+spaces              = None
+maxWallclockSeconds = 0
 
 class MachineState:
-   unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
+  #
+  # not listed -> starting
+  # starting   -> failed or running or shutdown (if we miss the time when running)
+  # running    -> shutdown
+  # shutdown   -> deleting
+  # deleting   -> not listed or failed
+  #
+  # random OpenStack unreliability can require transition to failed at any time
+  #
+  unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
    
 class Machine:
 
-  def __init__(self, name, state, ip, createdTime, startedTime, updatedTime, uuidStr):
+  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr):
 
     # Store values from api-specific calling function
     self.name         = name
+    self.spaceName    = spaceName
     self.state        = state
     self.ip           = ip
     self.createdTime  = createdTime
     self.startedTime  = startedTime
     self.updatedTime  = updatedTime
     self.uuidStr      = uuidStr
-    
+
     # Record when the machine started (rather than just being created)
     if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
 
-    # Store values stored when we requested the machine
+    # Store value stored when we requested the machine
     try:
-      f = open('/var/lib/vcycle/machines/' + name + '/space_name', 'r')
-    except:
-      self.spaceName = None
-    else:
-      self.spaceName = f.read().strip()
-      f.close()
-
-    try:
-      f = open('/var/lib/vcycle/machines/' + name + '/vmtype', 'r')
+      f = open('/var/lib/vcycle/machines/' + name + '/vmtype_name', 'r')
     except:
       self.vmtypeName = None
     else:
@@ -133,57 +140,30 @@ class Machine:
 
   def destroy(self):
   
+    vcycle.vacutils.logLine('Destroying ' + self.name + ' in ' + self.spaceName + ':' + str(self.vmtypeName) + ', in state ' + str(self.state))
+
     try:
       spaces[self.spaceName].httpJSON(spaces[self.spaceName].computeURL + '/servers/' + self.uuidStr,
                                       request = 'DELETE',
                                       headers = [ 'X-Auth-Token: ' + spaces[self.spaceName].token ])
     except Exception as e:
-      raise NameError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
+      raise VcycleError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
 
     if self.spaceName and self.vmtypeName and spaces[self.spaceName].vmtypes[self.vmtypeName].log_machineoutputs:
       vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
-      self.logMachineOutputs()
+      logMachineOutputs(self.spaceName, self.vmtypeName, self.name)
 
-  def logMachineOutputs(self):
-
-    if os.path.exists('/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name):
-      # Copy (presumably) already exists so don't need to do anything
-      return
-   
     try:
-      os.makedirs('/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name,
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+      shutil.rmtree('/var/lib/vcycle/machines/' + self.name)
+      vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + self.name)
     except:
-      vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
-      return
-      
-    try:
-      # Get the list of files that the VM wrote in its /etc/machineoutputs
-      outputs = os.listdir('/var/lib/vcycle/machines/' + self.name + '/machineoutputs')
-    except:
-      vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + self.name + '/machineoutputs')
-      return
-        
-    if outputs:
-      # Go through the files one by one, adding them to the machineoutputs directory
-      for oneOutput in outputs:
-
-        try:
-          # first we try a hard link, which is efficient in time and space used
-          os.link('/var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput,
-                  '/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
-        except:
-          try:
-            # if linking failed (different filesystems?) then we try a copy
-            shutil.copyfile('/var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput,
-                            '/var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
-          except:
-            vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + self.name + '/machineoutputs/' + oneOutput + 
-                                    ' to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name + '/' + oneOutput)
+      vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + self.name)
 
 class Vmtype:
 
   def __init__(self, spaceName, vmtypeName, parser, vmtypeSectionName):
+  
+    global maxWallclockSeconds
   
     self.spaceName  = spaceName
     self.vmtypeName = vmtypeName
@@ -200,12 +180,12 @@ class Vmtype:
     try:
       self.root_image = parser.get(vmtypeSectionName, 'root_image')
     except Exception as e:
-      raise NameError('root_image is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('root_image is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
     
     try:
       self.flavor_name = parser.get(vmtypeSectionName, 'flavor_name')
     except Exception as e:
-      raise NameError('flavor_name is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('flavor_name is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
     
     try:
       self.root_public_key = parser.get(vmtypeSectionName, 'root_public_key')
@@ -223,25 +203,28 @@ class Vmtype:
       else:
         self.max_machines = None
     except Exception as e:
-      raise NameError('Failed to parse max_machines in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Failed to parse max_machines in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     try:
       self.backoff_seconds = int(parser.get(vmtypeSectionName, 'backoff_seconds'))
     except Exception as e:
-      raise NameError('backoff_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('backoff_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     try:
       self.fizzle_seconds = int(parser.get(vmtypeSectionName, 'fizzle_seconds'))
     except Exception as e:
-      raise NameError('fizzle_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('fizzle_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     try:
       if parser.has_option(vmtypeSectionName, 'max_wallclock_seconds'):
         self.max_wallclock_seconds = int(parser.get(vmtypeSectionName, 'max_wallclock_seconds'))
       else:
         self.max_wallclock_seconds = 86400
+      
+      if self.max_wallclock_seconds > maxWallclockSeconds:
+        maxWallclockSeconds = self.max_wallclock_seconds
     except Exception as e:
-      raise NameError('max_wallclock_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('max_wallclock_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     try:
       self.heartbeat_file = parser.get(vmtypeSectionName, 'heartbeat_file')
@@ -254,12 +237,12 @@ class Vmtype:
       else:
         self.heartbeat_seconds = None
     except Exception as e:
-      raise NameError('Failed to parse heartbeat_seconds in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Failed to parse heartbeat_seconds in [' + vmtypeSectionName + '] (' + str(e) + ')')
 
     try:
       self.user_data = parser.get(vmtypeSectionName, 'user_data')
     except Exception as e:
-      raise NameError('user_data is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('user_data is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
 
     try:
       if parser.has_option(vmtypeSectionName, 'target_share'):
@@ -267,7 +250,7 @@ class Vmtype:
       else:
         self.target_share = 0.0
     except Exception as e:
-      raise NameError('Failed to parse target_share in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Failed to parse target_share in [' + vmtypeSectionName + '] (' + str(e) + ')')
 
     if parser.has_option(vmtypeSectionName, 'log_machineoutputs') and \
                parser.get(vmtypeSectionName, 'log_machineoutputs').strip().lower() == 'true':
@@ -281,23 +264,23 @@ class Vmtype:
       else:
         self.machineoutputs_days = 3.0
     except Exception as e:
-      raise NameError('Failed to parse machineoutputs_days in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Failed to parse machineoutputs_days in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     self.options = {}
     
     for (oneOption, oneValue) in parser.items(vmtypeSectionName):
       if (oneOption[0:17] == 'user_data_option_') or (oneOption[0:15] == 'user_data_file_'):
         if string.translate(oneOption, None, '0123456789abcdefghijklmnopqrstuvwxyz_') != '':
-          raise NameError('Name of user_data_xxx (' + oneOption + ') must only contain a-z 0-9 and _')
+          raise VcycleError('Name of user_data_xxx (' + oneOption + ') must only contain a-z 0-9 and _')
         else:
           self.options[oneOption] = oneValue
 
     if parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                 not parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
-      raise NameError('user_data_proxy_cert given but user_data_proxy_key missing (they can point to the same file if necessary)')
+      raise VcycleError('user_data_proxy_cert given but user_data_proxy_key missing (they can point to the same file if necessary)')
     elif not parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                   parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
-      raise NameError('user_data_proxy_key given but user_data_proxy_cert missing (they can point to the same file if necessary)')
+      raise VcycleError('user_data_proxy_key given but user_data_proxy_cert missing (they can point to the same file if necessary)')
     elif parser.has_option(vmtypeSectionName, 'user_data_proxy_cert') and \
                   parser.has_option(vmtypeSectionName, 'user_data_proxy_key') :
       self.user_data_proxy_cert = parser.get(vmtypeSectionName, 'user_data_proxy_cert')
@@ -311,7 +294,7 @@ class Vmtype:
 
     # Just for this instance, so Total for this vmtype in one space
     self.totalMachines    = 0
-    self.runningMachines  = 0.0
+    self.runningMachines  = 0
     self.weightedMachines = 0.0
     self.notPassedFizzle  = 0
 
@@ -319,11 +302,20 @@ class Vmtype:
 
     if fizzleTime > self.lastFizzleTime:
       self.lastFizzleTime = fizzleTime
-      
-      os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName,
-                  stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+
+      try:
+        os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName,
+                    stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+      except:
+        pass
+        
       vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName, str(fizzleTime), tmpDir = '/var/lib/vcycle/tmp')
 
+  def makeMachineName(self):
+    """Construct a machine name including the vmtype"""
+
+    return 'vcycle-' + self.vmtypeName + '-' + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
+  
 class BaseSpace:
 
   def __init__(self, api, spaceName, parser, spaceSectionName):
@@ -333,12 +325,7 @@ class BaseSpace:
     try:
       self.max_machines = int(parser.get(spaceSectionName, 'max_machines'))
     except Exception as e:
-      raise NameError('max_machines is required in [space ' + spaceName + '] (' + str(e) + ')')
-
-    try:
-      self.delete_old_files = bool(parser.get(spaceSectionName, 'delete_old_files'))
-    except:
-      self.delete_old_files = True
+      raise VcycleError('max_machines is required in [space ' + spaceName + '] (' + str(e) + ')')
 
     self.vmtypes = {}
 
@@ -352,15 +339,15 @@ class BaseSpace:
         continue
 
       if string.translate(vmtypeName, None, '0123456789abcdefghijklmnopqrstuvwxyz-') != '':
-        raise NameError('Name of vmtype in [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 or -')
+        raise VcycleError('Name of vmtype in [vmtype ' + spaceName + ' ' + vmtypeName + '] can only contain a-z 0-9 or -')
 
       try:
         self.vmtypes[vmtypeName] = Vmtype(spaceName, vmtypeName, parser, vmtypeSectionName)
       except Exception as e:
-        raise NameError('Failed to initialize [vmtype ' + spaceName + ' ' + vmtypeName + '] (' + str(e) + ')')
+        raise VcycleError('Failed to initialize [vmtype ' + spaceName + ' ' + vmtypeName + '] (' + str(e) + ')')
 
     if len(self.vmtypes) < 1:
-      raise NameError('No vmtypes defined for space ' + spaceName + ' - each space must have at least one vmtype!')
+      raise VcycleError('No vmtypes defined for space ' + spaceName + ' - each space must have at least one vmtype!')
 
     # Start new curl session for this instance
     self.curl = pycurl.Curl()
@@ -374,10 +361,12 @@ class BaseSpace:
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def httpJSON(self, url, request = None, headers = None):
+  def httpJSON(self, url, request = None, headers = None, verbose = False):
 
+    self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
-
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
+    
     if not request:
       self.curl.setopt(pycurl.HTTPGET, True)
     elif str(request).lower() == 'delete':
@@ -386,7 +375,7 @@ class BaseSpace:
       try:
         self.curl.setopt(pycurl.POSTFIELDS, json.dumps(request))
       except Exception as e:
-        raise NameError('JSON encoding of "' + str(request) + '" fails (' + str(e) + ')')
+        raise VcycleError('JSON encoding of "' + str(request) + '" fails (' + str(e) + ')')
 
     outputBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
@@ -398,7 +387,10 @@ class BaseSpace:
 
     self.curl.setopt(pycurl.HTTPHEADER, allHeaders)
 
-    self.curl.setopt(pycurl.VERBOSE, 2)
+    if verbose:
+      self.curl.setopt(pycurl.VERBOSE, 2)
+    else:
+      self.curl.setopt(pycurl.VERBOSE, 0)
 
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
@@ -411,11 +403,11 @@ class BaseSpace:
     try:
       self.curl.perform()
     except Exception as e:
-      raise NameError('Failed to read ' + url + ' (' + str(e) + ')')
+      raise VcycleError('Failed to read ' + url + ' (' + str(e) + ')')
 
     # Any 2xx code is OK; otherwise raise an exception
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise NameError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+      raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
     if str(request).lower() == 'delete':
       return None
@@ -423,20 +415,25 @@ class BaseSpace:
     try:
       return json.loads(outputBuffer.getvalue())
     except Exception as e:
-      raise NameError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+      if self.curl.getinfo(pycurl.RESPONSE_CODE) == 202 and \
+         self.curl.getinfo(pycurl.REDIRECT_URL):
+        return { 'location' : self.curl.getinfo(pycurl.REDIRECT_URL) }
 
-  def cleanupMachines(self):
-    # Delete machines. We do not update totals here: next cycle is good enough.
+      raise VcycleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+
+  def deleteMachines(self):
+    # Delete machines in this space. We do not update totals here: next cycle is good enough.
       
     for machineName,machine in self.machines.iteritems():
 
-      # Store last fizzle time for shutdown     
+      # Store last fizzle time for shutdown
       if machine.state == MachineState.shutdown and \
          machine.vmtypeName and \
          machine.vmtypeName in self.vmtypes and \
          machine.startedTime and \
          (machine.updatedTime > self.vmtypes[machine.vmtypeName].lastFizzleTime) and \
-         ((machine.updatedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds):
+         ((machine.updatedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds): 
+        vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + machine.vmtypeName + ' lastFizzleTime ' + str(machine.updatedTime))
         self.vmtypes[machine.vmtypeName].setLastFizzleTime(machine.updatedTime)
     
       # Delete machines as appropriate
@@ -445,9 +442,12 @@ class BaseSpace:
       elif machine.state == MachineState.failed:
         machine.destroy()
       elif machine.state == MachineState.running and \
+           machine.vmtypeName in self.vmtypes and \
+           machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].max_wallclock_seconds)):
         machine.destroy()
       elif machine.state == MachineState.running and \
+           machine.vmtypeName in self.vmtypes and \
            self.vmtypes[machine.vmtypeName].heartbeat_file and \
            self.vmtypes[machine.vmtypeName].heartbeat_seconds and \
            machine.startedTime and \
@@ -548,9 +548,18 @@ class BaseSpace:
         return
       
   def createMachine(self, vmtypeName):
-    # Generic machine creation
+    """Generic machine creation"""
   
-    machineName = 'vcycle-' + vmtypeName + '-' + str(time.time()).replace('.','-')
+    try:
+      machineName = self.vmtypes[vmtypeName].makeMachineName()
+    except Exception as e:
+      vcycle.vacutils.logLine('Failed construction new machine name (' + str(e) + ')')
+
+    try:
+      shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
+      vcycle.vacutils.logLine('Found and deleted left over /var/lib/vcycle/machines/' + machineName)
+    except:
+      pass
 
     os.makedirs('/var/lib/vcycle/machines/' + machineName + '/machinefeatures',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
@@ -576,19 +585,20 @@ class BaseSpace:
                                                                              self.vmtypes[vmtypeName].max_wallclock_seconds),
                                                         vmtypesPath    = '/var/lib/vcycle/vmtypes/' + self.spaceName,
                                                         options        = self.vmtypes[vmtypeName].options,
-                                                        versionString  = 'Vcycle ' + vcycle.shared.vcycleVersion,
+                                                        versionString  = 'Vcycle ' + vcycleVersion,
                                                         spaceName      = self.spaceName,
                                                         vmtypeName     = vmtypeName,
                                                         userDataPath   = self.vmtypes[vmtypeName].user_data,
-                                                        hostName       = machineName,
-                                                        uuidStr        = None)
+                                                        hostName       = machineName + '.' + self.spaceName,
+                                                        uuidStr        = None,
+                                                        userAgent      = 'Vcycle ' + vcycleVersion)
     except Exception as e:
-      raise NameError('Failed getting user_data file (' + str(e) + ')')
+      raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
     try:
       open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'w').write(userDataContents)
     except:
-      raise NameError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
+      raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
 
     return machineName
 
@@ -607,7 +617,7 @@ class BaseSpace:
       return
       
     try:
-      self.cleanupMachines()
+      self.deleteMachines()
     except Exception as e:
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
@@ -629,24 +639,24 @@ class OpenstackSpace(BaseSpace):
     try:
       self.tenancy_name = parser.get(spaceSectionName, 'tenancy_name')
     except Exception as e:
-      raise NameError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise VcycleError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       self.identityURL = parser.get(spaceSectionName, 'url')
     except Exception as e:
-      raise NameError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise VcycleError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
-      raise NameError('username is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise VcycleError('username is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
       # reveal passwords in a memorable way. 
       self.password = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
     except Exception as e:
-      raise NameError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise VcycleError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
   # Connect to the OpenStack service
@@ -660,8 +670,8 @@ class OpenstackSpace(BaseSpace):
                                           }
                                } )
     except Exception as e:
-      raise NameError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
-
+      raise VcycleError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
+ 
     self.token     = str(response['access']['token']['id'])
     
     self.computeURL = None
@@ -674,19 +684,21 @@ class OpenstackSpace(BaseSpace):
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
         
     if not self.computeURL:
-      raise NameError('No compute service URL found from ' + self.identityURL)
+      raise VcycleError('No compute service URL found from ' + self.identityURL)
 
     if not self.imageURL:
-      raise NameError('No image service URL found from ' + self.identityURL)
+      raise VcycleError('No image service URL found from ' + self.identityURL)
+
+    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName + ', computeURL=' + self.computeURL + ' imageURL=' + self.imageURL)
 
   def scanMachines(self):
-  # Query OpenStack compute service for details of machines in this space
+    """Query OpenStack compute service for details of machines in this space"""
   
     try:
       response = self.httpJSON(self.computeURL + '/servers/detail',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise NameError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     for oneServer in response['servers']:
 
@@ -711,9 +723,7 @@ class OpenstackSpace(BaseSpace):
       updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
 
       try:
-        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']
-                                                       )
-                                                   ).split('.')[0], "%Y-%m-%dT%H:%M:%S")
+        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
       except:
         startedTime = None
 
@@ -737,6 +747,7 @@ class OpenstackSpace(BaseSpace):
         state = MachineState.unknown
 
       self.machines[oneServer['name']] = vcycle.shared.Machine(name        = oneServer['name'],
+                                                               spaceName   = self.spaceName,
                                                                state       = state,
                                                                ip          = ip,
                                                                createdTime = createdTime,
@@ -745,19 +756,19 @@ class OpenstackSpace(BaseSpace):
                                                                uuidStr     = uuidStr)
 
   def getFlavorID(self, vmtypeName):
-  # Get the "flavor" ID (## "We're all living in Amerika!" ##)
+    """Get the "flavor" ID (## We're all living in Amerika! ##)"""
   
     if hasattr(self.vmtypes[vmtypeName], '_flavorID'):
       if self.vmtypes[vmtypeName]._flavorID:
         return self.vmtypes[vmtypeName]._flavorID
       else:
-        raise NameError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+        raise VcycleError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
       
     try:
       response = self.httpJSON(self.computeURL + '/flavors',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise NameError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
     try:
       for flavor in response['flavors']:
@@ -767,43 +778,240 @@ class OpenstackSpace(BaseSpace):
     except:
       pass
         
-    raise NameError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+    raise VcycleError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
 
   def getImageID(self, vmtypeName):
-  # Get the image ID
+    """Get the image ID"""
 
+    # If we already know the image ID, then just return it
     if hasattr(self.vmtypes[vmtypeName], '_imageID'):
       if self.vmtypes[vmtypeName]._imageID:
         return self.vmtypes[vmtypeName]._imageID
       else:
-        raise NameError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
-      
+        # If _imageID is None, then it's not available for this cycle
+        raise VcycleError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
+
+    # Get the existing images for this tenancy
     try:
       response = self.httpJSON(self.computeURL + '/images/detail',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise NameError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-    
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+
+    # Specific image, not managed by Vcycle, lookup ID
+    if self.vmtypes[vmtypeName].root_image[:6] == 'image:':
+      for image in response['images']:
+         if self.vmtypes[vmtypeName].root_image[6:] == image['name']:
+           self.vmtypes[vmtypeName]._imageID = str(image['id'])
+           return self.vmtypes[vmtypeName]._imageID
+
+      raise VcycleError('Image "' + self.vmtypes[vmtypeName].root_image[6:] + '" for vmtype ' + vmtypeName + ' not available!')
+
+    # Always store/make the image name
+    if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
+       self.vmtypes[vmtypeName].root_image[:8] == 'https://' or \
+       self.vmtypes[vmtypeName].root_image[0] == '/':
+      imageName = self.vmtypes[vmtypeName].root_image
+    else:
+      imageName = '/var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + '/' + self.vmtypes[vmtypeName].root_image
+
+    # Find the local copy of the image file
+    if not hasattr(self.vmtypes[vmtypeName], '_imageFile'):
+
+      if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
+         self.vmtypes[vmtypeName].root_image[:8] == 'https://':
+
+        try:
+          imageFile = vcycle.vacutils.getRemoteRootImage(self.vmtypes[vmtypeName].root_image,
+                                         '/var/lib/vcycle/imagecache', 
+                                         '/var/lib/vcycle/tmp')
+
+          imageLastModified = int(os.stat(imageFile).st_mtime)
+        except Exception as e:
+          raise VcycleError('Failed fetching ' + self.vmtypes[vmtypeName].root_image + ' (' + str(e) + ')')
+
+        self.vmtypes[vmtypeName]._imageFile = imageFile
+ 
+      elif self.vmtypes[vmtypeName].root_image[0] == '/':
+        
+        try:
+          imageLastModified = int(os.stat(self.vmtypes[vmtypeName].root_image).st_mtime)
+        except Exception as e:
+          raise VcycleError('Image file "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' does not exist!')
+
+        self.vmtypes[vmtypeName]._imageFile = self.vmtypes[vmtypeName].root_image
+
+      else: # root_image is not an absolute path, but imageName is
+        
+        try:
+          imageLastModified = int(os.stat(imageName).st_mtime)
+        except Exception as e:
+          raise VcycleError('Image file "' + self.vmtypes[vmtypeName].root_image +
+                            '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + ' !')
+
+        self.vmtypes[vmtypeName]._imageFile = imageName
+
+    else:
+      imageLastModified = int(os.stat(self.vmtypes[vmtypeName]._imageFile).st_mtime)
+
+    # Go through the existing images looking for a name and time stamp match
+# We should delete old copies of the current image name if we find them here
+#    pprint.pprint(response)
     for image in response['images']:
       try:
-        if self.vmtypes[vmtypeName].root_image[:6] == 'image:' and \
-           self.vmtypes[vmtypeName].root_image[6:] == image['name']:
-          self.vmtypes[vmtypeName]._imageID = str(image['id'])
-          return self.vmtypes[vmtypeName]._imageID
-        # also check for http(s):// images
-        # also check for local file images
+         if image['name'] == imageName and \
+            image['status'] == 'ACTIVE' and \
+            image['metadata']['last_modified'] == str(imageLastModified):
+           self.vmtypes[vmtypeName]._imageID = str(image['id'])
+           return self.vmtypes[vmtypeName]._imageID
       except:
         pass
-        
-    raise NameError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
+
+    vcycle.vacutils.logLine('Image "' + self.vmtypes[vmtypeName].root_image + '" not found in image service, so uploading')
+
+    # Try to upload the image
+    try:
+      self.vmtypes[vmtypeName]._imageID = self.uploadImage(self.vmtypes[vmtypeName]._imageFile, imageName, imageLastModified)
+      return self.vmtypes[vmtypeName]._imageID
+    except Exception as e:
+      raise VcycleError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
+
+  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
+
+    try:
+      f = open(imageFile, 'r')
+    except Exception as e:
+      raise VcycleError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
+
+    self.curl.setopt(pycurl.READFUNCTION,   f.read)
+    self.curl.setopt(pycurl.UPLOAD,         True)
+    self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
+    self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
+    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT,        30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+
+    self.curl.setopt(pycurl.HTTPHEADER,
+                     [ 'Content-Type: application/octet-stream',
+                       'Accept: application/json',
+                       'Transfer-Encoding: chunked',
+                       'x-image-meta-container_format: bare',
+                       'x-image-meta-is_public: False',
+                       'x-image-meta-disk_format: raw',
+                       'x-image-meta-name: ' + imageName,
+                       'x-image-meta-property-last-modified: ' + str(imageLastModified),
+                       'X-Auth-Token: ' + self.token
+                     ])
+
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+    
+    if verbose:
+      self.curl.setopt(pycurl.VERBOSE, 2)
+    else:
+      self.curl.setopt(pycurl.VERBOSE, 0)
+
+    if os.path.isdir('/etc/grid-security/certificates'):
+      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+
+    try:
+      self.curl.perform()
+    except Exception as e:
+      raise VcycleError('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
+
+    # Any 2xx code is OK; otherwise raise an exception
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise VcycleError('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
+    try:
+      response = json.loads(outputBuffer.getvalue())
+    except Exception as e:
+      raise VcycleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+    
+    try:
+      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
+      return str(response['image']['id'])
+    except:
+      raise VcycleError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
+
+  def getKeyPairName(self, vmtypeName):
+    """Get the key pair name from root_public_key"""
+
+    if hasattr(self.vmtypes[vmtypeName], '_keyPairName'):
+      if self.vmtypes[vmtypeName]._keyPairName:
+        return self.vmtypes[vmtypeName]._keyPairName
+      else:
+        raise VcycleError('Key pair "' + self.vmtypes[vmtypeName].root_public_key + '" for vmtype ' + vmtypeName + ' not available!')
       
+    # Get the ssh public key from the root_public_key file
+        
+    if self.vmtypes[vmtypeName].root_public_key[0] == '/':
+      try:
+        f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
+      except Exception as e:
+        VcycleError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
+    else:  
+      try:
+        f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
+      except Exception as e:
+        VcycleError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
+
+    while True:
+      try:
+        line = f.read()
+      except:
+        raise VcycleError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
+        
+      if line[:8] == 'ssh-rsa ':
+        sshPublicKey =  line.split(' ')[1]
+        break
+
+    # Check if public key is there already
+
+    try:
+      response = self.httpJSON(self.computeURL + '/os-keypairs',
+                               headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+
+    for keypair in response['keypairs']:
+      try:
+        if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
+          self.vmtypes[vmtypeName]._keyPairName = str(keypair['keypair']['name'])
+          return self.vmtypes[vmtypeName]._keyPairName
+      except:
+        pass
+      
+    # Not there so we try to add it
+    
+    keyName = str(time.time()).replace('.','-')
+
+    try:
+      response = self.httpJSON(self.computeURL + '/os-keypairs',
+                               { 'keypair' : { 'name'       : keyName,
+                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
+                                             }
+                               },
+                               headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+
+    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.vmtypes[vmtypeName].root_public_key + ' in ' + self.spaceName)
+
+    self.vmtypes[vmtypeName]._keyPairName = keyName
+    return self.vmtypes[vmtypeName]._keyPairName
+
   def createMachine(self, vmtypeName):
-  
-    # Generic machine creation
+
+    # Call the generic machine creation method
     try:
       machineName = BaseSpace.createMachine(self, vmtypeName)
     except Exception as e:
-      raise NameError('Failed to create new machine: ' + str(e))
+      raise VcycleError('Failed to create new machine: ' + str(e))
+
+    # Now the OpenStack-specific machine creation steps
 
     try:
       request = { 'server' : 
@@ -812,26 +1020,35 @@ class OpenstackSpace(BaseSpace):
                     'imageRef'  : self.getImageID(vmtypeName),
                     'flavorRef' : self.getFlavorID(vmtypeName),
                     'metadata'  : { 'cern-services'   : 'false',
-                                    'machinefeatures' : 'https://' + os.uname()[1] + '/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + '/' + machineName + '/jobfeatures',
+                                    'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
+                                    'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : 'https://' + os.uname()[1] + '/' + machineName + '/machineoutputs' }
                   }    
                 }
 
       if self.vmtypes[vmtypeName].root_public_key:
-        request['server']['key_name'] = self.vmtypes[vmtypeName].root_public_key
-        
+        request['server']['key_name'] = self.getKeyPairName(vmtypeName)
+
     except Exception as e:
-      raise NameError('Failed to create new machine: ' + str(e))
-                                    
+      raise VcycleError('Failed to create new machine: ' + str(e))
+
     try:
       response = self.httpJSON(self.computeURL + '/servers',
                                request,
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise NameError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise VcycleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(response['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+
+    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+                                                       spaceName   = self.spaceName,
+                                                       state       = MachineState.starting,
+                                                       ip          = '0.0.0.0',
+                                                       createdTime = int(time.time()),
+                                                       startedTime = None,
+                                                       updatedTime = int(time.time()),
+                                                       uuidStr     = None)
 
     return machineName
 
@@ -872,30 +1089,154 @@ def readConf():
     try:
       (sectionType, spaceName) = spaceSectionName.lower().split(None,1)
     except Exception as e:
-      raise NameError('Cannot parse section name [' + spaceSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Cannot parse section name [' + spaceSectionName + '] (' + str(e) + ')')
     
     if sectionType == 'space':
     
       if string.translate(spaceName, None, '0123456789abcdefghijklmnopqrstuvwxyz-.') != '':
-        raise NameError('Name of space section [space ' + spaceName + '] can only contain a-z 0-9 - or .')
+        raise VcycleError('Name of space section [space ' + spaceName + '] can only contain a-z 0-9 - or .')
       
       try:
         api = parser.get(spaceSectionName, 'api').lower()
       except:
-        raise NameError('api missing from [space ' + spaceName + ']')
+        raise VcycleError('api missing from [space ' + spaceName + ']')
             
       if api.capitalize()+'Space' not in globals():
-        raise NameError(api + ' is not a supported API for managing spaces')
+        raise VcycleError(api + ' is not a supported API for managing spaces')
 
       try:
         # construct an object for this space
         spaces[spaceName] = ( globals()[ api.capitalize()+'Space' ] )(api, spaceName, parser, spaceSectionName)
       except Exception as e:
-        raise NameError('Failed to initialise space ' + spaceName + ' (' + str(e) + ')')
+        raise VcycleError('Failed to initialise space ' + spaceName + ' (' + str(e) + ')')
 
     elif sectionType != 'vmtype':
-      raise NameError('Section type ' + sectionType + 'not recognised')
+      raise VcycleError('Section type ' + sectionType + 'not recognised')
 
   # else: Skip over vmtype sections, which are parsed during the class initialization
 
+def cleanupMachines():
+  """ Go through /var/lib/vcycle/machines deleting/saved expired directory trees """
   
+  try:
+    dirslist = os.listdir('/var/lib/vcycle/machines/')
+  except:
+    return
+
+  # Go through the per-machine directories
+  for machineName in dirslist:
+
+    # Get the time beyond which this machine shouldn't be here
+    try:
+      expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time', 'r').read().strip())
+    except:
+      expireTime = int(os.stat('/var/lib/vcycle/machines/' + machineName).st_ctime) + maxWallclockSeconds
+
+    if int(time.time()) > expireTime + 3600:
+
+      # Get the space name
+      try:
+        spaceName = open('/var/lib/vcycle/machines/' + machineName + '/space_name', 'r').read().strip()
+      except:
+        spaceName = None
+
+      # Get the vmtype
+      try:
+        vmtypeName = open('/var/lib/vcycle/machines/' + machineName + '/vmtype_name', 'r').read().strip()
+      except:
+        vmtypeName = None
+
+      # Save machineoutputs if not done so already
+      if spaceName and \
+         vmtypeName and \
+         spaceName in spaces and \
+         vmtypeName in spaces[spaceName].vmtypes and \
+         spaces[spaceName].vmtypes[vmtypeName].log_machineoutputs:
+        vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName)
+        logMachineoutputs(spaceName, vmtypeName, machineName)
+
+      try:
+        shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
+        vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
+      except:
+        vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
+
+def logMachineOutputs(spaceName, vmtypeName, machineName):
+
+  if os.path.exists('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName):
+    # Copy (presumably) already exists so don't need to do anything
+    return
+   
+  try:
+    os.makedirs('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName,
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+  except:
+    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName)
+    return
+
+  try:
+    # Get the list of files that the VM wrote in its /etc/machineoutputs
+    outputs = os.listdir('/var/lib/vcycle/machines/' + machineName + '/machineoutputs')
+  except:
+    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/machineoutputs')
+    return
+        
+  if outputs:
+    # Go through the files one by one, adding them to the machineoutputs directory
+    for oneOutput in outputs:
+
+      try:
+        # first we try a hard link, which is efficient in time and space used
+        os.link('/var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput,
+                '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName + '/' + oneOutput)
+      except:
+        try:
+          # if linking failed (different filesystems?) then we try a copy
+          shutil.copyfile('/var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput,
+                            '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName + '/' + oneOutput)
+        except:
+          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput + 
+                                  ' to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName + '/' + oneOutput)
+
+def cleanupMachineoutputs():
+  """Go through /var/lib/vcycle/machineoutputs deleting expired directory trees whether they are current spaces/vmtypes or not"""
+
+  try:
+    spacesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/')
+  except:
+    return
+      
+  # Go through the per-machine directories
+  for spaceDir in spacesDirslist:
+  
+    try:
+      vmtypesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir)
+    except:
+      continue
+
+    for vmtypeDir in vmtypesDirslist:
+        
+      try:
+        hostNamesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir)
+      except:
+        continue
+ 
+      for hostNameDir in hostNamesDirslist:
+      
+        hostNameDirCtime = int(os.stat('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir).st_ctime)
+
+        try: 
+          expirationDays = spaces[spaceName].vmtypes[vmtypeDir].machineoutputs_days
+        except:
+          # use the default if something goes wrong (configuration file changed?)
+          expirationDays = 3.0
+           
+        if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
+          try:
+            shutil.rmtree('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir)
+            vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + 
+                                    '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+          except:
+            vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + 
+                                    vmtypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+
