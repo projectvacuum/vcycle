@@ -66,7 +66,7 @@ except:
 if ('SSL_CLIENT_S_DN' not in os.environ or
     spaceName not in vcycle.shared.spaces or
     vmtypeName not in vcycle.shared.spaces[spaceName].vmtypes or 
-    not hasttr(vcycle.shared.spaces[spaceName].vmtypes[vmtypeName], 'x509dn') or 
+    not hasattr(vcycle.shared.spaces[spaceName].vmtypes[vmtypeName], 'x509dn') or 
     os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName].vmtypes[vmtypeName].x509dn):
   print 'Status: 403 Forbidden'
   print
