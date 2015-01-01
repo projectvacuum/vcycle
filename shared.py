@@ -566,7 +566,9 @@ class BaseSpace:
     os.makedirs('/var/lib/vcycle/machines/' + machineName + '/jobfeatures',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     os.makedirs('/var/lib/vcycle/machines/' + machineName + '/machineoutputs',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + 
+                stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP + 
+                stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/vmtype_name', vmtypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
