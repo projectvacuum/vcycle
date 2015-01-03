@@ -32,16 +32,9 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-import uuid
-import sys
-import getpass
 import os
-import tempfile
-import random
+import sys
 import time
-import shutil
-import calendar
-import novaclient.client
 
 import vcycle
 
@@ -120,9 +113,9 @@ if __name__ == '__main__':
         else:
           for spaceName, space in vcycle.shared.spaces.iteritems():
             space.oneCycle()
-            
-        vcycle.shared.cleanupMachines()
-        vcycle.shared.cleanupMachineoutputs()
+
+          vcycle.shared.cleanupMachines()
+          vcycle.shared.cleanupMachineoutputs()
  
         vcycle.vacutils.logLine('================ End cycle ================')
 

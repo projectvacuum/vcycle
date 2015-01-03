@@ -69,6 +69,7 @@ class MachineState:
   # deleting   -> not listed or failed
   #
   # random OpenStack unreliability can require transition to failed at any time
+  # stopped file created when machine first seen in shutdown, deleting, or failed state
   #
   unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
    
@@ -116,8 +117,9 @@ class Machine:
         pass
 
     try:        
-      if (self.state == starting or self.state == running) and \
-         ((int(time.time()) - startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds):
+      if self.state == starting or \
+         (self.state == running and \
+          ((int(time.time()) - startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds)):
         spaces[self.spaceName].vmtypes[self.vmtypeName].notPassedFizzle += 1
     except:
       pass
@@ -128,17 +130,60 @@ class Machine:
     except:
       self.heartbeatTime = None
 
-    vcycle.vacutils.logLine(name + ' in ' + 
+    # Check if the machine already has a stopped timestamp
+    try:
+      self.stoppedTime = int(os.stat('/var/lib/vcycle/machines/' + name + '/stopped').st_ctime)
+    except:
+      if self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting:
+        # Record that we have seen the machine in a stopped state for the first time
+        self.stoppedTime = int(time.time())
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
+
+        # Record the shutdown message if available
+        try:
+          self.shutdownMessage = open('/var/lib/vcycle/machines/' + name + '/machineoutputs/shutdown_message', 'r').read().strip()        
+          vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
+          shutdownCode = int(self.shutdownMessage.split(' ')[0])        
+        except:
+          self.shutdownMessage = None
+          shutdownCode = None
+
+        if self.vmtypeName:
+          # Store last abort time for stopped machines, based on shutdown message code
+          if shutdownCode and \
+             (shutdownCode >= 300) and \
+             (shutdownCode <= 699) and \
+             (self.stoppedTime > spaces[self.spaceName].vmtypes[self.vmtypeName].lastAbortTime):
+            vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + self.vmtypeName + ' lastAbortTime ' + str(self.stoppedTime) + 
+                                    ' due to ' + name + ' shutdown message')
+            spaces[self.spaceName].vmtypes[self.vmtypeName].setLastAbortTime(self.stoppedTime)
+              
+          elif (self.stoppedTime > spaces[self.spaceName].vmtypes[self.vmtypeName].lastAbortTime) and \
+               ((self.stoppedTime - self.startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds): 
+
+            # Store last abort time for stopped machines, based on fizzle_seconds
+            vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + self.vmtypeName + ' lastAbortTime ' + str(self.stoppedTime) +
+                                    ' due to ' + name + ' fizzle')
+            spaces[self.spaceName].vmtypes[self.vmtypeName].setLastAbortTime(self.stoppedTime)
+
+          if shutdownCode and (shutdownCode / 100) == 3:
+            vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.vmtypeName + ' minimum fizzle_seconds=' +
+                                      str(self.stoppedTime - self.startedTime) + ' ?')
+      else:
+        self.stoppedTime = None
+
+    vcycle.vacutils.logLine('= ' + name + ' in ' + 
                             str(self.spaceName) + ':' +
                             str(self.vmtypeName) + ' ' + 
                             self.ip + ' ' + 
                             self.state + ' ' + 
                             str(self.createdTime) + '-' +
                             str(self.startedTime) + '-' +
-                            str(self.updatedTime) + ' ' +
+                            str(self.updatedTime) + '-' +
+                            str(self.stoppedTime) + ' ' +
                             str(self.heartbeatTime))
 
-  def destroy(self):
+  def delete(self):
   
     vcycle.vacutils.logLine('Destroying ' + self.name + ' in ' + self.spaceName + ':' + str(self.vmtypeName) + ', in state ' + str(self.state))
 
@@ -149,15 +194,15 @@ class Machine:
     except Exception as e:
       raise VcycleError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
 
-    if self.spaceName and self.vmtypeName and spaces[self.spaceName].vmtypes[self.vmtypeName].log_machineoutputs:
-      vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
-      logMachineOutputs(self.spaceName, self.vmtypeName, self.name)
-
-    try:
-      shutil.rmtree('/var/lib/vcycle/machines/' + self.name)
-      vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + self.name)
-    except:
-      vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + self.name)
+#    if self.spaceName and self.vmtypeName and spaces[self.spaceName].vmtypes[self.vmtypeName].log_machineoutputs:
+#      vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
+#      logMachineOutputs(self.spaceName, self.vmtypeName, self.name)
+#
+#    try:
+#      shutil.rmtree('/var/lib/vcycle/machines/' + self.name)
+#      vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + self.name)
+#    except:
+#      vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + self.name)
 
 class Vmtype:
 
@@ -168,15 +213,17 @@ class Vmtype:
     self.spaceName  = spaceName
     self.vmtypeName = vmtypeName
 
-    # Recreate lastFizzleTime (must be set/updated with setLastFizzleTime() to create file)
+    # Recreate lastAbortTime (must be set/updated with setLastAbortTime() to create file)
     try:
-      f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName + '/last_fizzle_time', 'r')
+      f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName + '/last_abort_time', 'r')
     except:
-      self.lastFizzleTime = 0
+      self.lastAbortTime = 0
     else:     
-      self.lastFizzleTime = int(f.read().strip())
+      self.lastAbortTime = int(f.read().strip())
       f.close()
   
+    vcycle.vacutils.logLine('At ' + str(int(time.time())) + ' lastAbortTime for ' + spaceName + ':' + vmtypeName + ' set to ' + str(self.lastAbortTime))
+
     try:
       self.root_image = parser.get(vmtypeSectionName, 'root_image')
     except Exception as e:
@@ -298,10 +345,10 @@ class Vmtype:
     self.weightedMachines = 0.0
     self.notPassedFizzle  = 0
 
-  def setLastFizzleTime(self, fizzleTime):
+  def setLastAbortTime(self, abortTime):
 
-    if fizzleTime > self.lastFizzleTime:
-      self.lastFizzleTime = fizzleTime
+    if abortTime > self.lastAbortTime:
+      self.lastAbortTime = abortTime
 
       try:
         os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName,
@@ -309,7 +356,8 @@ class Vmtype:
       except:
         pass
         
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName, str(fizzleTime), tmpDir = '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.vmtypeName + '/last_abort_time',
+                                 str(abortTime), tmpDir = '/var/lib/vcycle/tmp')
 
   def makeMachineName(self):
     """Construct a machine name including the vmtype"""
@@ -426,26 +474,26 @@ class BaseSpace:
       
     for machineName,machine in self.machines.iteritems():
 
-      # Store last fizzle time for shutdown
-      if machine.state == MachineState.shutdown and \
-         machine.vmtypeName and \
-         machine.vmtypeName in self.vmtypes and \
-         machine.startedTime and \
-         (machine.updatedTime > self.vmtypes[machine.vmtypeName].lastFizzleTime) and \
-         ((machine.updatedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds): 
-        vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + machine.vmtypeName + ' lastFizzleTime ' + str(machine.updatedTime))
-        self.vmtypes[machine.vmtypeName].setLastFizzleTime(machine.updatedTime)
+#      # Store last abort time for stopped machines
+#      if machine.vmtypeName and \
+#         machine.vmtypeName in self.vmtypes and \
+#         machine.stoppedTime and \
+#         (machine.stoppedTime > self.vmtypes[machine.vmtypeName].lastAbortTime) and \
+#         machine.startedTime and \
+#         ((machine.stoppedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds): 
+#        vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + machine.vmtypeName + ' lastAbortTime ' + str(machine.stoppedTime))
+#        self.vmtypes[machine.vmtypeName].setLastAbortTime(machine.stoppedTime)
     
       # Delete machines as appropriate
       if machine.state == MachineState.shutdown:
-        machine.destroy()
+        machine.delete()
       elif machine.state == MachineState.failed:
-        machine.destroy()
+        machine.delete()
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].max_wallclock_seconds)):
-        machine.destroy()
+        machine.delete()
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            self.vmtypes[machine.vmtypeName].heartbeat_file and \
@@ -456,9 +504,9 @@ class BaseSpace:
             (machine.heartbeatTime is None) or 
             (machine.heartbeatTime < (int(time.time()) - self.vmtypes[machine.vmtypeName].heartbeat_seconds))
            ):
-        machine.destroy()
+        machine.delete()
       #
-      # Also destroy machines with powerState != 1 for +15mins?
+      # Also delete machines with powerState != 1 for +15mins?
       #
 
   def makeMachines(self):
@@ -502,12 +550,12 @@ class BaseSpace:
           vcycle.vacutils.logLine('Reached limit (' + str(self.vmtypes[vmtypeName].totalMachines) + ') on number of machines to create for vmtype ' + vmtypeName)
           continue
 
-        if int(time.time()) < (self.vmtypes[vmtypeName].lastFizzleTime + self.vmtypes[vmtypeName].backoff_seconds):
-          vcycle.vacutils.logLine('Free capacity found for %s ... but only %d seconds after last fizzle' 
-                                  % (vmtypeName, int(time.time()) - self.vmtypes[vmtypeName].lastFizzleTime) )
+        if int(time.time()) < (self.vmtypes[vmtypeName].lastAbortTime + self.vmtypes[vmtypeName].backoff_seconds):
+          vcycle.vacutils.logLine('Free capacity found for %s ... but only %d seconds after last abort' 
+                                  % (vmtypeName, int(time.time()) - self.vmtypes[vmtypeName].lastAbortTime) )
           continue
 
-        if (int(time.time()) < (self.vmtypes[vmtypeName].lastFizzleTime + 
+        if (int(time.time()) < (self.vmtypes[vmtypeName].lastAbortTime + 
                                 self.vmtypes[vmtypeName].backoff_seconds + 
                                 self.vmtypes[vmtypeName].fizzle_seconds)) and \
            (self.vmtypes[vmtypeName].notPassedFizzle > 0):
@@ -515,8 +563,8 @@ class BaseSpace:
                                   vmtypeName + 
                                   ' ... but still within fizzle_seconds+backoff_seconds(' + 
                                   str(int(self.vmtypes[vmtypeName].backoff_seconds + self.vmtypes[vmtypeName].fizzle_seconds)) + 
-                                  ') of last fizzle (' + 
-                                  str(int(time.time()) - self.vmtypes[vmtypeName].lastFizzleTime) + 
+                                  ') of last abort (' + 
+                                  str(int(time.time()) - self.vmtypes[vmtypeName].lastAbortTime) + 
                                   's ago) and ' + 
                                   str(self.vmtypes[vmtypeName].notPassedFizzle) + 
                                   ' running but not yet passed fizzle_seconds (' + 
@@ -537,7 +585,7 @@ class BaseSpace:
         except Exception as e:
           vcycle.vacutils.logLine('Failed creating machine with vmtype ' + bestVmtypeName + ' in ' + self.spaceName + ' (' + str(e) + ')')
         else:
-          # For newly created machines, we update totals but not self.machines[] objects
+          # Update totals for newly created machines
           self.totalMachines += 1
           self.vmtypes[bestVmtypeName].totalMachines    += 1
           self.vmtypes[bestVmtypeName].weightedMachines += (1.0 / self.vmtypes[bestVmtypeName].target_share)
@@ -592,8 +640,7 @@ class BaseSpace:
                                                         vmtypeName     = vmtypeName,
                                                         userDataPath   = self.vmtypes[vmtypeName].user_data,
                                                         hostName       = machineName + '.' + self.spaceName,
-                                                        uuidStr        = None,
-                                                        userAgent      = 'Vcycle ' + vcycleVersion)
+                                                        uuidStr        = None)
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
@@ -629,6 +676,10 @@ class BaseSpace:
     except Exception as e:
       vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
       
+#
+# The OpenstackSpace class is here in shared.py for now. 
+# Will be split off into a separate per-API plugin file in the future.
+#
 class OpenstackSpace(BaseSpace):
 
   def __init__(self, api, spaceName, parser, spaceSectionName):
@@ -691,7 +742,9 @@ class OpenstackSpace(BaseSpace):
     if not self.imageURL:
       raise VcycleError('No image service URL found from ' + self.identityURL)
 
-    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName + ', computeURL=' + self.computeURL + ' imageURL=' + self.imageURL)
+    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
+    vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
+    vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
 
   def scanMachines(self):
     """Query OpenStack compute service for details of machines in this space"""
@@ -710,7 +763,7 @@ class OpenstackSpace(BaseSpace):
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
         continue
-        
+
       uuidStr = str(oneServer['id'])
 
       try:
@@ -896,12 +949,12 @@ class OpenstackSpace(BaseSpace):
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
 
     self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'Content-Type: application/octet-stream',
+                     [ 'x-image-meta-disk_format: raw', # <-- 'raw' for hdd; 'iso' for iso
+                       'Content-Type: application/octet-stream',
                        'Accept: application/json',
                        'Transfer-Encoding: chunked',
                        'x-image-meta-container_format: bare',
-                       'x-image-meta-is_public: False',
-                       'x-image-meta-disk_format: raw',
+                       'x-image-meta-is_public: False',                       
                        'x-image-meta-name: ' + imageName,
                        'x-image-meta-property-last-modified: ' + str(imageLastModified),
                        'X-Auth-Token: ' + self.token
@@ -1102,7 +1155,7 @@ def readConf():
         api = parser.get(spaceSectionName, 'api').lower()
       except:
         raise VcycleError('api missing from [space ' + spaceName + ']')
-            
+
       if api.capitalize()+'Space' not in globals():
         raise VcycleError(api + ' is not a supported API for managing spaces')
 
@@ -1128,19 +1181,27 @@ def cleanupMachines():
   # Go through the per-machine directories
   for machineName in dirslist:
 
+    # Get the space name
+    try:
+      spaceName = open('/var/lib/vcycle/machines/' + machineName + '/space_name', 'r').read().strip()
+    except:
+      spaceName = None
+    else:
+      if machineName in spaces[spaceName].machines:
+        # We never delete/log directories for machines that are still listed
+        continue
+      else:
+        # If in a current space, but not listed, then delete immediately
+        expireTime = 0
+
     # Get the time beyond which this machine shouldn't be here
     try:
       expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time', 'r').read().strip())
     except:
+      # if the shutdown_time is missing, then we construct it using the longest lived vmtype in current config
       expireTime = int(os.stat('/var/lib/vcycle/machines/' + machineName).st_ctime) + maxWallclockSeconds
 
     if int(time.time()) > expireTime + 3600:
-
-      # Get the space name
-      try:
-        spaceName = open('/var/lib/vcycle/machines/' + machineName + '/space_name', 'r').read().strip()
-      except:
-        spaceName = None
 
       # Get the vmtype
       try:
@@ -1148,7 +1209,7 @@ def cleanupMachines():
       except:
         vmtypeName = None
 
-      # Save machineoutputs if not done so already
+      # Log machineoutputs if a current space and vmtype and logging is enabled
       if spaceName and \
          vmtypeName and \
          spaceName in spaces and \
@@ -1157,6 +1218,7 @@ def cleanupMachines():
         vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName)
         logMachineoutputs(spaceName, vmtypeName, machineName)
 
+      # Always delete the working copies
       try:
         shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
         vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
@@ -1224,7 +1286,8 @@ def cleanupMachineoutputs():
         continue
  
       for hostNameDir in hostNamesDirslist:
-      
+
+        # Expiration is based on file timestamp from when the COPY was created
         hostNameDirCtime = int(os.stat('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + vmtypeDir + '/' + hostNameDir).st_ctime)
 
         try: 
