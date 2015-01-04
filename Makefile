@@ -33,7 +33,7 @@
 
 include VERSION
 
-INSTALL_FILES=vcycled vcycle shared.py vacutils.py __init__.py \
+INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               openstack_api.py \
               vcycle-cgi vcycle-httpd.conf vcycled.init \
               vcycled.logrotate VERSION CHANGES
@@ -60,7 +60,7 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d \
 	         $(RPM_BUILD_ROOT)/etc/vcycle.d
-	cp vcycled vcycle vcycle-cgi \
+	cp vcycled vcycle-cgi \
 	   $(RPM_BUILD_ROOT)/usr/sbin
 	cp __init__.py shared.py vacutils.py openstack_api.py \
 	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
