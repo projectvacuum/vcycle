@@ -2,7 +2,7 @@
 #  __init__.py for vcycle package
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013. All rights reserved.
+#  Copyright (c) 2014-5. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -35,5 +35,18 @@
 
 from vcycle.shared   import *
 from vcycle.vacutils import *
+
+import os
+
+# We import all modules of the form xxxx_api.py in the package directory
+#
+# The API object in the module is created by shared.py at runtime using
+# the BaseSpace.__subclasses__() method.
+#
+for apiFile in os.listdir(os.path.dirname(__file__)):
+  if apiFile.endswith('_api.py'):
+    __import__('vcycle.' + apiFile[:-3])
+
+del apiFile
 
 __all__ = [ 'shared', 'vacutils' ]

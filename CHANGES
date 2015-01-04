@@ -6,7 +6,9 @@
   vmtypes to put a proxy in user_data rather than a hostcert/hostkey
 - creationsPerCycle calculated as 10% of max_machines in the space
 - Recast using BaseSpace, OpenstackSpace, and Vmtype objects
+- Use OpenStack REST API directly and drop nova dependency
 - Vcycle manages key pairs and boot images automatically
+- OpenstackSpace subclass moved to openstack_api.py API plugin module
 ==================== Changes in Vcycle version 0.3.0 =====================
 - Separate [space ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per space
