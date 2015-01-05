@@ -117,11 +117,11 @@ class Machine:
         pass
 
     try:        
-      if self.state == starting or \
-         (self.state == running and \
+      if self.state == MachineState.starting or \
+         (self.state == MachineState.running and \
           ((int(time.time()) - startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds)):
         spaces[self.spaceName].vmtypes[self.vmtypeName].notPassedFizzle += 1
-    except:
+    except:      
       pass
 
     # Possibly created by the machine itself
@@ -520,7 +520,9 @@ class BaseSpace(object):
       vcycle.vacutils.logLine('vmtype ' + vmtypeName + 
                               ' has ' + str(vmtype.runningMachines) + 
                               ' running vcycle VMs out of ' + str(vmtype.totalMachines) +
-                              ' found in any state')
+                              ' found in any state. ' + str(vmtype.notPassedFizzle) +
+                              ' not passed fizzle_seconds(' + str(vmtype.fizzle_seconds) +
+                              ').')
   
     creationsPerCycle  = int(0.9999999 + self.max_machines * 0.1)
     creationsThisCycle = 0
@@ -788,7 +790,7 @@ def cleanupMachines():
          vmtypeName in spaces[spaceName].vmtypes and \
          spaces[spaceName].vmtypes[vmtypeName].log_machineoutputs:
         vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + vmtypeName + '/' + machineName)
-        logMachineoutputs(spaceName, vmtypeName, machineName)
+        logMachineOutputs(spaceName, vmtypeName, machineName)
 
       # Always delete the working copies
       try:
