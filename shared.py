@@ -132,11 +132,13 @@ class Machine:
 
     # Check if the machine already has a stopped timestamp
     try:
-      self.stoppedTime = int(os.stat('/var/lib/vcycle/machines/' + name + '/stopped').st_ctime)
+      self.stoppedTime = int(open('/var/lib/vcycle/machines/' + name + '/stopped', 'r').read())
     except:
       if self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting:
         # Record that we have seen the machine in a stopped state for the first time
-        self.stoppedTime = int(time.time())
+        # updateTime has the last transition time, presumably to being stopped.
+        # This is certainly a better estimate than using time.time()?
+        self.stoppedTime = updatedTime
         vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
 
         # Record the shutdown message if available
@@ -473,16 +475,6 @@ class BaseSpace(object):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
       
     for machineName,machine in self.machines.iteritems():
-
-#      # Store last abort time for stopped machines
-#      if machine.vmtypeName and \
-#         machine.vmtypeName in self.vmtypes and \
-#         machine.stoppedTime and \
-#         (machine.stoppedTime > self.vmtypes[machine.vmtypeName].lastAbortTime) and \
-#         machine.startedTime and \
-#         ((machine.stoppedTime - machine.startedTime) < self.vmtypes[machine.vmtypeName].fizzle_seconds): 
-#        vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + machine.vmtypeName + ' lastAbortTime ' + str(machine.stoppedTime))
-#        self.vmtypes[machine.vmtypeName].setLastAbortTime(machine.stoppedTime)
     
       # Delete machines as appropriate
       if machine.state == MachineState.shutdown:

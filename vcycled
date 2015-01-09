@@ -33,8 +33,10 @@
 #
 
 import os
+import gc
 import sys
 import time
+import resource
 
 import vcycle
 
@@ -106,6 +108,8 @@ if __name__ == '__main__':
 
         vcycle.vacutils.logLine('=============== Start cycle ===============')
 
+        vcycle.vacutils.logLine('MaxRSS = ' + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) + ' pages')
+
         try:       
           vcycle.shared.readConf()
         except Exception as e:
@@ -123,6 +127,8 @@ if __name__ == '__main__':
         sys.stdout.flush()
         sys.stderr.flush()
 
+        gc.collect()
+ 
         time.sleep(sleepSeconds)
 
       sys.exit(0) # if we break out of the while loop then we exit
