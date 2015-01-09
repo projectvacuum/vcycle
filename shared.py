@@ -191,7 +191,8 @@ class Machine:
 
     try:
       spaces[self.spaceName].httpJSON(spaces[self.spaceName].computeURL + '/servers/' + self.uuidStr,
-                                      request = 'DELETE',
+                                      request = None,
+                                      method = 'DELETE',
                                       headers = [ 'X-Auth-Token: ' + spaces[self.spaceName].token ])
     except Exception as e:
       raise VcycleError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
@@ -411,7 +412,7 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def httpJSON(self, url, request = None, headers = None, verbose = False):
+  def httpJSON(self, url, request = None, headers = None, verbose = False, method = None):
 
     self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
@@ -419,7 +420,7 @@ class BaseSpace(object):
     
     if not request:
       self.curl.setopt(pycurl.HTTPGET, True)
-    elif str(request).lower() == 'delete':
+    elif method and str(method).upper() == 'DELETE':
       self.curl.setopt(pycurl.CUSTOMREQUEST, 'DELETE')
     else:
       try:
@@ -429,6 +430,9 @@ class BaseSpace(object):
 
     outputBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+    
+    headersBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.HEADERFUNCTION, headersBuffer.write)
     
     allHeaders = ['Content-Type: application/json', 'Accept: application/json']
 
@@ -454,20 +458,38 @@ class BaseSpace(object):
       self.curl.perform()
     except Exception as e:
       raise VcycleError('Failed to read ' + url + ' (' + str(e) + ')')
+    
+    headersBuffer.seek(0)
+    oneLine = headersBuffer.readline()
+    outputHeaders = { 'status' : oneLine[9:12] }
+    
+    while True:
+    
+      try:
+        oneLine = headersBuffer.readline()
+      except:
+        break
+      
+      if not oneLine.strip():
+        break
+      
+      headerNameValue = oneLine.split(':',1)
+      outputHeaders[ headerNameValue[0].lower() ] = headerNameValue[1].strip()
 
     # Any 2xx code is OK; otherwise raise an exception
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
       raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
-    if str(request).lower() == 'delete':
-      return None
+    if method and str(method).upper() == 'DELETE':
+      return { 'headers' : outputHeaders, 'response' : None }
 
     try:
-      return json.loads(outputBuffer.getvalue())
+      return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()) }
     except Exception as e:
       if self.curl.getinfo(pycurl.RESPONSE_CODE) == 202 and \
          self.curl.getinfo(pycurl.REDIRECT_URL):
-        return { 'location' : self.curl.getinfo(pycurl.REDIRECT_URL) }
+        return { 'headers' : outputHeaders, 'response' : None }
+#        return { 'location' : self.curl.getinfo(pycurl.REDIRECT_URL) }
 
       raise VcycleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
 

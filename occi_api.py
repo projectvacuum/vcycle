@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  occi_api.py - OCCI class for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-5. All rights reserved.
@@ -52,10 +52,10 @@ import calendar
 
 import vcycle.vacutils
 
-class OpenstackError(Exception):
+class OcciError(Exception):
   pass
 
-class OpenstackSpace(vcycle.BaseSpace):
+class OcciSpace(vcycle.BaseSpace):
 
   def __init__(self, api, spaceName, parser, spaceSectionName):
   # Initialize data structures from configuration files
@@ -67,30 +67,30 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       self.tenancy_name = parser.get(spaceSectionName, 'tenancy_name')
     except Exception as e:
-      raise OpenstackError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise OcciError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       self.identityURL = parser.get(spaceSectionName, 'url')
     except Exception as e:
-      raise OpenstackError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise OcciError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
-      raise OpenstackError('username is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise OcciError('username is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
       # reveal passwords in a memorable way. 
       self.password = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
     except Exception as e:
-      raise OpenstackError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      raise OcciError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
   # Connect to the OpenStack service
   
     try:
-      result = self.httpJSON(self.identityURL + '/tokens',
+      response = self.httpJSON(self.identityURL + '/tokens',
                                { 'auth' : { 'tenantName'           : self.tenancy_name, 
                                             'passwordCredentials' : { 'username' : self.username, 
                                                                       'password' : self.password 
@@ -98,23 +98,24 @@ class OpenstackSpace(vcycle.BaseSpace):
                                           }
                                } )
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
  
-    self.token      = str(result['response']['access']['token']['id'])
+    self.token     = str(response['access']['token']['id'])
+    
     self.computeURL = None
     self.imageURL   = None
     
-    for endpoint in result['response']['access']['serviceCatalog']:
+    for endpoint in response['access']['serviceCatalog']:
       if endpoint['type'] == 'compute':
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
         
     if not self.computeURL:
-      raise OpenstackError('No compute service URL found from ' + self.identityURL)
+      raise OcciError('No compute service URL found from ' + self.identityURL)
 
     if not self.imageURL:
-      raise OpenstackError('No image service URL found from ' + self.identityURL)
+      raise OcciError('No image service URL found from ' + self.identityURL)
 
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
@@ -124,12 +125,12 @@ class OpenstackSpace(vcycle.BaseSpace):
     """Query OpenStack compute service for details of machines in this space"""
   
     try:
-      result = self.httpJSON(self.computeURL + '/servers/detail',
+      response = self.httpJSON(self.computeURL + '/servers/detail',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    for oneServer in result['response']['servers']:
+    for oneServer in response['servers']:
 
       # This includes VMs that we didn't create and won't manage, to avoid going above space limit
       self.totalMachines += 1
@@ -191,23 +192,23 @@ class OpenstackSpace(vcycle.BaseSpace):
       if self.vmtypes[vmtypeName]._flavorID:
         return self.vmtypes[vmtypeName]._flavorID
       else:
-        raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OcciError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
       
     try:
-      result = self.httpJSON(self.computeURL + '/flavors',
+      response = self.httpJSON(self.computeURL + '/flavors',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
     try:
-      for flavor in result['response']['flavors']:
+      for flavor in response['flavors']:
         if flavor['name'] == self.vmtypes[vmtypeName].flavor_name:
           self.vmtypes[vmtypeName]._flavorID = str(flavor['id'])
           return self.vmtypes[vmtypeName]._flavorID
     except:
       pass
         
-    raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+    raise OcciError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
 
   def getImageID(self, vmtypeName):
     """Get the image ID"""
@@ -218,23 +219,23 @@ class OpenstackSpace(vcycle.BaseSpace):
         return self.vmtypes[vmtypeName]._imageID
       else:
         # If _imageID is None, then it's not available for this cycle
-        raise OpenstackError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OcciError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
 
     # Get the existing images for this tenancy
     try:
-      result = self.httpJSON(self.computeURL + '/images/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+      response = self.httpJSON(self.computeURL + '/images/detail',
+                               headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     # Specific image, not managed by Vcycle, lookup ID
     if self.vmtypes[vmtypeName].root_image[:6] == 'image:':
-      for image in result['response']['images']:
+      for image in response['images']:
          if self.vmtypes[vmtypeName].root_image[6:] == image['name']:
            self.vmtypes[vmtypeName]._imageID = str(image['id'])
            return self.vmtypes[vmtypeName]._imageID
 
-      raise OpenstackError('Image "' + self.vmtypes[vmtypeName].root_image[6:] + '" for vmtype ' + vmtypeName + ' not available!')
+      raise OcciError('Image "' + self.vmtypes[vmtypeName].root_image[6:] + '" for vmtype ' + vmtypeName + ' not available!')
 
     # Always store/make the image name
     if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
@@ -257,7 +258,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
           imageLastModified = int(os.stat(imageFile).st_mtime)
         except Exception as e:
-          raise OpenstackError('Failed fetching ' + self.vmtypes[vmtypeName].root_image + ' (' + str(e) + ')')
+          raise OcciError('Failed fetching ' + self.vmtypes[vmtypeName].root_image + ' (' + str(e) + ')')
 
         self.vmtypes[vmtypeName]._imageFile = imageFile
  
@@ -266,7 +267,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         try:
           imageLastModified = int(os.stat(self.vmtypes[vmtypeName].root_image).st_mtime)
         except Exception as e:
-          raise OpenstackError('Image file "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' does not exist!')
+          raise OcciError('Image file "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' does not exist!')
 
         self.vmtypes[vmtypeName]._imageFile = self.vmtypes[vmtypeName].root_image
 
@@ -275,7 +276,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         try:
           imageLastModified = int(os.stat(imageName).st_mtime)
         except Exception as e:
-          raise OpenstackError('Image file "' + self.vmtypes[vmtypeName].root_image +
+          raise OcciError('Image file "' + self.vmtypes[vmtypeName].root_image +
                             '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + ' !')
 
         self.vmtypes[vmtypeName]._imageFile = imageName
@@ -286,7 +287,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     # Go through the existing images looking for a name and time stamp match
 # We should delete old copies of the current image name if we find them here
 #    pprint.pprint(response)
-    for image in result['response']['images']:
+    for image in response['images']:
       try:
          if image['name'] == imageName and \
             image['status'] == 'ACTIVE' and \
@@ -303,14 +304,14 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.vmtypes[vmtypeName]._imageID = self.uploadImage(self.vmtypes[vmtypeName]._imageFile, imageName, imageLastModified)
       return self.vmtypes[vmtypeName]._imageID
     except Exception as e:
-      raise OpenstackError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
+      raise OcciError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
 
   def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
 
     try:
       f = open(imageFile, 'r')
     except Exception as e:
-      raise OpenstackError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
+      raise OcciError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
 
     self.curl.setopt(pycurl.READFUNCTION,   f.read)
     self.curl.setopt(pycurl.UPLOAD,         True)
@@ -348,22 +349,22 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       self.curl.perform()
     except Exception as e:
-      raise OpenstackError('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
+      raise OcciError('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
 
     # Any 2xx code is OK; otherwise raise an exception
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise OpenstackError('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+      raise OcciError('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
     try:
       response = json.loads(outputBuffer.getvalue())
     except Exception as e:
-      raise OpenstackError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+      raise OcciError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
     
     try:
       vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
       return str(response['image']['id'])
     except:
-      raise OpenstackError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
+      raise OcciError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
 
   def getKeyPairName(self, vmtypeName):
     """Get the key pair name from root_public_key"""
@@ -372,7 +373,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       if self.vmtypes[vmtypeName]._keyPairName:
         return self.vmtypes[vmtypeName]._keyPairName
       else:
-        raise OpenstackError('Key pair "' + self.vmtypes[vmtypeName].root_public_key + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OcciError('Key pair "' + self.vmtypes[vmtypeName].root_public_key + '" for vmtype ' + vmtypeName + ' not available!')
       
     # Get the ssh public key from the root_public_key file
         
@@ -380,18 +381,18 @@ class OpenstackSpace(vcycle.BaseSpace):
       try:
         f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
       except Exception as e:
-        OpenstackError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
+        OcciError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
     else:  
       try:
         f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
       except Exception as e:
-        OpenstackError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
+        OcciError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
 
     while True:
       try:
         line = f.read()
       except:
-        raise OpenstackError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
+        raise OcciError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
         
       if line[:8] == 'ssh-rsa ':
         sshPublicKey =  line.split(' ')[1]
@@ -400,12 +401,12 @@ class OpenstackSpace(vcycle.BaseSpace):
     # Check if public key is there already
 
     try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+      response = self.httpJSON(self.computeURL + '/os-keypairs',
+                               headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    for keypair in result['response']['keypairs']:
+    for keypair in response['keypairs']:
       try:
         if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
           self.vmtypes[vmtypeName]._keyPairName = str(keypair['keypair']['name'])
@@ -418,14 +419,14 @@ class OpenstackSpace(vcycle.BaseSpace):
     keyName = str(time.time()).replace('.','-')
 
     try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
+      response = self.httpJSON(self.computeURL + '/os-keypairs',
                                { 'keypair' : { 'name'       : keyName,
                                                'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
                                              }
                                },
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.vmtypes[vmtypeName].root_public_key + ' in ' + self.spaceName)
 
@@ -438,7 +439,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       machineName = vcycle.BaseSpace.createMachine(self, vmtypeName)
     except Exception as e:
-      raise OpenstackError('Failed to create new machine: ' + str(e))
+      raise OcciError('Failed to create new machine: ' + str(e))
 
     # Now the OpenStack-specific machine creation steps
 
@@ -459,16 +460,16 @@ class OpenstackSpace(vcycle.BaseSpace):
         request['server']['key_name'] = self.getKeyPairName(vmtypeName)
 
     except Exception as e:
-      raise OpenstackError('Failed to create new machine: ' + str(e))
+      raise OcciError('Failed to create new machine: ' + str(e))
 
     try:
-      result = self.httpJSON(self.computeURL + '/servers',
-                             request,
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+      response = self.httpJSON(self.computeURL + '/servers',
+                               request,
+                               headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(response['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
