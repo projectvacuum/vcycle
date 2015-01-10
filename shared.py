@@ -461,7 +461,7 @@ class BaseSpace(object):
     
     headersBuffer.seek(0)
     oneLine = headersBuffer.readline()
-    outputHeaders = { 'status' : oneLine[9:12] }
+    outputHeaders = { 'status' : oneLine[9:].strip() }
     
     while True:
     

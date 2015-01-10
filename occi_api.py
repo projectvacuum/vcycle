@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  occi_api.py - OCCI class for Vcycle
+#  occi_api.py - common functions, classes, and variables for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-5. All rights reserved.
@@ -90,7 +90,7 @@ class OcciSpace(vcycle.BaseSpace):
   # Connect to the OpenStack service
   
     try:
-      response = self.httpJSON(self.identityURL + '/tokens',
+      result = self.httpJSON(self.identityURL + '/tokens',
                                { 'auth' : { 'tenantName'           : self.tenancy_name, 
                                             'passwordCredentials' : { 'username' : self.username, 
                                                                       'password' : self.password 
@@ -100,12 +100,11 @@ class OcciSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
  
-    self.token     = str(response['access']['token']['id'])
-    
+    self.token      = str(result['response']['access']['token']['id'])
     self.computeURL = None
     self.imageURL   = None
     
-    for endpoint in response['access']['serviceCatalog']:
+    for endpoint in result['response']['access']['serviceCatalog']:
       if endpoint['type'] == 'compute':
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
@@ -125,12 +124,12 @@ class OcciSpace(vcycle.BaseSpace):
     """Query OpenStack compute service for details of machines in this space"""
   
     try:
-      response = self.httpJSON(self.computeURL + '/servers/detail',
+      result = self.httpJSON(self.computeURL + '/servers/detail',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    for oneServer in response['servers']:
+    for oneServer in result['response']['servers']:
 
       # This includes VMs that we didn't create and won't manage, to avoid going above space limit
       self.totalMachines += 1
@@ -195,13 +194,13 @@ class OcciSpace(vcycle.BaseSpace):
         raise OcciError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
       
     try:
-      response = self.httpJSON(self.computeURL + '/flavors',
+      result = self.httpJSON(self.computeURL + '/flavors',
                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
     try:
-      for flavor in response['flavors']:
+      for flavor in result['response']['flavors']:
         if flavor['name'] == self.vmtypes[vmtypeName].flavor_name:
           self.vmtypes[vmtypeName]._flavorID = str(flavor['id'])
           return self.vmtypes[vmtypeName]._flavorID
@@ -223,14 +222,14 @@ class OcciSpace(vcycle.BaseSpace):
 
     # Get the existing images for this tenancy
     try:
-      response = self.httpJSON(self.computeURL + '/images/detail',
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpJSON(self.computeURL + '/images/detail',
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     # Specific image, not managed by Vcycle, lookup ID
     if self.vmtypes[vmtypeName].root_image[:6] == 'image:':
-      for image in response['images']:
+      for image in result['response']['images']:
          if self.vmtypes[vmtypeName].root_image[6:] == image['name']:
            self.vmtypes[vmtypeName]._imageID = str(image['id'])
            return self.vmtypes[vmtypeName]._imageID
@@ -287,7 +286,7 @@ class OcciSpace(vcycle.BaseSpace):
     # Go through the existing images looking for a name and time stamp match
 # We should delete old copies of the current image name if we find them here
 #    pprint.pprint(response)
-    for image in response['images']:
+    for image in result['response']['images']:
       try:
          if image['name'] == imageName and \
             image['status'] == 'ACTIVE' and \
@@ -401,12 +400,12 @@ class OcciSpace(vcycle.BaseSpace):
     # Check if public key is there already
 
     try:
-      response = self.httpJSON(self.computeURL + '/os-keypairs',
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpJSON(self.computeURL + '/os-keypairs',
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    for keypair in response['keypairs']:
+    for keypair in result['response']['keypairs']:
       try:
         if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
           self.vmtypes[vmtypeName]._keyPairName = str(keypair['keypair']['name'])
@@ -419,7 +418,7 @@ class OcciSpace(vcycle.BaseSpace):
     keyName = str(time.time()).replace('.','-')
 
     try:
-      response = self.httpJSON(self.computeURL + '/os-keypairs',
+      result = self.httpJSON(self.computeURL + '/os-keypairs',
                                { 'keypair' : { 'name'       : keyName,
                                                'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
                                              }
@@ -463,13 +462,13 @@ class OcciSpace(vcycle.BaseSpace):
       raise OcciError('Failed to create new machine: ' + str(e))
 
     try:
-      response = self.httpJSON(self.computeURL + '/servers',
-                               request,
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpJSON(self.computeURL + '/servers',
+                             request,
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(response['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
