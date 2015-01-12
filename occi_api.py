@@ -37,6 +37,7 @@
 import pprint
 
 import os
+import re
 import sys
 import stat
 import time
@@ -63,16 +64,20 @@ class OcciSpace(vcycle.BaseSpace):
     # Generic initialization
     vcycle.BaseSpace.__init__(self, api, spaceName, parser, spaceSectionName)
 
-    # OpenStack-specific initialization
+    # OCCI-specific initialization
+
     try:
       self.tenancy_name = parser.get(spaceSectionName, 'tenancy_name')
     except Exception as e:
       raise OcciError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
-      self.identityURL = parser.get(spaceSectionName, 'url')
+      self.queryURL = parser.get(spaceSectionName, 'url')
     except Exception as e:
       raise OcciError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+
+    if self.queryURL.endswith('/'):
+      self.queryURL = self.queryURL[:-1]
 
     try:
       self.username = parser.get(spaceSectionName, 'username')
@@ -87,127 +92,151 @@ class OcciSpace(vcycle.BaseSpace):
       raise OcciError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
-  # Connect to the OpenStack service
+  # Connect to the OCCI service
   
     try:
-      result = self.httpJSON(self.identityURL + '/tokens',
-                               { 'auth' : { 'tenantName'           : self.tenancy_name, 
+      result = self.httpJSON(self.queryURL + '/-/', method = 'HEAD', anyStatus = True)
+    except Exception as e:
+      raise OcciError('Cannot connect to ' + self.queryURL + ' (' + str(e) + ')')
+
+    # This is implicitly only for Keystone authentication
+    if result['status'] != 401 or \
+       result['headers'] is None or \
+       'www-authenticate' not in result['headers']:
+      raise OcciError('Do not recognise response when connecting to ' + self.queryURL + ' (' + str(e) + ')')
+
+    # Explicitly check for Keystone using hard-coded string index values for now
+    if not result['headers']['www-authenticate'][0].startswith("Keystone uri="):
+      raise OcciError('Only Keystone authentication is currently supported (instead got "' + result['headers']['www-authenticate'][0] + '")')
+
+    try:
+      keystoneURL = result['headers']['www-authenticate'][0][14:-1]
+    except:
+      raise OcciError('Failed to find Keystone URL in ' + result['headers']['www-authenticate'][0])
+
+    vcycle.vacutils.logLine('Found Keystone URL ' + keystoneURL)
+
+    # Now try to get the token from Keystone itself
+ 
+    try:
+      result = self.httpJSON(keystoneURL + 'v2.0/tokens',
+                               { 'auth' : { 
+                                            'tenantName'          : self.tenancy_name,
                                             'passwordCredentials' : { 'username' : self.username, 
                                                                       'password' : self.password 
                                                                     }
                                           }
                                } )
     except Exception as e:
-      raise OcciError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
- 
-    self.token      = str(result['response']['access']['token']['id'])
-    self.computeURL = None
-    self.imageURL   = None
+      raise OcciError('Cannot connect to ' + keystoneURL + ' (' + str(e) + ')')
+
+    self.token = str(result['response']['access']['token']['id'])
+
+    # Now go back to Query Interface to get the services
     
-    for endpoint in result['response']['access']['serviceCatalog']:
-      if endpoint['type'] == 'compute':
-        self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
-      elif endpoint['type'] == 'image':
-        self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
-        
+    try:
+      result = self.httpJSON(self.queryURL + '/-/',
+                             headers = { 'X-Auth-Token'  : self.token,
+                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type'	 : 'text/occi',
+                                         'Accept'	 : 'text/occi',
+                                       })
+    except Exception as e:
+      raise OcciError('Cannot reconnect to ' + self.queryURL + ' (' + str(e) + ')')
+                                                       
+    self.computeURL = None
+
+    for x in vcycle.vacutils.splitCommaHeaders(result['headers']['category']):
+      if x.startswith('compute;'):
+        try:
+          self.computeURL = re.compile('location="([^"]*)"').findall(x)[0]
+        except:
+          pass
+        else:
+          vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
+    
     if not self.computeURL:
       raise OcciError('No compute service URL found from ' + self.identityURL)
 
-    if not self.imageURL:
-      raise OcciError('No image service URL found from ' + self.identityURL)
-
-    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
-    vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
-    vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    vcycle.vacutils.logLine('Connected to ' + self.queryURL + ' for space ' + self.spaceName)
 
   def scanMachines(self):
-    """Query OpenStack compute service for details of machines in this space"""
+    """Query OCCI compute service for details of machines in this space"""
   
     try:
-      result = self.httpJSON(self.computeURL + '/servers/detail',
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpJSON(self.computeURL,
+                             headers = { 'X-Auth-Token'  : self.token,
+                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type'	 : 'text/occi',
+                                         'Accept'	 : 'text/occi',
+                                       },
+                             verbose = True)
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    for oneServer in result['response']['servers']:
+    for machineURL in vcycle.vacutils.splitCommaHeaders(result['headers']['x-occi-location']):
 
       # This includes VMs that we didn't create and won't manage, to avoid going above space limit
       self.totalMachines += 1
 
+      try:
+        result = self.httpJSON(machineURL,
+                             headers = { 'X-Auth-Token'  : self.token,
+                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type'	 : 'text/occi',
+                                         'Accept'	 : 'text/occi',
+                                       },
+                             verbose = True)
+      except Exception as e:
+        raise OcciError('Cannot connect to ' + machineURL + ' (' + str(e) + ')')
+
+      pprint.pprint(result)
+
+      machineName = None
+      occiState   = None
+      uuidStr     = None
+      
+      for x in vcycle.vacutils.splitCommaHeaders(result['headers']['x-occi-attribute']):
+
+        if x.startswith('occi.compute.hostname="'):
+          machineName = x[23:-1]
+        elif x.startswith('occi.compute.state="'):
+          occiState = x[20:-1].lower()
+        elif x.startswith('occi.core.id="'):
+          uuidStr = x[14:-1]
+
       # Just in case other VMs are in this space
-      if oneServer['name'][:7] != 'vcycle-':
+      if machineName[:7] != 'vcycle-':
         continue
 
-      uuidStr = str(oneServer['id'])
-
-      try:
-        ip = str(oneServer['addresses']['CERN_NETWORK'][0]['addr'])
-      except:
-        try:
-          ip = str(oneServer['addresses']['novanetwork'][0]['addr'])
-        except:
-          ip = '0.0.0.0'
-
-      createdTime  = calendar.timegm(time.strptime(str(oneServer['created']), "%Y-%m-%dT%H:%M:%SZ"))
-      updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
-
-      try:
-        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
-      except:
-        startedTime = None
-
-      taskState  = str(oneServer['OS-EXT-STS:task_state'])
-      powerState = int(oneServer['OS-EXT-STS:power_state'])
-      status     = str(oneServer['status'])
+      ip = '0.0.0.0'
       
-      if taskState == 'Deleting':
-        state = vcycle.MachineState.deleting
-      elif status == 'ACTIVE' and powerState == 1:
+      for x in vcycle.vacutils.splitCommaHeaders(result['headers']['link']):
+        try:
+          ip = re.compile('occi.networkinterface.address="([^"]*)"').findall(x)[0]
+        except:
+          pass
+
+      # With OCCI will have to use our file datestamps to get transition times
+      createdTime = int(time.time())
+      updatedTime = int(time.time())
+      startedTime = int(time.time())
+      
+      if occiState == 'active':
         state = vcycle.MachineState.running
-      elif status == 'BUILD' or status == 'ACTIVE':
-        state = vcycle.MachineState.starting
-      elif status == 'SHUTOFF':
+      elif occiState == 'inactive':
         state = vcycle.MachineState.shutdown
-      elif status == 'ERROR':
-        state = vcycle.MachineState.failed
-      elif status == 'DELETED':
-        state = vcycle.MachineState.deleting
       else:
         state = vcycle.MachineState.unknown
 
-      self.machines[oneServer['name']] = vcycle.shared.Machine(name        = oneServer['name'],
-                                                               spaceName   = self.spaceName,
-                                                               state       = state,
-                                                               ip          = ip,
-                                                               createdTime = createdTime,
-                                                               startedTime = startedTime,
-                                                               updatedTime = updatedTime,
-                                                               uuidStr     = uuidStr)
-
-  def getFlavorID(self, vmtypeName):
-    """Get the "flavor" ID (## We're all living in Amerika! ##)"""
-  
-    if hasattr(self.vmtypes[vmtypeName], '_flavorID'):
-      if self.vmtypes[vmtypeName]._flavorID:
-        return self.vmtypes[vmtypeName]._flavorID
-      else:
-        raise OcciError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
-      
-    try:
-      result = self.httpJSON(self.computeURL + '/flavors',
-                               headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-    
-    try:
-      for flavor in result['response']['flavors']:
-        if flavor['name'] == self.vmtypes[vmtypeName].flavor_name:
-          self.vmtypes[vmtypeName]._flavorID = str(flavor['id'])
-          return self.vmtypes[vmtypeName]._flavorID
-    except:
-      pass
-        
-    raise OcciError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+      self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+                                                         spaceName   = self.spaceName,
+                                                         state       = state,
+                                                         ip          = ip,
+                                                         createdTime = createdTime,
+                                                         startedTime = startedTime,
+                                                         updatedTime = updatedTime,
+                                                         uuidStr     = uuidStr)
 
   def getImageID(self, vmtypeName):
     """Get the image ID"""
@@ -447,7 +476,7 @@ class OcciSpace(vcycle.BaseSpace):
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(vmtypeName),
-                    'flavorRef' : self.getFlavorID(vmtypeName),
+                    'flavorRef' : '123',
                     'metadata'  : { 'cern-services'   : 'false',
                                     'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
@@ -481,3 +510,15 @@ class OcciSpace(vcycle.BaseSpace):
 
     return machineName
 
+  def deleteOneMachine(self, machineName):
+
+    vcycle.vacutils.logLine('Destroying ' + machineName + ' in ' + self.spaceName + ':' + 
+                            str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
+
+    try:
+      self.httpJSON(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
+                    request = None,
+                    method = 'DELETE',
+                    headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')

@@ -37,6 +37,7 @@
 import pprint
 
 import os
+import re
 import sys
 import stat
 import time
@@ -184,28 +185,6 @@ class Machine:
                             str(self.updatedTime) + '-' +
                             str(self.stoppedTime) + ' ' +
                             str(self.heartbeatTime))
-
-  def delete(self):
-  
-    vcycle.vacutils.logLine('Destroying ' + self.name + ' in ' + self.spaceName + ':' + str(self.vmtypeName) + ', in state ' + str(self.state))
-
-    try:
-      spaces[self.spaceName].httpJSON(spaces[self.spaceName].computeURL + '/servers/' + self.uuidStr,
-                                      request = None,
-                                      method = 'DELETE',
-                                      headers = [ 'X-Auth-Token: ' + spaces[self.spaceName].token ])
-    except Exception as e:
-      raise VcycleError('Cannot delete ' + self.name + ' via ' + spaces[self.spaceName].computeURL + ' (' + str(e) + ')')
-
-#    if self.spaceName and self.vmtypeName and spaces[self.spaceName].vmtypes[self.vmtypeName].log_machineoutputs:
-#      vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + self.spaceName + '/' + self.vmtypeName + '/' + self.name)
-#      logMachineOutputs(self.spaceName, self.vmtypeName, self.name)
-#
-#    try:
-#      shutil.rmtree('/var/lib/vcycle/machines/' + self.name)
-#      vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + self.name)
-#    except:
-#      vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + self.name)
 
 class Vmtype:
 
@@ -412,16 +391,16 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def httpJSON(self, url, request = None, headers = None, verbose = False, method = None):
+  def httpJSON(self, url, request = None, headers = None, verbose = False, method = None, anyStatus = False):
 
     self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
     self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
     
-    if not request:
-      self.curl.setopt(pycurl.HTTPGET, True)
-    elif method and str(method).upper() == 'DELETE':
+    if method and method.upper() == 'DELETE':
       self.curl.setopt(pycurl.CUSTOMREQUEST, 'DELETE')
+    elif not request:
+      self.curl.setopt(pycurl.HTTPGET, True)
     else:
       try:
         self.curl.setopt(pycurl.POSTFIELDS, json.dumps(request))
@@ -434,12 +413,14 @@ class BaseSpace(object):
     headersBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.HEADERFUNCTION, headersBuffer.write)
     
-    allHeaders = ['Content-Type: application/json', 'Accept: application/json']
+    allHeaders = { 'Content-Type' : 'application/json', 'Accept' : 'application/json' }
 
     if headers:
-      allHeaders.extend(headers)
+      # Merge headers[] into allHeaders[], implicitly removing duplicates
+      for x in headers:
+        allHeaders[x] = headers[x]
 
-    self.curl.setopt(pycurl.HTTPHEADER, allHeaders)
+    self.curl.setopt(pycurl.HTTPHEADER, [x + ': ' + allHeaders[x] for x in allHeaders])
 
     if verbose:
       self.curl.setopt(pycurl.VERBOSE, 2)
@@ -461,7 +442,7 @@ class BaseSpace(object):
     
     headersBuffer.seek(0)
     oneLine = headersBuffer.readline()
-    outputHeaders = { 'status' : oneLine[9:].strip() }
+    outputHeaders = { 'status' : [ oneLine[9:].strip() ] }
     
     while True:
     
@@ -474,24 +455,28 @@ class BaseSpace(object):
         break
       
       headerNameValue = oneLine.split(':',1)
-      outputHeaders[ headerNameValue[0].lower() ] = headerNameValue[1].strip()
 
-    # Any 2xx code is OK; otherwise raise an exception
+      # outputHeaders is a dictionary of lowercased header names
+      # but the values are always lists, with one or more values (if multiple headers with the same name)
+      if headerNameValue[0].lower() not in outputHeaders:
+        outputHeaders[ headerNameValue[0].lower() ] = []
+
+      outputHeaders[ headerNameValue[0].lower() ].append( headerNameValue[1].strip() )
+
+    # If not a 2xx code then raise an exception unless anyStatus option given
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+      if anyStatus:
+        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+      else:
+        raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
-    if method and str(method).upper() == 'DELETE':
-      return { 'headers' : outputHeaders, 'response' : None }
+    if method and method.upper() == 'DELETE':
+      return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
     try:
-      return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()) }
-    except Exception as e:
-      if self.curl.getinfo(pycurl.RESPONSE_CODE) == 202 and \
-         self.curl.getinfo(pycurl.REDIRECT_URL):
-        return { 'headers' : outputHeaders, 'response' : None }
-#        return { 'location' : self.curl.getinfo(pycurl.REDIRECT_URL) }
-
-      raise VcycleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+      return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+    except:
+      return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
@@ -500,14 +485,14 @@ class BaseSpace(object):
     
       # Delete machines as appropriate
       if machine.state == MachineState.shutdown:
-        machine.delete()
+        self.deleteOneMachine(machineName)
       elif machine.state == MachineState.failed:
-        machine.delete()
+        self.deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].max_wallclock_seconds)):
-        machine.delete()
+        self.deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            self.vmtypes[machine.vmtypeName].heartbeat_file and \
@@ -518,7 +503,7 @@ class BaseSpace(object):
             (machine.heartbeatTime is None) or 
             (machine.heartbeatTime < (int(time.time()) - self.vmtypes[machine.vmtypeName].heartbeat_seconds))
            ):
-        machine.delete()
+        self.deleteOneMachine(machineName)
       #
       # Also delete machines with powerState != 1 for +15mins?
       #
