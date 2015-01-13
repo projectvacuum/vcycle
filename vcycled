@@ -33,10 +33,10 @@
 #
 
 import os
-import gc
+#import gc
 import sys
 import time
-import resource
+#import resource
 
 import vcycle
 
@@ -105,30 +105,30 @@ if __name__ == '__main__':
         except:
           print 'no /var/run/vcycled.pid - exiting'
           break
+          
+        # Fork a subprocess to run each cycle          
+        cyclePid = os.fork()
 
-        vcycle.vacutils.logLine('=============== Start cycle ===============')
+        if cyclePid == 0:
+          vcycle.vacutils.logLine('=============== Start cycle ===============')
 
-        vcycle.vacutils.logLine('MaxRSS = ' + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) + ' pages')
-
-        try:       
-          vcycle.shared.readConf()
-        except Exception as e:
-          print 'readConf() fails with "' + str(e) + '", skipping cycle'
-        else:
-          for spaceName, space in vcycle.shared.spaces.iteritems():
-            space.oneCycle()
+          try:       
+            vcycle.shared.readConf()
+          except Exception as e:
+            print 'readConf() fails with "' + str(e) + '", skipping cycle'
+          else:
+            for spaceName, space in vcycle.shared.spaces.iteritems():
+              space.oneCycle()
 
           vcycle.shared.cleanupMachines()
-          vcycle.shared.cleanupMachineoutputs()
- 
-        vcycle.vacutils.logLine('================ End cycle ================')
+          vcycle.shared.cleanupMachineoutputs() 
+          vcycle.vacutils.logLine('================ End cycle ================')
+          sys.exit(0)
 
-        # Flush logging to the filesystem 
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-        gc.collect()
+        # wait for cyclePid subprocess to finish
+        os.waitpid(cyclePid, 0)
  
+        # wait the allotted time between cycles
         time.sleep(sleepSeconds)
 
       sys.exit(0) # if we break out of the while loop then we exit

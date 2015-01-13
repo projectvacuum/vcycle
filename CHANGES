@@ -1,5 +1,6 @@
 ==================== Changes in Vcycle version 0.5.0 =====================
 - Create occi_api.py
+- Each cycle is run in a newly forked subprocess for stability
 ==================== Changes in Vcycle version 0.4.0 =====================
 - VCYCLE.py becomes /usr/lib64/python2.6/site-packages/vcycle
 - Put docs in /usr/share/doc/vcycle-VERSION

@@ -170,9 +170,13 @@ class OcciSpace(vcycle.BaseSpace):
                                          'Content-Type'	 : 'text/occi',
                                          'Accept'	 : 'text/occi',
                                        },
+                             anyStatus = True,
                              verbose = True)
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      
+#    if result['status'] == 404:
+# No machines in the system??
 
     for machineURL in vcycle.vacutils.splitCommaHeaders(result['headers']['x-occi-location']):
 
@@ -314,6 +318,7 @@ class OcciSpace(vcycle.BaseSpace):
 
     # Go through the existing images looking for a name and time stamp match
 # We should delete old copies of the current image name if we find them here
+# FOR OCCI DELETE EXISTING ONE FIRST???
 #    pprint.pprint(response)
     for image in result['response']['images']:
       try:
