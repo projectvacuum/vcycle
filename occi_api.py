@@ -136,13 +136,15 @@ class OcciSpace(vcycle.BaseSpace):
     
     try:
       result = self.httpJSON(self.queryURL + '/-/',
-                             headers = { 'X-Auth-Token'  : self.token,
-                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
-                                         'Content-Type'	 : 'text/occi',
-                                         'Accept'	 : 'text/occi',
-                                       })
+                             headers = [ 'X-Auth-Token: ' + self.token,
+                                         'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type: text/occi',
+                                         'Accept: text/occi',
+                                       ])
     except Exception as e:
       raise OcciError('Cannot reconnect to ' + self.queryURL + ' (' + str(e) + ')')
+
+    pprint.pprint(result)
                                                        
     self.computeURL = None
 
@@ -165,11 +167,11 @@ class OcciSpace(vcycle.BaseSpace):
   
     try:
       result = self.httpJSON(self.computeURL,
-                             headers = { 'X-Auth-Token'  : self.token,
-                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
-                                         'Content-Type'	 : 'text/occi',
-                                         'Accept'	 : 'text/occi',
-                                       },
+                             headers = [ 'X-Auth-Token: ' + self.token,
+                                         'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type: text/occi',
+                                         'Accept: text/occi',
+                                       ],
                              anyStatus = True,
                              verbose = True)
     except Exception as e:
@@ -185,11 +187,11 @@ class OcciSpace(vcycle.BaseSpace):
 
       try:
         result = self.httpJSON(machineURL,
-                             headers = { 'X-Auth-Token'  : self.token,
-                                         'User-Agent'	 : 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
-                                         'Content-Type'	 : 'text/occi',
-                                         'Accept'	 : 'text/occi',
-                                       },
+                             headers = [ 'X-Auth-Token: ' +self.token,
+                                         'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                                         'Content-Type: text/occi',
+                                         'Accept: text/occi',
+                                       ],
                              verbose = True)
       except Exception as e:
         raise OcciError('Cannot connect to ' + machineURL + ' (' + str(e) + ')')
@@ -242,230 +244,6 @@ class OcciSpace(vcycle.BaseSpace):
                                                          updatedTime = updatedTime,
                                                          uuidStr     = uuidStr)
 
-  def getImageID(self, vmtypeName):
-    """Get the image ID"""
-
-    # If we already know the image ID, then just return it
-    if hasattr(self.vmtypes[vmtypeName], '_imageID'):
-      if self.vmtypes[vmtypeName]._imageID:
-        return self.vmtypes[vmtypeName]._imageID
-      else:
-        # If _imageID is None, then it's not available for this cycle
-        raise OcciError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
-
-    # Get the existing images for this tenancy
-    try:
-      result = self.httpJSON(self.computeURL + '/images/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    # Specific image, not managed by Vcycle, lookup ID
-    if self.vmtypes[vmtypeName].root_image[:6] == 'image:':
-      for image in result['response']['images']:
-         if self.vmtypes[vmtypeName].root_image[6:] == image['name']:
-           self.vmtypes[vmtypeName]._imageID = str(image['id'])
-           return self.vmtypes[vmtypeName]._imageID
-
-      raise OcciError('Image "' + self.vmtypes[vmtypeName].root_image[6:] + '" for vmtype ' + vmtypeName + ' not available!')
-
-    # Always store/make the image name
-    if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
-       self.vmtypes[vmtypeName].root_image[:8] == 'https://' or \
-       self.vmtypes[vmtypeName].root_image[0] == '/':
-      imageName = self.vmtypes[vmtypeName].root_image
-    else:
-      imageName = '/var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + '/' + self.vmtypes[vmtypeName].root_image
-
-    # Find the local copy of the image file
-    if not hasattr(self.vmtypes[vmtypeName], '_imageFile'):
-
-      if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
-         self.vmtypes[vmtypeName].root_image[:8] == 'https://':
-
-        try:
-          imageFile = vcycle.vacutils.getRemoteRootImage(self.vmtypes[vmtypeName].root_image,
-                                         '/var/lib/vcycle/imagecache', 
-                                         '/var/lib/vcycle/tmp')
-
-          imageLastModified = int(os.stat(imageFile).st_mtime)
-        except Exception as e:
-          raise OcciError('Failed fetching ' + self.vmtypes[vmtypeName].root_image + ' (' + str(e) + ')')
-
-        self.vmtypes[vmtypeName]._imageFile = imageFile
- 
-      elif self.vmtypes[vmtypeName].root_image[0] == '/':
-        
-        try:
-          imageLastModified = int(os.stat(self.vmtypes[vmtypeName].root_image).st_mtime)
-        except Exception as e:
-          raise OcciError('Image file "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' does not exist!')
-
-        self.vmtypes[vmtypeName]._imageFile = self.vmtypes[vmtypeName].root_image
-
-      else: # root_image is not an absolute path, but imageName is
-        
-        try:
-          imageLastModified = int(os.stat(imageName).st_mtime)
-        except Exception as e:
-          raise OcciError('Image file "' + self.vmtypes[vmtypeName].root_image +
-                            '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + ' !')
-
-        self.vmtypes[vmtypeName]._imageFile = imageName
-
-    else:
-      imageLastModified = int(os.stat(self.vmtypes[vmtypeName]._imageFile).st_mtime)
-
-    # Go through the existing images looking for a name and time stamp match
-# We should delete old copies of the current image name if we find them here
-# FOR OCCI DELETE EXISTING ONE FIRST???
-#    pprint.pprint(response)
-    for image in result['response']['images']:
-      try:
-         if image['name'] == imageName and \
-            image['status'] == 'ACTIVE' and \
-            image['metadata']['last_modified'] == str(imageLastModified):
-           self.vmtypes[vmtypeName]._imageID = str(image['id'])
-           return self.vmtypes[vmtypeName]._imageID
-      except:
-        pass
-
-    vcycle.vacutils.logLine('Image "' + self.vmtypes[vmtypeName].root_image + '" not found in image service, so uploading')
-
-    # Try to upload the image
-    try:
-      self.vmtypes[vmtypeName]._imageID = self.uploadImage(self.vmtypes[vmtypeName]._imageFile, imageName, imageLastModified)
-      return self.vmtypes[vmtypeName]._imageID
-    except Exception as e:
-      raise OcciError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
-
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
-
-    try:
-      f = open(imageFile, 'r')
-    except Exception as e:
-      raise OcciError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
-
-    self.curl.setopt(pycurl.READFUNCTION,   f.read)
-    self.curl.setopt(pycurl.UPLOAD,         True)
-    self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
-    self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycleVersion)
-    self.curl.setopt(pycurl.TIMEOUT,        30)
-    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
-    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
-    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
-
-    self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'x-image-meta-disk_format: raw', # <-- 'raw' for hdd; 'iso' for iso
-                       'Content-Type: application/octet-stream',
-                       'Accept: application/json',
-                       'Transfer-Encoding: chunked',
-                       'x-image-meta-container_format: bare',
-                       'x-image-meta-is_public: False',                       
-                       'x-image-meta-name: ' + imageName,
-                       'x-image-meta-property-last-modified: ' + str(imageLastModified),
-                       'X-Auth-Token: ' + self.token
-                     ])
-
-    outputBuffer = StringIO.StringIO()
-    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
-    
-    if verbose:
-      self.curl.setopt(pycurl.VERBOSE, 2)
-    else:
-      self.curl.setopt(pycurl.VERBOSE, 0)
-
-    if os.path.isdir('/etc/grid-security/certificates'):
-      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
-
-    try:
-      self.curl.perform()
-    except Exception as e:
-      raise OcciError('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
-
-    # Any 2xx code is OK; otherwise raise an exception
-    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise OcciError('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
-
-    try:
-      response = json.loads(outputBuffer.getvalue())
-    except Exception as e:
-      raise OcciError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
-    
-    try:
-      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
-      return str(response['image']['id'])
-    except:
-      raise OcciError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
-
-  def getKeyPairName(self, vmtypeName):
-    """Get the key pair name from root_public_key"""
-
-    if hasattr(self.vmtypes[vmtypeName], '_keyPairName'):
-      if self.vmtypes[vmtypeName]._keyPairName:
-        return self.vmtypes[vmtypeName]._keyPairName
-      else:
-        raise OcciError('Key pair "' + self.vmtypes[vmtypeName].root_public_key + '" for vmtype ' + vmtypeName + ' not available!')
-      
-    # Get the ssh public key from the root_public_key file
-        
-    if self.vmtypes[vmtypeName].root_public_key[0] == '/':
-      try:
-        f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
-      except Exception as e:
-        OcciError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
-    else:  
-      try:
-        f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
-      except Exception as e:
-        OcciError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
-
-    while True:
-      try:
-        line = f.read()
-      except:
-        raise OcciError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
-        
-      if line[:8] == 'ssh-rsa ':
-        sshPublicKey =  line.split(' ')[1]
-        break
-
-    # Check if public key is there already
-
-    try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    for keypair in result['response']['keypairs']:
-      try:
-        if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
-          self.vmtypes[vmtypeName]._keyPairName = str(keypair['keypair']['name'])
-          return self.vmtypes[vmtypeName]._keyPairName
-      except:
-        pass
-      
-    # Not there so we try to add it
-    
-    keyName = str(time.time()).replace('.','-')
-
-    try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
-                               { 'keypair' : { 'name'       : keyName,
-                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
-                                             }
-                               },
-                               headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.vmtypes[vmtypeName].root_public_key + ' in ' + self.spaceName)
-
-    self.vmtypes[vmtypeName]._keyPairName = keyName
-    return self.vmtypes[vmtypeName]._keyPairName
-
   def createMachine(self, vmtypeName):
 
     # Call the generic machine creation method
@@ -474,35 +252,64 @@ class OcciSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OcciError('Failed to create new machine: ' + str(e))
 
-    # Now the OpenStack-specific machine creation steps
+    # Now the OCCI-specific machine creation steps
+
+#                    'metadata'  : { 'cern-services'   : 'false',
+#                                    'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
+#                                    'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
+#                                    'machineoutputs'  : 'https://' + os.uname()[1] + '/' + machineName + '/machineoutputs' }
+
+    headers = [ 'X-Auth-Token: ' + self.token,
+                'Category: compute; scheme="http://schemas.ogf.org/occi/infrastructure#"; class="kind"',
+                'Category: ' + self.vmtypes[vmtypeName].flavor_name + '; scheme="http://schemas.openstack.org/template/resource#"; class="mixin"'
+              ]
 
     try:
-      request = { 'server' : 
-                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-                    'name'      : machineName,
-                    'imageRef'  : self.getImageID(vmtypeName),
-                    'flavorRef' : '123',
-                    'metadata'  : { 'cern-services'   : 'false',
-                                    'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : 'https://' + os.uname()[1] + '/' + machineName + '/machineoutputs' }
-                  }    
-                }
-
-      if self.vmtypes[vmtypeName].root_public_key:
-        request['server']['key_name'] = self.getKeyPairName(vmtypeName)
-
-    except Exception as e:
+      headers.append('Category: user_data;scheme="http://schemas.openstack.org/compute/instance#";class="mixin"')
+      headers.append('X-OCCI-Attribute: org.openstack.compute.user_data="' + base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()) + '"')
+    except:
       raise OcciError('Failed to create new machine: ' + str(e))
 
+    if self.vmtypes[vmtypeName].root_public_key:
+
+      if self.vmtypes[vmtypeName].root_public_key[0] == '/':
+        try:
+          f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
+        except Exception as e:
+          OcciError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
+      else:  
+        try:
+          f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
+        except Exception as e:
+          OcciError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
+
+      while True:
+        try:
+          line = f.read()
+        except:
+          raise OcciError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
+        
+        if line[:8] == 'ssh-rsa ':
+          sshPublicKey = line.split(' ')[1]
+          break
+
+      headers.append('Category: public_key;scheme="http://schemas.openstack.org/instance/credentials#";class="mixin"')
+      headers.append('X-OCCI-Attribute: org.openstack.credentials.publickey.name="' + str(time.time()).replace('.','-') + '"')
+      headers.append('X-OCCI-Attribute: org.openstack.credentials.publickey.data="ssh-rsa ' + sshPublicKey + ' vcycle"')
+    
+    if root_image.startswith('image:'):
+      headers.append('Category: ' + self.vmtypes[vmtypeName].root_image[6:].strip() + '; scheme="http://schemas.openstack.org/template/os#"; class="mixin"')
+    else:
+      raise OcciError('root_image must be specified with "image:" prefix')
+      
     try:
-      result = self.httpJSON(self.computeURL + '/servers',
-                             request,
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpJSON(self.computeURL,
+                             method = 'POST',
+                             headers = headers)
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' for ' + vmtypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,

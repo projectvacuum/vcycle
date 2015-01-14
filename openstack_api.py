@@ -125,7 +125,7 @@ class OpenstackSpace(vcycle.BaseSpace):
   
     try:
       result = self.httpJSON(self.computeURL + '/servers/detail',
-                               headers = { 'X-Auth-Token' : self.token })
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -195,7 +195,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       
     try:
       result = self.httpJSON(self.computeURL + '/flavors',
-                               headers = { 'X-Auth-Token' : self.token })
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
@@ -223,7 +223,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     # Get the existing images for this tenancy
     try:
       result = self.httpJSON(self.computeURL + '/images/detail',
-                             headers = { 'X-Auth-Token' : self.token })
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -401,7 +401,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpJSON(self.computeURL + '/os-keypairs',
-                             headers = { 'X-Auth-Token' : self.token })
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -423,7 +423,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
                                              }
                                },
-                               headers = { 'X-Auth-Token' : self.token })
+                               headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -464,7 +464,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       result = self.httpJSON(self.computeURL + '/servers',
                              request,
-                             headers = { 'X-Auth-Token' : self.token })
+                             headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -490,6 +490,6 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.httpJSON(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
                     request = None,
                     method = 'DELETE',
-                    headers = { 'X-Auth-Token' : self.token })
+                    headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')

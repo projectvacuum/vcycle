@@ -412,15 +412,18 @@ class BaseSpace(object):
     
     headersBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.HEADERFUNCTION, headersBuffer.write)
+
+    # Set up the list of headers to send in the request    
+    allHeaders = []
     
-    allHeaders = { 'Content-Type' : 'application/json', 'Accept' : 'application/json' }
+    if request:
+      allHeaders.append('Content-Type: application/json')
+      allHeaders.append('Accept: application/json')
 
     if headers:
-      # Merge headers[] into allHeaders[], implicitly removing duplicates
-      for x in headers:
-        allHeaders[x] = headers[x]
+      allHeaders.extend(headers)
 
-    self.curl.setopt(pycurl.HTTPHEADER, [x + ': ' + allHeaders[x] for x in allHeaders])
+    self.curl.setopt(pycurl.HTTPHEADER, allHeaders)
 
     if verbose:
       self.curl.setopt(pycurl.VERBOSE, 2)
