@@ -101,7 +101,7 @@ class Occi():
       (result,err_result)=Popen(command,bufsize=1,shell=True,stdout=PIPE,stderr=PIPE).communicate()
       
       if len(err_result) > 0:
-         raise Exception(err_result)
+         raise Exception(err_result + "\n" + command)
       if len(err_result) == 0  and len(result) == 0 :
          raise Exception("Unkown Error, check params: %s" % command)
    
