@@ -3,7 +3,7 @@ import os
 import VCYCLE
 import uuid
 import time , calendar
-import client
+import interfaces.dbce.client
 
 
 class vcycleDBCE(vcycleBase):
@@ -14,7 +14,7 @@ class vcycleDBCE(vcycleBase):
       '''Create a new DBCE client'''
       tenancy = self.tenancy
       self.provider_name = tenancy['tenancy_name']
-      dbceClient = client.DBCE(tenancy['url'], tenancy['username'], tenancy['password'])
+      dbceClient = interfaces.dbce.client.DBCE(tenancy['url'], tenancy['username'], tenancy['password'])
       return dbceClient
    
    
@@ -138,7 +138,9 @@ class vcycleDBCE(vcycleBase):
       template = self.client.machine_template.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
                                                    VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
                                                    self.provider_name)[0]
+      
       template.user_data = base64.encodestring(user_data)
+      template.network = self.client.network.find(self.provider_name,VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['network'])
       server = self.client.machine.create(serverName, serverName, template, self.provider_name, key_data=[VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['public_key']])
       return server
    

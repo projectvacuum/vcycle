@@ -55,17 +55,17 @@ class DBCE():
       self.machine_template = MachineTemplateOp(self)
       self.network = NetworkOp(self)
       self._load_providers()
-      print self.providers
+      #print self.providers
    
    def _load_providers(self):
-      request = self.execute("%s/%s" % (self.endpoint,'cxf/multicloud/providerLocations/'))
+      request = self.execute("%s/%s" % (self.endpoint,'ui/multicloud/providerLocations/'))
       for providerLocation in request.json()['providerLocations']:
          id = providerLocation['uid']
          r_providers = self.execute(providerLocation['provider']['href'].replace('cxf','ui'))
          name = r_providers.json()['name']
          self.providers[name] = {'id':id}
-         pool_endpoint = self.endpoint[:self.endpoint.rfind(":")].replace('http','https')
-         pools = self.execute("%s/%s" % (pool_endpoint, '/ui/capacity/capacityPools'))
+         #pool_endpoint = self.endpoint[:self.endpoint.rfind(":")].replace('http','https')
+         pools = self.execute("%s/%s" % (self.endpoint, '/ui/capacity/capacityPools'))
          for pool in pools.json()['capacityPools']:
             if pool['providerLocation']['href'] == providerLocation['id']:
                self.providers[name]['pool'] = pool['capacities']['href'][:pool['capacities']['href'].rfind('/')]
@@ -105,7 +105,7 @@ class MachineOp(Op):
    
    def __init__(self, dbce):
       self.dbce = dbce
-      self.url = "%s/cxf/iaas/machines" % dbce.endpoint
+      self.url = "%s/ui/iaas/machines" % dbce.endpoint
       self.status = {400:_error_400,401:_error_401,404:_error_404,500:_error_500}
    
    
@@ -283,7 +283,7 @@ class MachineTemplateOp(Op):
    def __init__(self , dbce):
       self.dbce = dbce
       self.status = {400:_error_400,401:_error_401,404:_error_404,500:_error_500}
-      self.url = "%s/cxf/iaas/machineTemplates" % dbce.endpoint
+      self.url = "%s/ui/iaas/machineTemplates" % dbce.endpoint
 
    
    def list_result(self,response):
@@ -316,15 +316,15 @@ class NetworkOp(Op):
    
    def __init__(self, dbce):
       self.dbce = dbce
-      self.url = "%s/cxf/iaas/networks" % dbce.endpoint
+      self.url = "%s/ui/iaas/networks" % dbce.endpoint
    
    
-   def list_result(self, provider_location_uid = None):
-      def _status_200(result):
-         networks = []
-         for network in result['networks']:
-            pass
-         return networks
+   def list_result(self, networks):
+      list_networks = []
+      for network in networks['networks']:
+         list_networks.append(Network( network['id'], network['name'], network['state'], network['networkType']))
+      return list_networks
+      
 
    
    def create(self, name, cidr, allocation_pools, ip_version, enable_dhcp):
@@ -371,14 +371,9 @@ class NetworkOp(Op):
       return self.status[request.status_code]()
    
    
-      
-
-
-
-      
-
-
-      
-
-
+   def find(self, provider, name):
+      for network in self.list(provider):
+         if network.name == name:
+            return network
+      return None
       

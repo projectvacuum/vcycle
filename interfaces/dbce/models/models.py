@@ -69,7 +69,7 @@ class MachineTemplate():
    machine_image = None
    credentials = None
    user_data = None
-   
+   network = None
    
    def __init__(self, id, machine_config, machine_image, credentials=None):
       self.resource = "http://schemas.dmtf.org/cimi/1/MachineTemplate"
@@ -102,6 +102,9 @@ class MachineTemplate():
               "networkInterfaces":[{'network':{'href':'https://ec2-54-170-149-5.eu-west-1.compute.amazonaws.com/cxf/iaas/networks/a0c6fed4-dd75-4973-867b-8c9f31e77406'}},
                                    {"network":{"networkType":"PUBLIC"}}]
               }
+      
+      if not self.network is None:
+         dict['networkInterfaces'] = [self.network.json(),{"network":{"networkType":"PUBLIC"}}]
       if not self.credentials is None:
          dict['credentials'] = self.credentials
       
@@ -115,21 +118,25 @@ class MachineTemplate():
 
 class Network():
    
-   def __init__(self, id, name, description, created, updated, state, network_type):
+   def __init__(self, id, name, state, network_type):
       self.id = id
       self.name = name
-      self.description = description
-      self.created = created
-      self.updated = updated
       self.state = state
       self.network_type = network_type
    
 
    @staticmethod
    def create(dictionary):
-      return Network(dictionary['id'], dictionary['name'], dictionary['description'],
-                     dictionary['created'], dictionary['updated'], dictionary['state'],
+      return Network(dictionary['id'], dictionary['name'], dictionary['state'],
                      dictionary['network_type'])
+      
+      
+   def json(self):
+      return {'network':{'href':self.id}}
+   
+   
+   def __repr__(self):
+      return "%s %s %s" % (self.id, self.name, self.state)
 
 
 class NetworkTemplate():
