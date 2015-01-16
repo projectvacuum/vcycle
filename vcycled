@@ -33,10 +33,9 @@
 #
 
 import os
-#import gc
 import sys
 import time
-#import resource
+import random
 
 import vcycle
 
@@ -108,6 +107,9 @@ if __name__ == '__main__':
           
         # Fork a subprocess to run each cycle          
         cyclePid = os.fork()
+        
+        # Otherwise each subprocess starts from the same point in the sequence!
+        random.seed()
 
         if cyclePid == 0:
           vcycle.vacutils.logLine('=============== Start cycle ===============')
