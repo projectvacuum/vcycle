@@ -144,9 +144,9 @@ class Machine:
 
         # Record the shutdown message if available
         try:
-          self.shutdownMessage = open('/var/lib/vcycle/machines/' + name + '/machineoutputs/shutdown_message', 'r').read().strip()        
+          self.shutdownMessage = open('/var/lib/vcycle/machines/' + name + '/machineoutputs/shutdown_message', 'r').read().strip()
           vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
-          shutdownCode = int(self.shutdownMessage.split(' ')[0])        
+          shutdownCode = int(self.shutdownMessage.split(' ')[0])
         except:
           self.shutdownMessage = None
           shutdownCode = None
@@ -172,6 +172,8 @@ class Machine:
           if shutdownCode and (shutdownCode / 100) == 3:
             vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.vmtypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
+        
+        self.writeApel()
       else:
         self.stoppedTime = None
 
@@ -185,6 +187,69 @@ class Machine:
                             str(self.updatedTime) + '-' +
                             str(self.stoppedTime) + ' ' +
                             str(self.heartbeatTime))
+                            
+  def writeApel(self):
+
+    # If the VM just ran for fizzle_seconds, then we don't log it
+    if (self.stoppedTime - self.startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds:
+      return
+        
+    nowTime = time.localtime()
+
+    try:
+      os.makedirs(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+    except:
+      pass
+
+    try:
+      os.makedirs(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+    except:
+      pass
+      
+    userDN = ''
+    for component in self.spaceName.split('.'):
+      userDN = '/DC=' + component + userDN
+
+    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'accounting_fqan'):
+      userFQANField = 'FQAN: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].accounting_fqan + '\n'
+    else:
+      userFQANField = ''
+
+    mesg = ('APEL-individual-job-message: v0.3\n' + 
+              'Site: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].gocdb_sitename + '\n' +
+              'SubmitHost: ' + self.spaceName + '/vcycle-' + self.vmtypeName + '\n' +
+              'LocalJobId: ' + self.uuidStr + '\n' +
+              'LocalUserId: ' + self.name + '\n' +
+              'Queue: ' + self.vmtypeName + '\n' +
+              'GlobalUserName: ' + userDN + '\n' +
+              userFQANField +
+              'WallDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
+              # Can we do better for CpuDuration???
+              'CpuDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
+              'Processors: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].cpus) + '\n' +
+              'NodeCount: 1\n' +
+              'InfrastructureDescription: APEL-VCYCLE\n' +
+              'InfrastructureType: grid\n' +
+              'StartTime: ' + str(self.startedTime) + '\n' +
+              'EndTime: ' + str(self.stoppedTime) + '\n' +
+              'MemoryReal: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' +
+              'MemoryVirtual: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' +
+              'ServiceLevelType: HEPSPEC\n' +
+              'ServiceLevel: ' + str(self.hs06) + '\n')
+                          
+    fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
+                          
+    try:
+      vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+    except:
+      vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
+      return
+
+    try:
+      vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+    except:
+      vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
+      return
 
 class Vmtype:
 
@@ -267,6 +332,18 @@ class Vmtype:
         self.heartbeat_seconds = None
     except Exception as e:
       raise VcycleError('Failed to parse heartbeat_seconds in [' + vmtypeSectionName + '] (' + str(e) + ')')
+
+    if parser.has_option(vmtypeSectionName, 'accounting_fqan'):
+      self.accounting_fqan = parser.get(vmtypeSectionName, 'accounting_fqan').strip()
+
+    try:
+      self.hs06 = parser.get(vmtypeSectionName, 'hs06')
+    except:
+      self.hs06 = 1.0
+  
+    # Placeholder values, should be overwritten by space class with flavor details
+    self.mb   = 1024
+    self.cpus = 1
 
     try:
       self.user_data = parser.get(vmtypeSectionName, 'user_data')
@@ -391,7 +468,7 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def httpJSON(self, url, request = None, headers = None, verbose = False, method = None, anyStatus = False):
+  def httpRequest(self, url, request = None, headers = None, verbose = False, method = None, anyStatus = False):
 
     self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
@@ -625,8 +702,9 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/vmtype_name', vmtypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores',    '1',        0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time', 
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', '1', 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', str(self.vmtypes[vmtypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.vmtypes[vmtypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',  

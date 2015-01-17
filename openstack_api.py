@@ -90,7 +90,7 @@ class OpenstackSpace(vcycle.BaseSpace):
   # Connect to the OpenStack service
   
     try:
-      result = self.httpJSON(self.identityURL + '/tokens',
+      result = self.httpRequest(self.identityURL + '/tokens',
                                { 'auth' : { 'tenantName'           : self.tenancy_name, 
                                             'passwordCredentials' : { 'username' : self.username, 
                                                                       'password' : self.password 
@@ -124,7 +124,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     """Query OpenStack compute service for details of machines in this space"""
   
     try:
-      result = self.httpJSON(self.computeURL + '/servers/detail',
+      result = self.httpRequest(self.computeURL + '/servers/detail',
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
@@ -185,7 +185,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                                uuidStr     = uuidStr)
 
   def getFlavorID(self, vmtypeName):
-    """Get the "flavor" ID (## We're all living in Amerika! ##)"""
+    """Get the "flavor" ID"""
   
     if hasattr(self.vmtypes[vmtypeName], '_flavorID'):
       if self.vmtypes[vmtypeName]._flavorID:
@@ -194,7 +194,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
       
     try:
-      result = self.httpJSON(self.computeURL + '/flavors',
+      result = self.httpRequest(self.computeURL + '/flavors',
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
@@ -202,7 +202,21 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       for flavor in result['response']['flavors']:
         if flavor['name'] == self.vmtypes[vmtypeName].flavor_name:
-          self.vmtypes[vmtypeName]._flavorID = str(flavor['id'])
+
+          self.vmtypes[vmtypeName]._flavorID = flavor['id']
+
+          try:
+            # Record if available
+            self.vmtypes[vmtypeName].mb = int(flavor['ram'])
+          except:
+            pass
+            
+          try:
+            # Record if available
+            self.vmtypes[vmtypeName].cpus = int(flavor['vcpus'])
+          except:
+            pass
+            
           return self.vmtypes[vmtypeName]._flavorID
     except:
       pass
@@ -222,7 +236,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     # Get the existing images for this tenancy
     try:
-      result = self.httpJSON(self.computeURL + '/images/detail',
+      result = self.httpRequest(self.computeURL + '/images/detail',
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
@@ -400,7 +414,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     # Check if public key is there already
 
     try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
+      result = self.httpRequest(self.computeURL + '/os-keypairs',
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
@@ -418,7 +432,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     keyName = str(time.time()).replace('.','-')
 
     try:
-      result = self.httpJSON(self.computeURL + '/os-keypairs',
+      result = self.httpRequest(self.computeURL + '/os-keypairs',
                                { 'keypair' : { 'name'       : keyName,
                                                'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
                                              }
@@ -462,7 +476,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('Failed to create new machine: ' + str(e))
 
     try:
-      result = self.httpJSON(self.computeURL + '/servers',
+      result = self.httpRequest(self.computeURL + '/servers',
                              request,
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
@@ -487,7 +501,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                             str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
 
     try:
-      self.httpJSON(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
+      self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
                     request = None,
                     method = 'DELETE',
                     headers = [ 'X-Auth-Token: ' + self.token ])

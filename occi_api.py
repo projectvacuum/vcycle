@@ -95,7 +95,7 @@ class OcciSpace(vcycle.BaseSpace):
   # Connect to the OCCI service
   
     try:
-      result = self.httpJSON(self.queryURL + '/-/', method = 'HEAD', anyStatus = True)
+      result = self.httpRequest(self.queryURL + '/-/', method = 'HEAD', anyStatus = True)
     except Exception as e:
       raise OcciError('Cannot connect to ' + self.queryURL + ' (' + str(e) + ')')
 
@@ -119,7 +119,7 @@ class OcciSpace(vcycle.BaseSpace):
     # Now try to get the token from Keystone itself
  
     try:
-      result = self.httpJSON(keystoneURL + 'v2.0/tokens',
+      result = self.httpRequest(keystoneURL + 'v2.0/tokens',
                                { 'auth' : { 
                                             'tenantName'          : self.tenancy_name,
                                             'passwordCredentials' : { 'username' : self.username, 
@@ -135,7 +135,7 @@ class OcciSpace(vcycle.BaseSpace):
     # Now go back to Query Interface to get the services
     
     try:
-      result = self.httpJSON(self.queryURL + '/-/',
+      result = self.httpRequest(self.queryURL + '/-/',
                              headers = [ 'X-Auth-Token: ' + self.token,
                                          'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
                                          'Content-Type: text/occi',
@@ -166,7 +166,7 @@ class OcciSpace(vcycle.BaseSpace):
     """Query OCCI compute service for details of machines in this space"""
   
     try:
-      result = self.httpJSON(self.computeURL,
+      result = self.httpRequest(self.computeURL,
                              headers = [ 'X-Auth-Token: ' + self.token,
                                          'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
                                          'Content-Type: text/occi',
@@ -186,7 +186,7 @@ class OcciSpace(vcycle.BaseSpace):
       self.totalMachines += 1
 
       try:
-        result = self.httpJSON(machineURL,
+        result = self.httpRequest(machineURL,
                              headers = [ 'X-Auth-Token: ' +self.token,
                                          'User-Agent: Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
                                          'Content-Type: text/occi',
@@ -303,7 +303,7 @@ class OcciSpace(vcycle.BaseSpace):
       raise OcciError('root_image must be specified with "image:" prefix')
       
     try:
-      result = self.httpJSON(self.computeURL,
+      result = self.httpRequest(self.computeURL,
                              method = 'POST',
                              headers = headers)
     except Exception as e:
@@ -328,7 +328,7 @@ class OcciSpace(vcycle.BaseSpace):
                             str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
 
     try:
-      self.httpJSON(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
+      self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
                     request = None,
                     method = 'DELETE',
                     headers = [ 'X-Auth-Token: ' + self.token ])
