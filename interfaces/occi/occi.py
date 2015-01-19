@@ -97,7 +97,7 @@ class Occi():
 
 
    def process_std(self,command):
-      
+      command = "/usr/local/bin/" + command
       (result,err_result)=Popen(command,bufsize=1,shell=True,stdout=PIPE,stderr=PIPE).communicate()
       
       if len(err_result) > 0:
