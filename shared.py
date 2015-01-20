@@ -214,29 +214,39 @@ class Machine:
       userFQANField = 'FQAN: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].accounting_fqan + '\n'
     else:
       userFQANField = ''
+      
+    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'mb'):    
+      memoryField = 'MemoryReal: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' \
+                    'MemoryVirtual: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n'
+    else:
+      memoryField = ''
+
+    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'cpus'):    
+      cpusField = 'Processors: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].cpus) + '\n'
+    else:
+      cpuField = ''
 
     mesg = ('APEL-individual-job-message: v0.3\n' + 
-              'Site: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].gocdb_sitename + '\n' +
-              'SubmitHost: ' + self.spaceName + '/vcycle-' + self.vmtypeName + '\n' +
-              'LocalJobId: ' + self.uuidStr + '\n' +
-              'LocalUserId: ' + self.name + '\n' +
-              'Queue: ' + self.vmtypeName + '\n' +
-              'GlobalUserName: ' + userDN + '\n' +
-              userFQANField +
-              'WallDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
-              # Can we do better for CpuDuration???
-              'CpuDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
-              'Processors: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].cpus) + '\n' +
-              'NodeCount: 1\n' +
-              'InfrastructureDescription: APEL-VCYCLE\n' +
-              'InfrastructureType: grid\n' +
-              'StartTime: ' + str(self.startedTime) + '\n' +
-              'EndTime: ' + str(self.stoppedTime) + '\n' +
-              'MemoryReal: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' +
-              'MemoryVirtual: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' +
-              'ServiceLevelType: HEPSPEC\n' +
-              'ServiceLevel: ' + str(self.hs06) + '\n')
-                          
+            'Site: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].gocdb_sitename + '\n' +
+            'SubmitHost: ' + self.spaceName + '/vcycle-' + self.vmtypeName + '\n' +
+            'LocalJobId: ' + self.uuidStr + '\n' +
+            'LocalUserId: ' + self.name + '\n' +
+            'Queue: ' + self.vmtypeName + '\n' +
+            'GlobalUserName: ' + userDN + '\n' +
+            userFQANField +
+            'WallDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
+            # Can we do better for CpuDuration???
+            'CpuDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
+            cpusField +
+            'NodeCount: 1\n' +
+            'InfrastructureDescription: APEL-VCYCLE\n' +
+            'InfrastructureType: grid\n' +
+            'StartTime: ' + str(self.startedTime) + '\n' +
+            'EndTime: ' + str(self.stoppedTime) + '\n' +
+            memoryField +
+            'ServiceLevelType: HEPSPEC\n' +
+            'ServiceLevel: ' + str(self.hs06) + '\n')
+
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
                           
     try:
@@ -341,10 +351,6 @@ class Vmtype:
     except:
       self.hs06 = 1.0
   
-    # Placeholder values, should be overwritten by space class with flavor details
-    self.mb   = 1024
-    self.cpus = 1
-
     try:
       self.user_data = parser.get(vmtypeSectionName, 'user_data')
     except Exception as e:
@@ -702,7 +708,11 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/vmtype_name', vmtypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', '1', 0644, '/var/lib/vcycle/tmp')
+    try:
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', str(self.vmtypes[vmtypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    except:
+      pass
+      
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', str(self.vmtypes[vmtypeName].hs06), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.vmtypes[vmtypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')

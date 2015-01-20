@@ -194,7 +194,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
       
     try:
-      result = self.httpRequest(self.computeURL + '/flavors',
+      result = self.httpRequest(self.computeURL + '/flavors/detail',
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')

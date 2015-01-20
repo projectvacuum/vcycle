@@ -243,6 +243,7 @@ class OcciSpace(vcycle.BaseSpace):
                                                          startedTime = startedTime,
                                                          updatedTime = updatedTime,
                                                          uuidStr     = uuidStr)
+      pprint.pprint(self.machines[machineName])
 
   def createMachine(self, vmtypeName):
 
