@@ -92,7 +92,7 @@ class Machine:
     if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
 
-    # Store value stored when we requested the machine
+    # Get vmtype name saved when we requested the machine
     try:
       f = open('/var/lib/vcycle/machines/' + name + '/vmtype_name', 'r')
     except:
@@ -100,6 +100,11 @@ class Machine:
     else:
       self.vmtypeName = f.read().strip()
       f.close()
+
+    try:
+      self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/machinefeatures/hs06', 'r').read().strip())
+    except:
+      self.hs06 = 1.0
 
     try:
       spaces[self.spaceName].totalMachines += 1
@@ -215,19 +220,19 @@ class Machine:
     else:
       userFQANField = ''
       
-    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'mb'):    
+    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'mb'):
       memoryField = 'MemoryReal: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n' \
                     'MemoryVirtual: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].mb * 1024) + '\n'
     else:
       memoryField = ''
 
-    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'cpus'):    
+    if hasattr(spaces[self.spaceName].vmtypes[self.vmtypeName], 'cpus'):
       cpusField = 'Processors: ' + str(spaces[self.spaceName].vmtypes[self.vmtypeName].cpus) + '\n'
     else:
-      cpuField = ''
+      cpusField = ''
 
     mesg = ('APEL-individual-job-message: v0.3\n' + 
-            'Site: ' + spaces[self.spaceName].vmtypes[self.vmtypeName].gocdb_sitename + '\n' +
+            'Site: ' + spaces[self.spaceName].gocdb_sitename + '\n' +
             'SubmitHost: ' + self.spaceName + '/vcycle-' + self.vmtypeName + '\n' +
             'LocalJobId: ' + self.uuidStr + '\n' +
             'LocalUserId: ' + self.name + '\n' +
@@ -828,6 +833,13 @@ def readConf():
             
       if spaceName not in spaces:
         raise VcycleError(api + ' is not a supported API for managing spaces')
+
+      if parser.has_option(spaceSectionName, 'gocdb_sitename'):
+        spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename').strip()
+      else:
+        # Use spaceName as a placeholder, which they can replace in the
+        # saved message record files if they decide to use APEL later
+        spaces[spaceName].gocdb_sitename = spaceName
 
     elif sectionType != 'vmtype':
       raise VcycleError('Section type ' + sectionType + 'not recognised')

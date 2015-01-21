@@ -506,4 +506,4 @@ class OpenstackSpace(vcycle.BaseSpace):
                     method = 'DELETE',
                     headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
