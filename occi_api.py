@@ -325,9 +325,6 @@ class OcciSpace(vcycle.BaseSpace):
 
   def deleteOneMachine(self, machineName):
 
-    vcycle.vacutils.logLine('Destroying ' + machineName + ' in ' + self.spaceName + ':' + 
-                            str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
-
     try:
       self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
                     request = None,
