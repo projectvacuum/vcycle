@@ -88,8 +88,8 @@ class OcciSpace(vcycle.BaseSpace):
       # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
       # reveal passwords in a memorable way. 
       self.password = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
-    except Exception as e:
-      raise OcciError('password is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+    except:
+      self.password = ''
 
   def connect(self):
   # Connect to the OCCI service
