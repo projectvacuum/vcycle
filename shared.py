@@ -102,6 +102,11 @@ class Machine:
       f.close()
 
     try:
+      self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
+    except:
+      self.deletedTime = None
+
+    try:
       self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/machinefeatures/hs06', 'r').read().strip())
     except:
       self.hs06 = 1.0
@@ -266,6 +271,17 @@ class Machine:
       vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
       return
 
+  def _deleteOneMachine(self, machineName):
+  
+    vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
+                            str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
+
+    # record when this was tried (not when done, since don't want to overload service with failing deletes)
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+                                  
+    # Call the subclass method specific to this space
+    self.deleteOneMachine(machineName)
+                                  
 class Vmtype:
 
   def __init__(self, spaceName, vmtypeName, parser, vmtypeSectionName):
@@ -576,14 +592,19 @@ class BaseSpace(object):
     
       # Delete machines as appropriate
       if machine.state == MachineState.shutdown:
-        self.deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName)
       elif machine.state == MachineState.failed:
-        self.deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName)
+      elif machine.state == MachineState.deleting and \
+           (machine.deletedTime is None or 
+            machine.deletedTime < int(time.time()) - 1800):
+        # Every 30 minutes we have another go at un-deletable machines
+        self._deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].max_wallclock_seconds)):
-        self.deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
            self.vmtypes[machine.vmtypeName].heartbeat_file and \
@@ -594,10 +615,7 @@ class BaseSpace(object):
             (machine.heartbeatTime is None) or 
             (machine.heartbeatTime < (int(time.time()) - self.vmtypes[machine.vmtypeName].heartbeat_seconds))
            ):
-        self.deleteOneMachine(machineName)
-      #
-      # Also delete machines with powerState != 1 for +15mins?
-      #
+        self._deleteOneMachine(machineName)
 
   def makeMachines(self):
 
@@ -676,12 +694,13 @@ class BaseSpace(object):
           self.createMachine(bestVmtypeName)
         except Exception as e:
           vcycle.vacutils.logLine('Failed creating machine with vmtype ' + bestVmtypeName + ' in ' + self.spaceName + ' (' + str(e) + ')')
-        else:
-          # Update totals for newly created machines
-          self.totalMachines += 1
-          self.vmtypes[bestVmtypeName].totalMachines    += 1
-          self.vmtypes[bestVmtypeName].weightedMachines += (1.0 / self.vmtypes[bestVmtypeName].target_share)
-          self.vmtypes[bestVmtypeName].notPassedFizzle  += 1
+# Done when creating machine object
+#        else:
+#          # Update totals for newly created machines
+#          self.totalMachines += 1
+#          self.vmtypes[bestVmtypeName].totalMachines    += 1
+#          self.vmtypes[bestVmtypeName].weightedMachines += (1.0 / self.vmtypes[bestVmtypeName].target_share)
+#          self.vmtypes[bestVmtypeName].notPassedFizzle  += 1
 
       else:
         vcycle.vacutils.logLine('No more free capacity and/or suitable vmtype found within ' + self.spaceName)
