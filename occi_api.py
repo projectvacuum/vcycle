@@ -182,9 +182,6 @@ class OcciSpace(vcycle.BaseSpace):
 
     for machineURL in vcycle.vacutils.splitCommaHeaders(result['headers']['x-occi-location']):
 
-      # This includes VMs that we didn't create and won't manage, to avoid going above space limit
-      self.totalMachines += 1
-
       try:
         result = self.httpRequest(machineURL,
                              headers = [ 'X-Auth-Token: ' +self.token,
@@ -213,6 +210,8 @@ class OcciSpace(vcycle.BaseSpace):
 
       # Just in case other VMs are in this space
       if machineName[:7] != 'vcycle-':
+        # Still count VMs that we didn't create and won't manage, to avoid going above space limit
+        self.totalMachines += 1
         continue
 
       ip = '0.0.0.0'
@@ -247,13 +246,7 @@ class OcciSpace(vcycle.BaseSpace):
 
   def createMachine(self, vmtypeName):
 
-    # Call the generic machine creation method
-    try:
-      machineName = vcycle.BaseSpace.createMachine(self, vmtypeName)
-    except Exception as e:
-      raise OcciError('Failed to create new machine: ' + str(e))
-
-    # Now the OCCI-specific machine creation steps
+    # OCCI-specific machine creation steps
 
 #                    'metadata'  : { 'cern-services'   : 'false',
 #                                    'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',

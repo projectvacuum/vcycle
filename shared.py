@@ -116,7 +116,7 @@ class Machine:
       spaces[self.spaceName].vmtypes[self.vmtypeName].totalMachines += 1
 
       if spaces[self.spaceName].vmtypes[self.vmtypeName].target_share > 0.0:
-        spaces[self.spaceName].vmtypes[self.vmtypeName].weightedMachines += (1.0 / spaces[self.spaceName].vmtypes[self.vmtypeName].target_share)
+         spaces[self.spaceName].vmtypes[self.vmtypeName].weightedMachines += (1.0 / spaces[self.spaceName].vmtypes[self.vmtypeName].target_share)
     except:
       pass
       
@@ -171,7 +171,8 @@ class Machine:
                                     ' due to ' + name + ' shutdown message')
             spaces[self.spaceName].vmtypes[self.vmtypeName].setLastAbortTime(self.stoppedTime)
               
-          elif (self.stoppedTime > spaces[self.spaceName].vmtypes[self.vmtypeName].lastAbortTime) and \
+          elif self.startedTime and \
+               (self.stoppedTime > spaces[self.spaceName].vmtypes[self.vmtypeName].lastAbortTime) and \
                ((self.stoppedTime - self.startedTime) < spaces[self.spaceName].vmtypes[self.vmtypeName].fizzle_seconds): 
 
             # Store last abort time for stopped machines, based on fizzle_seconds
@@ -179,7 +180,7 @@ class Machine:
                                     ' due to ' + name + ' fizzle')
             spaces[self.spaceName].vmtypes[self.vmtypeName].setLastAbortTime(self.stoppedTime)
 
-          if shutdownCode and (shutdownCode / 100) == 3:
+          if self.startedTime and shutdownCode and (shutdownCode / 100) == 3:
             vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.vmtypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
         
@@ -271,17 +272,6 @@ class Machine:
       vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
       return
 
-  def _deleteOneMachine(self, machineName):
-  
-    vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
-                            str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
-
-    # record when this was tried (not when done, since don't want to overload service with failing deletes)
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
-                                  
-    # Call the subclass method specific to this space
-    self.deleteOneMachine(machineName)
-                                  
 class Vmtype:
 
   def __init__(self, spaceName, vmtypeName, parser, vmtypeSectionName):
@@ -585,6 +575,17 @@ class BaseSpace(object):
     except:
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
+  def _deleteOneMachine(self, machineName):
+  
+    vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
+                            str(self.machines[machineName].vmtypeName) + ', in state ' + str(self.machines[machineName].state))
+
+    # record when this was tried (not when done, since don't want to overload service with failing deletes)
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+                                  
+    # Call the subclass method specific to this space
+    self.deleteOneMachine(machineName)
+                                  
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
       
@@ -691,22 +692,15 @@ class BaseSpace(object):
         creationsThisCycle += 1
 
         try:
-          self.createMachine(bestVmtypeName)
+          self._createMachine(bestVmtypeName)
         except Exception as e:
           vcycle.vacutils.logLine('Failed creating machine with vmtype ' + bestVmtypeName + ' in ' + self.spaceName + ' (' + str(e) + ')')
-# Done when creating machine object
-#        else:
-#          # Update totals for newly created machines
-#          self.totalMachines += 1
-#          self.vmtypes[bestVmtypeName].totalMachines    += 1
-#          self.vmtypes[bestVmtypeName].weightedMachines += (1.0 / self.vmtypes[bestVmtypeName].target_share)
-#          self.vmtypes[bestVmtypeName].notPassedFizzle  += 1
 
       else:
         vcycle.vacutils.logLine('No more free capacity and/or suitable vmtype found within ' + self.spaceName)
         return
       
-  def createMachine(self, vmtypeName):
+  def _createMachine(self, vmtypeName):
     """Generic machine creation"""
   
     try:
@@ -765,7 +759,11 @@ class BaseSpace(object):
     except:
       raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
 
-    return machineName
+    # Call the API-specific method to actually create the machine
+    try:
+      self.createMachine(machineName, vmtypeName)
+    except Exception as e:
+      vcycle.vacutils.logLine('Machine creation fails with: ' + str(e))
 
   def oneCycle(self):
   

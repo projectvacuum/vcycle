@@ -122,6 +122,10 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def scanMachines(self):
     """Query OpenStack compute service for details of machines in this space"""
+
+    # For each machine found in the space, this method is responsible for 
+    # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
+    # or (b) creating a Machine object for the VM in self.spaces
   
     try:
       result = self.httpRequest(self.computeURL + '/servers/detail',
@@ -131,11 +135,10 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     for oneServer in result['response']['servers']:
 
-      # This includes VMs that we didn't create and won't manage, to avoid going above space limit
-      self.totalMachines += 1
-
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
+        # Still count VMs that we didn't create and won't manage, to avoid going above space limit
+        self.totalMachines += 1
         continue
 
       uuidStr = str(oneServer['id'])
@@ -183,6 +186,8 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                                startedTime = startedTime,
                                                                updatedTime = updatedTime,
                                                                uuidStr     = uuidStr)
+
+      
 
   def getFlavorID(self, vmtypeName):
     """Get the "flavor" ID"""
@@ -446,15 +451,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.vmtypes[vmtypeName]._keyPairName = keyName
     return self.vmtypes[vmtypeName]._keyPairName
 
-  def createMachine(self, vmtypeName):
+  def createMachine(self, machineName, vmtypeName):
 
-    # Call the generic machine creation method
-    try:
-      machineName = vcycle.BaseSpace.createMachine(self, vmtypeName)
-    except Exception as e:
-      raise OpenstackError('Failed to create new machine: ' + str(e))
-
-    # Now the OpenStack-specific machine creation steps
+    # OpenStack-specific machine creation steps
 
     try:
       request = { 'server' : 
@@ -492,8 +491,6 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
                                                        uuidStr     = None)
-
-    return machineName
 
   def deleteOneMachine(self, machineName):
 
