@@ -74,31 +74,36 @@ class DBCE():
       
    def execute(self, url, params=None, method='GET', data=None):
       headers = {'Accept':'application/json','Content-Type':'application/json'}
+      request = None
       if method == 'GET':
-         return requests.get(url,
+         request = requests.get(url,
                           headers=headers,
                           params=params, 
                           verify=False, 
                           auth=HTTPBasicAuth(self.username,self.password))
       elif method == 'POST':
-         return requests.post(url,
+         request = requests.post(url,
                           headers=headers,
                           params=params, 
                           verify=False, 
                           data=data,
                           auth=HTTPBasicAuth(self.username,self.password))
       elif method == 'PUT':
-        return requests.put(url,
+        request = requests.put(url,
                           headers=headers,
                           params=params, 
                           verify=False, 
                           auth=HTTPBasicAuth(self.username,self.password))
       elif method == 'DELETE':
-         return requests.delete(url,
+         request = requests.delete(url,
                           headers=headers,
                           params=params, 
                           verify=False, 
                           auth=HTTPBasicAuth(self.username,self.password))
+      
+      if request.status_code == 401:
+         raise Exception(request.reason)
+      return request
 
 
 class MachineOp(Op):
