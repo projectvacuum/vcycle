@@ -237,8 +237,13 @@ class Machine:
     else:
       cpusField = ''
 
+    if spaces[self.spaceName].gocdb_sitename:
+      tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
+    else:
+      tmpGocdbSitename = self.spaceName
+
     mesg = ('APEL-individual-job-message: v0.3\n' + 
-            'Site: ' + spaces[self.spaceName].gocdb_sitename + '\n' +
+            'Site: ' + tmpGocdbSitename + '\n' +
             'SubmitHost: ' + self.spaceName + '/vcycle-' + self.vmtypeName + '\n' +
             'LocalJobId: ' + self.uuidStr + '\n' +
             'LocalUserId: ' + self.name + '\n' +
@@ -266,11 +271,13 @@ class Machine:
       vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
       return
 
-    try:
-      vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
-    except:
-      vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
-      return
+    if spaces[self.spaceName].gocdb_sitename:
+      # We only write to apel-outgoing if gocdb_sitename is set
+      try:
+        vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+      except:
+        vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
+        return
 
 class Vmtype:
 
@@ -854,9 +861,7 @@ def readConf():
       if parser.has_option(spaceSectionName, 'gocdb_sitename'):
         spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename').strip()
       else:
-        # Use spaceName as a placeholder, which they can replace in the
-        # saved message record files if they decide to use APEL later
-        spaces[spaceName].gocdb_sitename = spaceName
+        spaces[spaceName].gocdb_sitename = None
 
     elif sectionType != 'vmtype':
       raise VcycleError('Section type ' + sectionType + 'not recognised')
