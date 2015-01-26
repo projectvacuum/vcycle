@@ -116,7 +116,7 @@ class Machine:
       spaces[self.spaceName].vmtypes[self.vmtypeName].totalMachines += 1
 
       if spaces[self.spaceName].vmtypes[self.vmtypeName].target_share > 0.0:
-         spaces[self.spaceName].vmtypes[self.vmtypeName].weightedMachines += (1.0 / spaces[self.spaceName].vmtypes[self.vmtypeName].target_share)
+         spaces[self.spaceName].vmtypes[self.vmtypeName].weightedMachines += (self.hs06 / spaces[self.spaceName].vmtypes[self.vmtypeName].target_share)
     except:
       pass
       
@@ -315,11 +315,6 @@ class Vmtype:
       self.root_public_key = None
     
     try:
-      self.x509dn = parser.get(vmtypeSectionName, 'x509dn')
-    except:
-      self.x509dn = None
-    
-    try:
       if parser.has_option(vmtypeSectionName, 'max_machines'):
         self.max_machines = int(parser.get(vmtypeSectionName, 'max_machines'))
       else:
@@ -349,6 +344,13 @@ class Vmtype:
       raise VcycleError('max_wallclock_seconds is required in [' + vmtypeSectionName + '] (' + str(e) + ')')
       
     try:
+      self.x509dn = parser.get(vmtypeSectionName, 'x509dn')
+    except:
+      self.x509dn = None
+
+# The heartbeat and machineoutputs options should cause errors if x509dn isn't given!
+    
+    try:      
       self.heartbeat_file = parser.get(vmtypeSectionName, 'heartbeat_file')
     except:
       self.heartbeat_file = None
@@ -361,6 +363,20 @@ class Vmtype:
     except Exception as e:
       raise VcycleError('Failed to parse heartbeat_seconds in [' + vmtypeSectionName + '] (' + str(e) + ')')
 
+    if parser.has_option(vmtypeSectionName, 'log_machineoutputs') and \
+               parser.get(vmtypeSectionName, 'log_machineoutputs').strip().lower() == 'true':
+      self.log_machineoutputs = True
+    else:
+      self.log_machineoutputs = False
+
+    try:
+      if parser.has_option(vmtypeSectionName, 'machineoutputs_days'):
+        self.machineoutputs_days = float(parser.get(vmtypeSectionName, 'machineoutputs_days'))
+      else:
+        self.machineoutputs_days = 3.0
+    except Exception as e:
+      raise VcycleError('Failed to parse machineoutputs_days in [' + vmtypeSectionName + '] (' + str(e) + ')')
+      
     if parser.has_option(vmtypeSectionName, 'accounting_fqan'):
       self.accounting_fqan = parser.get(vmtypeSectionName, 'accounting_fqan').strip()
 
@@ -382,20 +398,6 @@ class Vmtype:
     except Exception as e:
       raise VcycleError('Failed to parse target_share in [' + vmtypeSectionName + '] (' + str(e) + ')')
 
-    if parser.has_option(vmtypeSectionName, 'log_machineoutputs') and \
-               parser.get(vmtypeSectionName, 'log_machineoutputs').strip().lower() == 'true':
-      self.log_machineoutputs = True
-    else:
-      self.log_machineoutputs = False
-
-    try:
-      if parser.has_option(vmtypeSectionName, 'machineoutputs_days'):
-        self.machineoutputs_days = float(parser.get(vmtypeSectionName, 'machineoutputs_days'))
-      else:
-        self.machineoutputs_days = 3.0
-    except Exception as e:
-      raise VcycleError('Failed to parse machineoutputs_days in [' + vmtypeSectionName + '] (' + str(e) + ')')
-      
     self.options = {}
     
     for (oneOption, oneValue) in parser.items(vmtypeSectionName):
