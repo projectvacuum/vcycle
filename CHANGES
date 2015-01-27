@@ -3,6 +3,7 @@
 - Each cycle is run in a newly forked subprocess for stability
 - Record APEL accounting messages when VMs finish
 - Use hs06 weighting when calculating target shares
+- Proper man pages
 ==================== Changes in Vcycle version 0.4.0 =====================
 - VCYCLE.py becomes /usr/lib64/python2.6/site-packages/vcycle
 - Put docs in /usr/share/doc/vcycle-VERSION
