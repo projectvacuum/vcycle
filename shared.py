@@ -184,7 +184,7 @@ class Machine:
             vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.vmtypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
         
-        self.writeApel()
+          self.writeApel()
       else:
         self.stoppedTime = None
 
