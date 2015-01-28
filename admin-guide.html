@@ -7,7 +7,6 @@
 <h1 align=center>Vcycle Admin Guide<!-- version --></h1>
 
 <p align=center><b>Andrew McNab &lt;Andrew.McNab&nbsp;AT&nbsp;cern.ch&gt;</b>
-<!--
 
 <h2 style="border-bottom: 1px solid">Quick start</h2>
 
@@ -21,48 +20,17 @@ but it's safest to go through the quick start to make sure the requirements
 are all there.
 
 <p>
-To follow the quick start, you need an x86_64 Intel or AMD machine 
-with hardware virtualization (Intel VT-x or AMD-V) enabled in its BIOS; and
-the machine needs to be installed with a version of Scientific Linux 6, 
-with libvirt installed and enabled. In particular, the packages
-libvirt, libvirt-client, libvirt-python, qemu-kvm, and then
-run &quot;service libvirtd restart&quot; to make sure libvirtd daemon is
-running. 
+To follow the quick start, you need access to a tenancy/project on an 
+OpenStack service. You should first verify that you can create and destroy
+VMs in your tenancy using the OpenStack web dashboard or nova command.
 
 <p>
-Install the Vcycle RPM and at the command line excecute:
-<pre>
-virsh list
-virsh create /usr/share/doc/Vcycle-*/testkvm.xml
-virsh list
-virsh destroy testkvm
-virsh list
-</pre>
-You should see no VMs listed as running to start with. After the create 
-command, the testkvm VM should be listed as running. Afer destroying it,
-an empty list of VMs should be returned. If all this doesn't happen, 
-then something is wrong with your installation or hardware virtualization 
-isn't enabled. Please check the libvirt documentation to try to identify
-where the problem is.
-
-<p>
-To start using Vcycle to manage VMs, it's necessary to have a standard NFS
-server installed and running. Vcycle uses NFS to share some directories from
-the factory machine to its virtual machines.
-It's not necessary to configure the NFS server, as Vcycle uses exportfs
-commands to create and destroy exports dynamically. If you have any iptables
-rules blocking NFS you should disable them before starting Vcycled.
-The factory machine must have a fully qualified domain name (FDQN) as
-its hostname. So factory1.example.com not just factory1. 
-The 169.254.0.0 network should not be configured on the factory machine
-before you start Vcycle. In particular, Zeroconf support should be disabled
-by adding NOZEROCONF=yes to /etc/sysconfig/network and restarting
-networking.
-
-<p>
-Next create the /etc/Vcycle.conf configuration file. Copy
-/var/lib/Vcycle/doc/example.Vcycle.conf to /etc/Vcycle.conf and read through its
-comments. There are 5 lines you need to check and probably change.
+Install the Vcycle RPM and 
+create the /etc/vcycle.conf configuration file. Copy
+/usr/share/doc/vcycle-VERSION/example.Vcycle.conf to /etc/Vcycle.conf and 
+read through its comments. 
+<!--
+There are 5 lines you need to check and probably change.
 
 <dl>
 
