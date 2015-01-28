@@ -101,8 +101,8 @@ class DBCE():
                           verify=False, 
                           auth=HTTPBasicAuth(self.username,self.password))
       
-      if request.status_code == 401:
-         raise Exception(request.reason)
+      if not request.status_code in [200,201]: #!= 200 or request.status_code != 201:
+         raise Exception(str(request.status_code) +" "+request.text)
       return request
 
 
