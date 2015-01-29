@@ -94,7 +94,7 @@ class vcycleOcci(vcycleBase):
       
       
       if server.status in ['inactive','error','stopped','cancel'] or self._condition_walltime(server, vmtypeName, properties) or \
-         self._condiction_heartbeat(server, vmtypeName, properties) :
+         self._condition_heartbeat(server, vmtypeName, properties) :
          
          if self._condition_walltime(server, vmtypeName, properties):
             VCYCLE.logLine(self.tenancyName, "%s Walltime!!: %s > %s" % 
@@ -136,23 +136,21 @@ class vcycleOcci(vcycleBase):
         (int(time.time()) - properties['startTime']) > self.tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])
       
       
-   def _condiction_heartbeat(self, server, vmtypeName, properties):
+   def _condition_heartbeat(self, server, vmtypeName, properties):
       if not 'heartbeat_file' in self.tenancy['vmtypes'][vmtypeName]:
          return False
       
       
       execution_time = (int(time.time()) - properties['startTime'])
-      maximum_time = self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds'] + self.tenancy['vmtypes'][vmtypeName]['backoff_seconds'] + self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']
+      
       if server.status == 'active' and properties['heartbeatTime'] is None and \
-        execution_time > maximum_time:
-         VCYCLE.logLine(self.tenancyName, 'Heartbeat lost %s %s > %s' % (server.name, execution_time, maximum_time) )
+        execution_time > self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+         VCYCLE.logLine(self.tenancyName, 'Heartbeat lost %s %s > %s' % (server.name, execution_time, self.tenancy['vmtypes'][vmtypeName]['fizzle_seconds']) )
          return True
       
       if server.status == 'active' and not properties['heartbeatTime'] is None:
          heartbeat = int(time.time() - properties['heartbeatTime'])
-         if execution_time <= maximum_time:
-            return False
-         elif heartbeat > self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']:
+         if heartbeat > self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']:
             VCYCLE.logLine(self.tenancyName, 'Heartbeat lost %s %s > %s' % (server.name, heartbeat, self.tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']) )
             return True
       return False
