@@ -14,7 +14,7 @@ class vcycleBase(object):
    def __init__(self):
       pass
    
-   def oneCycle(self, tenancyName, tenancy):
+   def oneCycle(self, tenancyName, tenancy, servers):
       '''Principal method.
       Checks every vm running. 
       If the vm is stopped or it was running more than 
@@ -23,7 +23,7 @@ class vcycleBase(object):
   
       VCYCLE.logLine(tenancyName, 'Processing tenancy ' + tenancyName)
       
-      creationsPerCycle = math.floor(tenancy['max_machines'] * 0.1)
+      self.creationsPerCycle = math.floor(tenancy['max_machines'] * 0.1)
       totalRunning = 0
       totalFound   = 0
 
@@ -50,7 +50,7 @@ class vcycleBase(object):
       
       #Get the running and total found servers inside tenancy
       for oneServer in servers_in_tenancy:
-         (totalRunning, totalFound) = self.for_server_in_list(oneServer, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype)
+         (totalRunning, totalFound) = self.for_server_in_list(oneServer, totalRunning, totalFound, notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype, servers)
          if not oneServer is None and oneServer.name[:7] == 'vcycle-':
             serverNames.append(oneServer.name)
                   
@@ -89,7 +89,7 @@ class vcycleBase(object):
                 (vmtypeName, vmtype['fizzle_seconds'] + vmtype['backoff_seconds'], int(time.time()) - VCYCLE.lastFizzles[tenancyName][vmtypeName], notPassedFizzleSeconds[vmtypeName], vmtype['fizzle_seconds']))
             else:
                VCYCLE.logLine(tenancyName, 'Free capacity found for ' + vmtypeName + ' within ' + tenancyName + ' ... creating')
-               errorMessage = self.createMachine(vmtypeName, proxy='proxy' in tenancy)
+               errorMessage = self.createMachine(vmtypeName, servers, proxy='proxy' in tenancy)
                if errorMessage:
                   VCYCLE.logLine(tenancyName, errorMessage)
                else:
@@ -105,7 +105,7 @@ class vcycleBase(object):
          
    
    def for_server_in_list(self, server, totalRunning, totalFound,
-                          notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype):
+                          notPassedFizzleSeconds, foundPerVmtype, runningPerVmtype, servers):
       '''Executes for every server found in the tenancy, if the server is stopped or it has been running
       more than an specific time, the method will delete the server.'''
       tenancyName = self.tenancyName
@@ -120,10 +120,17 @@ class vcycleBase(object):
          fileTenancyName = open('/var/lib/vcycle/machines/' + server.name + '/tenancy_name', 'r').read().strip()
       except:
          # Not one of ours? Cleaned up directory too early?
-         server.delete()
-         #VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
-         VCYCLE.logLine(tenancyName, 'Deleted ' + server.name + ' which has no tenancy name')
-         totalFound -= 1
+         #server.delete()
+         try:
+            shutil.rmtree('/var/lib/vcycle/machines/' + server.name)
+         except:
+            pass
+         if self.tenancy['delete_no_tenancy']:
+            server.delete()
+            VCYCLE.logLine(tenancyName, 'Deleted ' + server.name + ' which has no tenancy name')
+            totalFound -= 1
+         else:
+            VCYCLE.logLine(tenancyName, 'Skipping ' + server.name + ' which has no tenancy name')
          return (totalRunning , totalFound)
       else:
          # Weird inconsistency, maybe the name changed? So log a warning and ignore this VM
@@ -143,7 +150,7 @@ class vcycleBase(object):
       else:
         foundPerVmtype[vmtypeName] += 1
         
-      properties = self._retrieve_properties(server, vmtypeName)
+      properties = self._retrieve_properties(server, vmtypeName, servers)
       totalRunning = self._update_properties(server, vmtypeName, runningPerVmtype, notPassedFizzleSeconds, properties, totalRunning)
       if self._delete(server, vmtypeName, properties):
          foundPerVmtype[vmtypeName] -= 1
@@ -151,7 +158,7 @@ class vcycleBase(object):
       return (totalRunning , totalFound)
 
 
-   def createMachine(self, vmtypeName, proxy=False):
+   def createMachine(self, vmtypeName, servers, proxy=False):
       '''Creates a new VM'''
       tenancyName = self.tenancyName
       serverName = self._server_name(name=tenancyName)
@@ -171,6 +178,7 @@ class vcycleBase(object):
 
       try:
          server = self._create_machine(serverName, vmtypeName, proxy=proxy)
+         servers[server.id] = {'start_time':time.time()}
       except Exception as e:
          return 'Error creating new server: ' + str(e)
       
@@ -240,7 +248,7 @@ class vcycleBase(object):
    
    
    @abc.abstractmethod
-   def _retrieve_properties(self, server, vmtypeName):
+   def _retrieve_properties(self, server, vmtypeName, servers):
       '''Returns the properties of a VM. It is an abstract method'''
       pass
 

@@ -136,6 +136,11 @@ def readConf(requirePassword=True):
          tenancy['delete_old_files'] = bool(parser.get(tenancySectionName, 'delete_old_files'))
       except:
          tenancy['delete_old_files'] = True
+         
+      try:
+         tenancy['delete_no_tenancy'] = bool(parser.get(tenancySectionName, 'delete_no_tenancy'))
+      except:
+         tenancy['delete_no_tenancy'] = False  
 
       # Get the options for each vmtype section associated with this tenancy
 
@@ -174,7 +179,7 @@ def readConf(requirePassword=True):
               vmtype['heartbeat_seconds'] = int(parser.get(vmtypeSectionName, 'heartbeat_seconds'))
             except:
               pass
-                      
+           
             if tenancyName not in lastFizzles:
               lastFizzles[tenancyName] = {}
               

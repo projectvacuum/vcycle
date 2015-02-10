@@ -27,7 +27,7 @@ class vcycleOcci(vcycleBase):
       return self.client.servers.list(detailed=True)
    
          
-   def _retrieve_properties(self, server, vmtypeName):
+   def _retrieve_properties(self, server, vmtypeName, servers):
       '''Returns the server's properties'''
       properties = {}
       properties['startTime'] = int(server.created)
@@ -39,11 +39,21 @@ class vcycleOcci(vcycleBase):
          properties['heartbeatTime'] = None
          properties['heartbeatStr'] = '-'
       
+                   
+      try:
+         properties['fizzleTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-start').st_ctime)
+         properties['fizzleStr'] = str(int(properties['startTime'] - properties['fizzleTime'])) + 's'
+         servers[server.id]['fizzle'] = int(properties['startTime'] - servers[server.id]['start_time'])
+      except:
+         properties['fizzleTime'] = None
+         properties['fizzleStr'] = '-'
+      
       if len(server.ip) > 0:
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
                     (vmtypeName + '  ')[:16] +
                     (server.ip[0] + ' ')[:16] +
                     (server.status + ' ')[:8] +
+                    properties['fizzleStr'] + " " +
                     properties['heartbeatStr']
                     )
       else:
@@ -51,6 +61,7 @@ class vcycleOcci(vcycleBase):
                     (vmtypeName + '  ')[:16] +
                     ('0.0.0.0' + ' ')[:16] +
                     (server.status + ' ')[:8] +
+                    properties['fizzleStr'] + " " +
                     properties['heartbeatStr']
                     )
       return properties
