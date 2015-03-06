@@ -40,6 +40,8 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
+PYTHON_SITEARCH=/usr/lib64/python2.6/site-packages
+
 GNUTAR ?= tar
 vcycle.tgz: $(TGZ_FILES)
 	mkdir -p TEMPDIR/vcycle
@@ -49,7 +51,7 @@ vcycle.tgz: $(TGZ_FILES)
 
 install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
- 	         $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle \
+ 	         $(RPM_BUILD_ROOT)$(PYTHON_SITEARCH)/vcycle \
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
@@ -66,7 +68,7 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/usr/sbin
 	cp __init__.py shared.py vacutils.py \
 	   openstack_api.py occi_api.py \
-	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
+	   $(RPM_BUILD_ROOT)$(PYTHON_SITEARCH)/vcycle
 	cp VERSION CHANGES vcycle-httpd.conf \
 	   $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION)
 	cp VERSION \

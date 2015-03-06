@@ -21,7 +21,7 @@ VM lifecycle manager daemon for OpenStack etc
 %build
 
 %install
-make install
+make install PYTHON_SITEARCH=%{python_sitearch} 
 
 %preun
 if [ "$1" = "0" ] ; then
@@ -37,9 +37,9 @@ if [ $? = 0 ] ; then
 fi
 
 %files
-/usr/sbin
+/usr/sbin/*
 /usr/share/doc/vcycle-%{version}
-/usr/lib64/python2.6/site-packages/vcycle
+%{python_sitearch}/vcycle
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
