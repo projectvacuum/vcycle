@@ -31,6 +31,9 @@ class vcycleOcci(vcycleBase):
       '''Returns the server's properties'''
       properties = {}
       properties['startTime'] = int(server.created)
+      
+      if not server.id in servers:
+         servers[server.id] = {'start_time': properties['startTime']}
               
       try:
          properties['heartbeatTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-heartbeat').st_ctime)
@@ -42,27 +45,29 @@ class vcycleOcci(vcycleBase):
                    
       try:
          properties['fizzleTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-start').st_ctime)
-         properties['fizzleStr'] = str(int(properties['startTime'] - properties['fizzleTime'])) + 's'
-         servers[server.id]['fizzle'] = int(properties['startTime'] - servers[server.id]['start_time'])
-      except:
+         properties['fizzleStr'] = str(int(properties['fizzleTime']) - int(properties['startTime'])) + 's'
+         servers[server.id]['fizzle'] = int(properties['startTime']) - int(servers[server.id]['start_time'])
+      except Exception:
          properties['fizzleTime'] = None
          properties['fizzleStr'] = '-'
       
       if len(server.ip) > 0:
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
-                    (vmtypeName + '  ')[:16] +
-                    (server.ip[0] + ' ')[:16] +
+                    (vmtypeName + '  ')[:16] + ' ' +
+                    (server.ip[0] + ' ')[:16] +" "+
                     (server.status + ' ')[:8] +
                     properties['fizzleStr'] + " " +
-                    properties['heartbeatStr']
+                    properties['heartbeatStr'] + " " +
+                    str(int(time.time()) - properties['startTime'] ) + "s"
                     )
       else:
          VCYCLE.logLine(self.tenancyName, server.name + ' ' +
-                    (vmtypeName + '  ')[:16] +
+                    (vmtypeName + '  ')[:16] + ' ' +
                     ('0.0.0.0' + ' ')[:16] +
                     (server.status + ' ')[:8] +
                     properties['fizzleStr'] + " " +
-                    properties['heartbeatStr']
+                    properties['heartbeatStr'] + " " +
+                    str(int(time.time()) - properties['startTime'] ) + "s"
                     )
       return properties
    

@@ -49,10 +49,11 @@ from interfaces.dbce.vcycleDBCE import vcycleDBCE
 import VCYCLE
 
 sleepSeconds      = 60
-
+servers = {}
 
 def cycle(tenancyName, tenancy):
    while True:
+      
       try:
          pf = open('/var/run/vcycled.pid', 'r')
          pid = int(pf.read().strip())
@@ -72,7 +73,7 @@ def cycle(tenancyName, tenancy):
       else:
          vOpen = vcycleOcci()
       try:
-         vOpen.oneCycle(tenancyName, tenancy)
+         vOpen.oneCycle(tenancyName, tenancy, servers)
       except Exception,e:
          VCYCLE.logLine(tenancyName, str(e))
       VCYCLE.logLine(tenancyName, '================ End cycle ================')
@@ -84,6 +85,7 @@ def cycle(tenancyName, tenancy):
 #
 
 if __name__ == '__main__':
+   
    if os.fork() != 0:
       sys.exit() # first parent
    else:

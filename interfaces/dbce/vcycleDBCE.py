@@ -24,7 +24,7 @@ class vcycleDBCE(vcycleBase):
       return serversList
    
    
-   def _retrieve_properties(self, server, vmtypeName):
+   def _retrieve_properties(self, server, vmtypeName, servers):
       '''Returns the server's properties'''
       properties = {}
       properties['createdTime']  = calendar.timegm(time.strptime(server.created, "%Y-%m-%dT%H:%M:%SZ"))
@@ -42,16 +42,23 @@ class vcycleDBCE(vcycleBase):
       except:
         properties['heartbeatTime'] = None
         properties['heartbeatStr'] = '-'
+        
+      try:
+         properties['fizzleTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-start').st_ctime)
+         properties['fizzleStr'] = str(int(properties['fizzleTime']) - int(properties['startTime'])) + 's'
+         servers[server.id]['fizzle'] = int(properties['startTime']) - int(servers[server.id]['start_time'])
+      except Exception:
+         properties['fizzleTime'] = None
+         properties['fizzleStr'] = '-'
       
       VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
               (server.status + '       ')[:8] + 
-               server.created + 
-              ' to ' + 
-              server.updated + ' ' +
-              ('%5.2f' % ((time.time() - properties['startTime'])/3600.0)) + ' ' +
-              properties['heartbeatStr'])
+              properties['fizzleStr'] + " "  +
+              properties['heartbeatStr'] + " " +
+              str(int(time.time()) - properties['startTime'] ) + "s"
+              )
       return properties
    
    

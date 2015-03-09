@@ -23,7 +23,8 @@ class vcycleBase(object):
   
       VCYCLE.logLine(tenancyName, 'Processing tenancy ' + tenancyName)
       
-      self.creationsPerCycle = math.floor(tenancy['max_machines'] * 0.1)
+      if int(tenancy['max_machines']) > 50:
+         self.creationsPerCycle = math.floor(tenancy['max_machines'] * 0.1)
       totalRunning = 0
       totalFound   = 0
 
@@ -229,6 +230,9 @@ class vcycleBase(object):
             continue
 
          try:
+            import os.path
+            if os.path.isfile('/var/lib/vcycle/machines/' + onedir+'/machineoutputs/shutdown_message'):
+               shutil.copytree('/var/lib/vcycle/machines/' + onedir, '/var/lib/vcycle/end_machines/'+ onedir)
             shutil.rmtree('/var/lib/vcycle/machines/' + onedir)
             VCYCLE.logLine(tenancyName, 'Deleted /var/lib/vcycle/machines/' + onedir + ' (' + fileTenancyName + ' ' + str(int(time.time()) - onedirCtime) + 's)')
          except:
