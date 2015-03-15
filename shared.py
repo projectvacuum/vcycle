@@ -207,16 +207,6 @@ class Machine:
         
     nowTime = time.localtime()
 
-    try:
-      os.makedirs(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
-    except:
-      pass
-
-    try:
-      os.makedirs(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
-    except:
-      pass
-      
     userDN = ''
     for component in self.spaceName.split('.'):
       userDN = '/DC=' + component + userDN
@@ -266,6 +256,11 @@ class Machine:
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
                           
     try:
+      os.makedirs(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+    except:
+      pass
+      
+    try:
       vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
     except:
       vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
@@ -273,6 +268,11 @@ class Machine:
 
     if spaces[self.spaceName].gocdb_sitename:
       # We only write to apel-outgoing if gocdb_sitename is set
+      try:
+        os.makedirs(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+      except:
+        pass
+
       try:
         vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
       except:
@@ -599,16 +599,21 @@ class BaseSpace(object):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
       
     for machineName,machine in self.machines.iteritems():
+
+      if machine.deletedTime and (machine.deletedTime > int(time.time()) - 3600):
+        # We never try deletions more than once every 60 minutes
+        continue
     
       # Delete machines as appropriate
-      if machine.state == MachineState.shutdown:
+      if machine.state == MachineState.starting and \
+         (machine.createdTime is None or 
+         machine.createdTime < int(time.time()) - 3600):
+        # We try to delete failed-to-start machines after 60 minutes
         self._deleteOneMachine(machineName)
-      elif machine.state == MachineState.failed:
-        self._deleteOneMachine(machineName)
-      elif machine.state == MachineState.deleting and \
-           (machine.deletedTime is None or 
-            machine.deletedTime < int(time.time()) - 1800):
-        # Every 30 minutes we have another go at un-deletable machines
+      elif machine.state == MachineState.failed or \
+           machine.state == MachineState.shutdown or \
+           machine.state == MachineState.deleting:
+        # Delete non-starting, non-running machines
         self._deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.vmtypeName in self.vmtypes and \
@@ -621,6 +626,7 @@ class BaseSpace(object):
            self.vmtypes[machine.vmtypeName].heartbeat_seconds and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].fizzle_seconds)) and \
+           (int(time.time()) > (machine.startedTime + self.vmtypes[machine.vmtypeName].heartbeat_seconds)) and \
            (
             (machine.heartbeatTime is None) or 
             (machine.heartbeatTime < (int(time.time()) - self.vmtypes[machine.vmtypeName].heartbeat_seconds))
@@ -699,6 +705,7 @@ class BaseSpace(object):
 
         # This tracks creation attempts, whether successful or not
         creationsThisCycle += 1
+        self.vmtypes[vmtypeName].notPassedFizzle += 1
 
         try:
           self._createMachine(bestVmtypeName)
@@ -887,7 +894,11 @@ def cleanupMachines():
     except:
       spaceName = None
     else:
-      if machineName in spaces[spaceName].machines:
+      if spaceName not in spaces:
+        # An orphaned machine from a space that is no longer configured
+        # >>> We should add a proper cleanup of these machines! <<<
+        continue
+      elif machineName in spaces[spaceName].machines:
         # We never delete/log directories for machines that are still listed
         continue
       else:

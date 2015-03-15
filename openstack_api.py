@@ -335,7 +335,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.curl.setopt(pycurl.UPLOAD,         True)
     self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
     self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycle.shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT,        30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
