@@ -76,7 +76,7 @@ class MachineState:
    
 class Machine:
 
-  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr):
+  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, vmtypeName):
 
     # Store values from api-specific calling function
     self.name         = name
@@ -87,25 +87,18 @@ class Machine:
     self.startedTime  = startedTime
     self.updatedTime  = updatedTime
     self.uuidStr      = uuidStr
+    self.vmtypeName   = vmtypeName
 
-    # Record when the machine started (rather than just being created)
-    if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
-
-    # Get vmtype name saved when we requested the machine
-    try:
-      f = open('/var/lib/vcycle/machines/' + name + '/vmtype_name', 'r')
-    except:
-      self.vmtypeName = None
-    else:
-      self.vmtypeName = f.read().strip()
-      f.close()
-
-    try:
-      self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
-    except:
-      self.deletedTime = None
-
+    if not vmtypeName:
+      # Get vmtype name saved when we requested the machine
+      try:
+        f = open('/var/lib/vcycle/machines/' + name + '/vmtype_name', 'r')
+      except:
+        pass
+      else:
+        self.vmtypeName = f.read().strip()
+        f.close()
+        
     try:
       self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/machinefeatures/hs06', 'r').read().strip())
     except:
@@ -134,6 +127,22 @@ class Machine:
         spaces[self.spaceName].vmtypes[self.vmtypeName].notPassedFizzle += 1
     except:      
       pass
+
+    if os.path.isdir('/var/lib/vcycle/machines/' + name):
+      self.managedHere = True
+    else:
+      # Not managed by this Vcycle instance
+      self.managedHere = False
+      return
+    
+    # Record when the machine started (rather than just being created)
+    if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
+
+    try:
+      self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
+    except:
+      self.deletedTime = None
 
     # Possibly created by the machine itself
     try:
@@ -600,6 +609,10 @@ class BaseSpace(object):
       
     for machineName,machine in self.machines.iteritems():
 
+      if not machine.managedHere:
+        # We do not delete machines that are not managed by this Vcycle instance
+        continue
+
       if machine.deletedTime and (machine.deletedTime > int(time.time()) - 3600):
         # We never try deletions more than once every 60 minutes
         continue
@@ -693,7 +706,7 @@ class BaseSpace(object):
                                   str(int(time.time()) - self.vmtypes[vmtypeName].lastAbortTime) + 
                                   's ago) and ' + 
                                   str(self.vmtypes[vmtypeName].notPassedFizzle) + 
-                                  ' running but not yet passed fizzle_seconds (' + 
+                                  ' starting/running but not yet passed fizzle_seconds (' + 
                                   str(self.vmtypes[vmtypeName].fizzle_seconds) + ')')
           continue
 

@@ -191,7 +191,9 @@ This can also be a remote HTTP or HTTPS URL which vcycle
 will cache in /var/lib/vcycle/imagecache. The remote server must supply a
 Last-Modified timestamp and vcycle will re-request the image each time a 
 VM starts using an If-Modified-Since request to minimise network load.
-Alternatively, the images may be files in the local filesystem.
+Alternatively, the images may be files in the local filesystem. If 
+root_image ends in .iso , then the image will be declared as ISO format
+(a CD-ROM image), otherwise as a raw HDD image.
 
 .B root_public_key
 is the file name of a public key which Vcycle will set up on the IaaS

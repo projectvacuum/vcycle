@@ -162,6 +162,11 @@ class OpenstackSpace(vcycle.BaseSpace):
       taskState  = str(oneServer['OS-EXT-STS:task_state'])
       powerState = int(oneServer['OS-EXT-STS:power_state'])
       status     = str(oneServer['status'])
+
+      try:
+        vmtypeName = str(oneServer['metadata']['vmtype'])
+      except:
+        vmtypeName = None
       
       if taskState == 'Deleting':
         state = vcycle.MachineState.deleting
@@ -185,9 +190,8 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                                createdTime = createdTime,
                                                                startedTime = startedTime,
                                                                updatedTime = updatedTime,
-                                                               uuidStr     = uuidStr)
-
-      
+                                                               uuidStr     = uuidStr,
+                                                               vmtypeName  = vmtypeName)
 
   def getFlavorID(self, vmtypeName):
     """Get the "flavor" ID"""
@@ -342,7 +346,8 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
 
     self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'x-image-meta-disk_format: raw', # <-- 'raw' for hdd; 'iso' for iso
+                     [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'), 
+                        # ^^^ 'raw' for hdd; 'iso' for iso
                        'Content-Type: application/octet-stream',
                        'Accept: application/json',
                        'Transfer-Encoding: chunked',
@@ -462,6 +467,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                     'imageRef'  : self.getImageID(vmtypeName),
                     'flavorRef' : self.getFlavorID(vmtypeName),
                     'metadata'  : { 'cern-services'   : 'false',
+                                    'vmtype'	      : vmtypeName,
                                     'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : 'https://' + os.uname()[1] + '/' + machineName + '/machineoutputs' }
@@ -490,7 +496,8 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
-                                                       uuidStr     = None)
+                                                       uuidStr     = None,
+                                                       vmtypeName  = vmtypeName)
 
   def deleteOneMachine(self, machineName):
 
