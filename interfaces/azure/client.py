@@ -4,9 +4,16 @@ from azure.servicemanagement import *
 from subprocess import Popen, PIPE 
 import base64
 import uuid
+import logging
+
+
+FORMAT = "%(asctime)-15s %(clientip)s %(user)-8s %(message)s"
+logging.basicConfig(format=FORMAT)
 
 class Azure():
-   
+    
+    
+    
     def __init__(self, publish_settings):
         subscription_id = get_certificate_from_publish_settings(
             publish_settings_path=publish_settings,
@@ -14,6 +21,8 @@ class Azure():
         )
         self.sms = ServiceManagementService(subscription_id, 'tmpcert.pem')
         self._generate_pfx('tmpcert.pem')
+        
+        self.logger = logging.getLogger('azure')
 
 
 
@@ -32,45 +41,74 @@ class Azure():
       self.sms.delete_role(service_name, service_name, name);
               
           
-    def create_virtual_machine(self, name, affinity, location='West Europe', username=None, password=None,
-                               image_name=None, media_link=None, user_data=None, ignore_host=True):
+    def create_virtual_machine(self, service_name, affinity, vm_name=None, location='West Europe', username=None, password=None,
+                               image_name=None, user_data=None, ignore_host=True):
         """Created a new virtual machine
-        ' name Virtual machine name
-        ' username , username to use to connect via SSH to the VM
-        ' password password to connect via SSH to the VM
-        ' image_name Name of the image to use.
-        ' media_link link to storage the VM
-        :type image_name: object
+        name Virtual machine name
+        username , username to use to connect via SSH to the VM
+        password password to connect via SSH to the VM
+        image_name Name of the image to use.
+        image_name: object
+        user_data custom data used to contextualize the VM
+        ignore_host: If host exists does not raise an exception when try to create it.
         """
+        if service_name is None:
+           raise Exception("Service name is mandatory")
+        if affinity is None:
+           raise Exception("Affinity is mandatory")
         if image_name is None:
             raise Exception("Image name is mandatory")
-        if media_link is None:
-            raise Exception("Media link is mandatory")
-
+        
+        service_name = service_name.lower()
+        affinity = affinity.lower()
+        
         self._create_affinity_group(affinity,location)
+        
         try:
-            self._create_service(name, affinity)
+            self._create_service(service_name, affinity)
         except Exception,e:
            if not ignore_host:
+              self.logger.info("Service %s already exists, skipping service creation" % service_name)
               raise e
-           
-        self._create_deployment(name,affinity, username=username, password=password, user_data=user_data,
-                        image_name=image_name, media_link=media_link)
+        
+        storage = self._create_storage(service_name, affinity)
+        media_link = storage.storage_service_properties.endpoints[0]+"/vhd/"
+        
+        try:
+            self.sms.get_deployment_by_name(service_name,service_name)
+            self._create_role(service_name,
+                             vm_name=vm_name,
+                             image_name=image_name,
+                             media_link=media_link,
+                             user_data=user_data,
+                             username=username,
+                             password=password)
+        except azure.WindowsAzureMissingResourceError,e:
+            self._create_deployment(service_name,
+                                    affinity,
+                                    vm_name=vm_name,
+                                    username=username,
+                                    password=password,
+                                    user_data=user_data,
+                                    image_name=image_name,
+                                    media_link=media_link)
 
     
            
-    def _create_deployment(self, service_name, affinity_group, image_name=None,
+    def _create_deployment(self, service_name, affinity_group, vm_name=None, image_name=None,
                    media_link=None, user_data=None, username=None, password=None):
         """
         "Creates VM
-        ' name VM name
+        ' service_name  name Name
+        ' affinity_group Name of the affinity group where the VM will be created
         ' username username to use to connect via SSH to the VM
         ' password password to use to connect via SSH to the VM
         ' location location where the VM will be allocated.
         ' image_name Name of the image to use
         ' media_link link to store the VM
         """
-        vm_name = uuid.uuid4()
+        if vm_name is None:
+           vm_name = str(uuid.uuid4())
         values = self._common_for_deployments_and_roles(vm_name, username, password, user_data, image_name, media_link)
         response = self.sms.create_virtual_machine_deployment(service_name, service_name, 'production', service_name, vm_name, values['linux_config'],
                                                    values['os_hd'],
@@ -78,19 +116,26 @@ class Azure():
                                                    network_config=values['configuration_set'],
                                                    role_size='Small')
         self.sms.wait_for_operation_status(response.request_id)
+        self.logger.info("Created new deployment %s" % service_name)
+        self.logger.info("Created new role %s" % vm_name)
 
 
-    def _create_role(self, service_name, image_name=None,
+    def _create_role(self, service_name, vm_name=None, image_name=None,
                      media_link=None, user_data=None, username=None, password=None):
         
-        vm_name = uuid.uuid4()
+        def failure_callback(elapsed, ex):
+           print ex
+           print elapsed
+        if vm_name is None:
+            vm_name = str(uuid.uuid4())
         values = self._common_for_deployments_and_roles(vm_name, username, password, user_data, image_name, media_link)
         response = self.sms.add_role(service_name, service_name,
                                      vm_name, values['linux_config'],
                                      values['os_hd'],network_config=values['configuration_set'],
                                     role_size='Small')
-        self.sms.wait_for_operation_status(response.request_id)
-        
+        self.sms.wait_for_operation_status(response.request_id,failure_callback=failure_callback)
+        self.logger.info("Created new role %s" % vm_name)
+   
    
     def _common_for_deployments_and_roles(self, name, username, password, user_data, image_name, media_link):
         fingerprint = self._generate_certificate_fingerprint("tmpcert.pem")
@@ -102,8 +147,8 @@ class Azure():
         os_hd = azure.servicemanagement.OSVirtualHardDisk(image_name, media_link + name+ ".vhd")
         configuration_set = ConfigurationSet()
         
-        configuration_set.input_endpoints.input_endpoints.append(
-                ConfigurationSetInputEndpoint(name=u'SSH', protocol=u'TCP', port=u'22', local_port=u'22'))
+        #configuration_set.input_endpoints.input_endpoints.append(
+        #        ConfigurationSetInputEndpoint(name=u'SSH', protocol=u'TCP', port=u'22', local_port=u'22'))
         
         return {'linux_config':linux_config,
                 'configuration_set':configuration_set,
@@ -122,15 +167,34 @@ class Azure():
         (result,err_result)=Popen(command,bufsize=1,shell=True,stdout=PIPE,stderr=PIPE).communicate()
     
     
+    #==================== Storage Operations ========================================#
+  
+    def _list_storages(self):
+       return self.sms.list_storage_accounts()
+   
     
-    def _create_storage(self, name, location="North Europe"):
+    def _exists_storage(self, service_name):
+       for storage in self.sms.list_storage_accounts():
+          if storage.service_name == service_name:
+             return True
+       return False
+    
+    
+    def _create_storage(self, name, affinity):
         """
         ' Creates a new storage
         ' name Storage name.
         ' location location where the storage will be created.
         """
-        result = self.sms.create_storage_account(name, name, name, location=location)
-
+        if not self._exists_storage(name):
+            result = self.sms.create_storage_account(name, name, name, affinity)
+            self.sms.wait_for_operation_status(result.request_id)
+            self.logger.info("Storage %s created!" % name)
+        else:
+            self.logger.info("Storage %s already exists, skipping storage creation" % name)
+        return self.sms.get_storage_account_properties(name)
+        
+        
 
     def _delete_storage(self, name):
         """
@@ -169,39 +233,42 @@ class Azure():
         if not self.sms.check_hosted_service_name_availability(name).result:
             raise Exception("Name host is not available")
          
-        request_id = self.sms.create_hosted_service(name, name, name, affinity_group=affinity_group)
-        if request_id != None:
-           self.sms.wait_for_operation_status(request_id.request_id)
+        request = self.sms.create_hosted_service(name, name, name, affinity_group=affinity_group)
+        if request != None:
+           self.sms.wait_for_operation_status(request.request_id)
+        self.logger.info("Service %s created!" % name)
         f = open("tempcert.pfx",'r')
         text = f.read()
         data = base64.b64encode(text)
-        request_id = self.sms.add_service_certificate(name, data, 'pfx', "")
-        if request_id != None:
+        request = self.sms.add_service_certificate(name, data, 'pfx', "")
+        if request != None:
            try:
-               self.sms.wait_for_operation_status(request_id.request_id)
+               self.sms.wait_for_operation_status(request.request_id)
            except Exception,e:
               raise("Check error " + e)
+        self.logger.info("Certificate added to service %s" % name)
         return True
+     
+     
+    def _delete_service(self, name):
+       request = self.sms.delete_hosted_service(name)
    
-   
+    #====================== Affinity group operations ==================================================#
        
-    def _get_affinity_group(self,name):
-       affinity_group = self.sms.get_affinity_group_properties(name)
-       for hosted_services in affinity_group.hosted_services:
-          print hosted_services.deployments
-          
-    
-    
+    def _list_affinity_group(self):
+       return self.sms.list_affinity_groups()
+             
+   
     def _exist_affinity_group(self, name):
        """
        Checks if an affinity group exists
        """
-       affinity_groups = self.sms.list_affinity_groups()
+       affinity_groups = self._list_affinity_group()
        if len(affinity_groups) == 0:
           return False
        
        for affinity_group in affinity_groups:
-          if name == affinity_group.name:
+          if name == affinity_group.name.lower():
              return True
        return False
     
@@ -211,12 +278,14 @@ class Azure():
         Creates new affinity_group
         """
         if self._exist_affinity_group(name):
+           self.logger.info("Affinity %s already exists, skipping creation" % name)
            return True
         
         request = self.sms.create_affinity_group(name, name, location)
         if request != None:
            try:
               self.sms.wait_for_operation_status(request.request_id)
+              self.logger.info("Affinity %s created!" % name)
            except:
               return True
         return True
@@ -276,14 +345,3 @@ class Server(object):
    def __repr__(self):
       return "%s %s %s" % (self.name, self.status, self.created)
 
-
-image = "0b11de9248dd4d87b18621318e037d37__RightImage-CentOS-6.5-x64-v14.1.5.1"
-media_link ="https://testcern.blob.core.windows.net/images/"
-az = Azure('/home/lvillazo/Downloads/vs.publishsettings')
-print az.list_services()
-print az.delete_vm('testCernHost','test2')
-#az._create_role("testCernHost", '449595e9-ec50-4d80-b656-87f9baea654c',image, media_link,"test.user_data","luis","Espronceda1985$")
-#az.get_os()
-#print az.list_deployments()
-#az.delete_deployment("test2lv")
-#az.create_virtual_machine("xxxx","xxx","xxxx", image, media_link, "test.user_data")
