@@ -362,27 +362,3 @@ class Azure():
            print e
        finally:
           return True
-
-   
- 
-image = "0b11de9248dd4d87b18621318e037d37__RightImage-CentOS-6.5-x64-v14.1.5.1"
-media_link ="https://testcern.blob.core.windows.net/images/"
-az = Azure('/home/lvillazo/Downloads/vs.publishsettings','testcern')
-
-#for vm in az.list_vms('testcern'):
-#   az.delete_vm('testcern', vm['name'])
-
-
-for vm in az.list_vms():
-   print vm
-
-az.create_virtual_machine(username="luis",
-                          password="Espronceda1985$",
-                          image_name=image,
-                          user_data='test.user_data')
-
-import time
-while True:
-   for vm in az.list_vms():
-      print vm
-   time.sleep(20)
