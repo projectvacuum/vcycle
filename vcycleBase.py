@@ -1,9 +1,9 @@
-import VCYCLE
 import os
 import time, random
 import abc
 import shutil
 import math
+import VCYCLE
 
 class vcycleBase(object):
    '''Base Class where other class inherit'''
