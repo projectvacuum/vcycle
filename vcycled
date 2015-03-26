@@ -46,6 +46,7 @@ import threading
 from interfaces.openstack.vcycleOpenstack import vcycleOpenstack
 from interfaces.occi.vcycleOcci import vcycleOcci
 from interfaces.dbce.vcycleDBCE import vcycleDBCE
+from interfaces.azure.vcycleAzure import vcycleAzure
 import VCYCLE
 
 sleepSeconds      = 60
@@ -70,8 +71,8 @@ def cycle(tenancyName, tenancy):
          vOpen = vcycleOpenstack()
       elif tenancy['type'] == 'dbce':
          vOpen = vcycleDBCE()
-      else:
-         vOpen = vcycleOcci()
+      elif tenancy['type'] == 'azure':
+         vOpen = vcycleAzure()
       try:
          vOpen.oneCycle(tenancyName, tenancy, servers)
       except Exception,e:
@@ -104,7 +105,6 @@ if __name__ == '__main__':
          print 'Failed to create /var/run/vcycled.pid - exiting'
          sys.exit(1)
    
-       
    VCYCLE.readConf()
    for tenancyName, tenancy in VCYCLE.tenancies.iteritems():
       threading.Thread(target=cycle,args=(tenancyName,tenancy)).start()
