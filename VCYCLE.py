@@ -180,6 +180,16 @@ def readConf(requirePassword=True):
             except:
               pass
            
+            try:
+              vmtype['username'] = parser.get(vmtypeSectionName, 'username')
+            except:
+              pass
+           
+            try:
+              vmtype['password'] = parser.get(vmtypeSectionName, 'password')
+            except:
+              pass
+           
             if tenancyName not in lastFizzles:
               lastFizzles[tenancyName] = {}
               
