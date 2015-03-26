@@ -51,7 +51,7 @@ class vcycleDBCE(vcycleBase):
          properties['fizzleTime'] = None
          properties['fizzleStr'] = '-'
       
-      VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
+      logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
               (server.status + '       ')[:8] + 
@@ -68,9 +68,9 @@ class vcycleDBCE(vcycleBase):
       tenancyName = self.tenancyName
       
       if server.status == 'SHUTOFF' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
+        logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
-          VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
+          lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
         except:
           # In case vmtype removed from configuration while VMs still existed
           pass
@@ -124,13 +124,13 @@ class vcycleDBCE(vcycleBase):
            ):
           
          
-        VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
+        logLine(self.tenancyName, 'Deleting ' + server.name)
         try:
           self.client.machine.delete(server.id)
           self.servers_contextualized.pop(server.id, None)
           return True
         except Exception as e:
-          VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
+          logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
           
    def _server_name(self, name=None):
@@ -142,12 +142,12 @@ class vcycleDBCE(vcycleBase):
       import base64
       tenancyName = self.tenancyName
       user_data = open("/var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName), 'r').read()
-      template = self.client.machine_template.find(VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
-                                                   VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
+      template = self.client.machine_template.find(tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
+                                                   tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name'],
                                                    self.provider_name)[0]
       
       template.user_data = base64.encodestring(user_data)
-      template.network = self.client.network.find(self.provider_name,VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['network'])
-      server = self.client.machine.create(serverName, serverName, template, self.provider_name, key_data=[VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['public_key']])
+      template.network = self.client.network.find(self.provider_name,tenancies[tenancyName]['vmtypes'][vmtypeName]['network'])
+      server = self.client.machine.create(serverName, serverName, template, self.provider_name, key_data=[tenancies[tenancyName]['vmtypes'][vmtypeName]['public_key']])
       return server
    
