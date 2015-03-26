@@ -1,6 +1,6 @@
 from vcycleBase import vcycleBase
 import os
-from VCYCLE import *
+import VCYCLE
 import uuid
 import time , calendar
 import interfaces.azure.client
@@ -8,35 +8,28 @@ import interfaces.azure.client
 
 class vcycleAzure(vcycleBase):
    
-   servers_contextualized = {}
-   
    def _create_client(self):
-      '''Create a new Azure client'''
+      '''Creates a new Azure client'''
       tenancy = self.tenancy
       self.provider_name = tenancy['tenancy_name']
-      return interfaces.azure.client.Azure(tenancy['proxy'])
+      return interfaces.azure.client.Azure(tenancy['proxy'], tenancy['tenancy_name'])
    
    
    def _servers_list(self):
       '''Returns a list of all servers created and not deleted in the tenancy'''
-      serversList = self.client.get_deployments_from_host()
-      return serversList
-   
+      return self.client.list_vms()
+      
    
    def _retrieve_properties(self, server, vmtypeName, servers):
       '''Returns the server's properties'''
       properties = {}
-      properties['createdTime']  = calendar.timegm(time.strptime(server.created, "%Y-%m-%dT%H:%M:%SZ"))
-      properties['updatedTime']  = calendar.timegm(time.strptime(server.updated, "%Y-%m-%dT%H:%M:%SZ"))
-      properties['startTime']    = properties['createdTime'] 
-      
-      properties['ip'] = '0.0.0.0'
-      for address in server.network_interfaces:
-         if 'PUBLIC' in address['id']:
-            properties['ip'] = address['address']['ip']
-           
+      start_time = server.name[server.name.find("-",server.name.find('-')+1)+1:]
+      properties['startTime'] = int(start_time)
+            
+      properties['ip'] = server.ip
+                 
       try:
-        properties['heartbeatTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-heartbeat').st_ctime)
+        properties['heartbeatTime'] = int(os.stat('/var/lib/vcycle/machines/' + server['name'] + '/machineoutputs/vm-heartbeat').st_ctime)
         properties['heartbeatStr'] = str(int(time.time() - properties['heartbeatTime'])) + 's'
       except:
         properties['heartbeatTime'] = None
@@ -45,15 +38,15 @@ class vcycleAzure(vcycleBase):
       try:
          properties['fizzleTime'] = int(os.stat('/var/lib/vcycle/machines/' + server.name + '/machineoutputs/vm-start').st_ctime)
          properties['fizzleStr'] = str(int(properties['fizzleTime']) - int(properties['startTime'])) + 's'
-         servers[server.id]['fizzle'] = int(properties['startTime']) - int(servers[server.id]['start_time'])
+         servers[server.name]['fizzle'] = int(properties['startTime']) - int(servers[server.name]['start_time'])
       except Exception:
          properties['fizzleTime'] = None
          properties['fizzleStr'] = '-'
       
-      logLine(self.tenancyName, server.name + ' ' + 
+      VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
-              (server.status + '       ')[:8] + 
+              (server.state + '       ')[:8] + 
               properties['fizzleStr'] + " "  +
               properties['heartbeatStr'] + " " +
               str(int(time.time()) - properties['startTime'] ) + "s"
@@ -66,15 +59,15 @@ class vcycleAzure(vcycleBase):
       tenancy = self.tenancy
       tenancyName = self.tenancyName
       
-      if server.status == 'StoppedVM' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
+      if server.state == 'Stopped' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+        VCYCLE.logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
-          lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
+          VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
         except:
           # In case vmtype removed from configuration while VMs still existed
           pass
 
-      if server.status == 'Running':
+      if server.state == 'Started':
         # These ones are running properly
         totalRunning += 1
         
@@ -84,9 +77,8 @@ class vcycleAzure(vcycleBase):
           runningPerVmtype[vmtypeName] += 1
 
       # These ones are starting/running, but not yet passed tenancy['vmtypes'][vmtypeName]['fizzle_seconds']
-      if ((server.status == 'Running' or 
-           server.status in ['Provisioning','Deploying','RoleStateUnknown']) and 
-          ((int(time.time()) - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds'])):
+      if server.state in ['Starting','Started'] and \
+          (int(time.time() - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']):
           
         if vmtypeName not in notPassedFizzleSeconds:
           notPassedFizzleSeconds[vmtypeName]  = 1
@@ -98,23 +90,23 @@ class vcycleAzure(vcycleBase):
       
    def _describe(self, server):
       '''Returns the descripion of a server. This method is empty because when the server is created,
-      Openstack returns directly all the vm description'''
+      Azure returns directly all the vm description'''
       pass
       
       
    def _delete(self, server, vmtypeName, properties):
       '''Deletes a server'''
       tenancy = self.tenancy
-      if server.status == ['Provisioning','Deploying','RoleStateUnknown']:
+      if server.state == 'Starting':
          return False
       
-      if server.status == 'StoppedVM' or \
-        (server.status == 'Running' and ((int(time.time()) - properties['startTime']) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) or \
+      if server.state == 'Stopped' or \
+        (server.state == 'Started' and ((int(time.time()) - properties['startTime']) > tenancy['vmtypes'][vmtypeName]['max_wallclock_seconds'])) or \
         (
              # STARTED gets deleted if heartbeat defined in configuration but not updated by the VM
              'heartbeat_file' in tenancy['vmtypes'][vmtypeName] and
              'heartbeat_seconds' in tenancy['vmtypes'][vmtypeName] and
-             server.status == 'Running' and 
+             server.state == 'Started' and 
              ((int(time.time()) - properties['startTime']) > tenancy['vmtypes'][vmtypeName]['heartbeat_seconds']) and
              (
               (properties['heartbeatTime'] is None) or 
@@ -123,32 +115,27 @@ class vcycleAzure(vcycleBase):
            ):
           
          
-        logLine(self.tenancyName, 'Deleting ' + server.name)
+        VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
         try:
-          self.client.machine.delete(server.id)
-          self.servers_contextualized.pop(server.id, None)
+          self.client.delete_vm(server.name)
           return True
         except Exception as e:
-          logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
+          VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
+          
           
    def _server_name(self, name=None):
       '''Returns the server name'''
-      return 'vcycle-' + str(uuid.uuid4())
+      return 'vcycle-' + name + '-' + str(int(time.time()))
    
    
-   def _create_machine(self, serverName, vmtypeName, proxy=False):
+   def _create_machine(self, server_name, vmtypeName, proxy=False):
       import base64
-      tenancyName = self.tenancyName
-      user_data = open("/var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName), 'r').read()
-      return self.client.create_virtual_machine(serverName,
-                                                serverName,
-                                                self.tenancy['username'],
-                                                self.tenancy['password'],
-                                                image_name=tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name'],
-                                                media_link=tenancies[tenancyName]['vmtypes'][vmtypeName]['media_link'],
-                                                user_data="file:///var/lib/vcycle/user_data/%s:%s" % (tenancyName, vmtypeName)
-                                                )
-      
-   
-   
+      tenancy_name = self.tenancyName
+      user_data = open("/var/lib/vcycle/user_data/%s:%s" % (tenancy_name, vmtypeName), 'r').read()
+      return self.client.create_virtual_machine(server_name,
+                                                username=VCYCLE.tenancies[tenancy_name]['vmtypes'][vmtypeName]['username'],
+                                                password=VCYCLE.tenancies[tenancy_name]['vmtypes'][vmtypeName]['password'],
+                                                image_name=VCYCLE.tenancies[tenancy_name]['vmtypes'][vmtypeName]['image_name'],
+                                                flavor=VCYCLE.tenancies[tenancy_name]['vmtypes'][vmtypeName]['flavor_name'],
+                                                user_data="/var/lib/vcycle/user_data/%s:%s" % (tenancy_name, vmtypeName))

@@ -54,12 +54,7 @@ class Azure():
                raise e
         for deployment in service.deployments:
               for role in deployment.role_instance_list:
-                 roles.append({'name':role.role_name,
-                               'status':role.instance_status,
-                               'state':role.power_state,
-                               'details':role.instance_state_details,
-                               'error_code':role.instance_error_code,
-                               'ip':role.ip_address})
+                 roles.append(Server(role))
         return roles
    
    
@@ -67,15 +62,24 @@ class Azure():
         """
         Delete a VM and the associate disk
         """
+        response = None
         try:
-            self.sms.delete_role(self.service_name, self.service_name, name)
+            response = self.sms.delete_role(self.service_name, self.service_name, name)
         except Exception:
-            self.sms.delete_deployment(self.service_name, self.service_name, True)
-      
+            response = self.sms.delete_deployment(self.service_name, self.service_name, True)
+        finally:
+           try:
+              self.sms.wait_for_operation_status(response.request_id)
+           except Exception:
+              pass
+        
         for disk in self.sms.list_disks():
             if ("%s-%s" %(self.service_name,name)) in disk.name:
-                response = self.sms.delete_disk(disk.name, delete_vhd=True)
-                self.sms.wait_for_operation_status(response.request_id)         
+                try:
+                    response = self.sms.delete_disk(disk.name, delete_vhd=True)
+                    self.sms.wait_for_operation_status(response.request_id)
+                except Exception,e:
+                    print e         
           
           
     def create_virtual_machine(self, vm_name=None, username=None, password=None,
@@ -99,9 +103,10 @@ class Azure():
         
         media_link = storage.storage_service_properties.endpoints[0]+"/vhd/"
         
+        result = None
         try:
             self.sms.get_deployment_by_name(self.service_name,self.service_name)
-            return self._create_role(vm_name=vm_name,
+            result = self._create_role(vm_name=vm_name,
                               image_name=image_name,
                               media_link=media_link,
                               user_data=user_data,
@@ -109,15 +114,16 @@ class Azure():
                               username=username,
                               password=password)
         except azure.WindowsAzureMissingResourceError,e:
-            return self._create_deployment(vm_name=vm_name,
+            result = self._create_deployment(vm_name=vm_name,
                                     username=username,
                                     password=password,
                                     user_data=user_data,
                                     flavor=flavor,
                                     image_name=image_name,
                                     media_link=media_link)
-
-    
+        finally:
+            role = self.sms.get_role(self.service_name,self.service_name,vm_name)
+            return Server(role)
            
     def _create_deployment(self, vm_name=None, image_name=None, flavor=None,
                    media_link=None, user_data=None, username=None, password=None):
@@ -362,3 +368,36 @@ class Azure():
            print e
        finally:
           return True
+
+class Server(object):
+   
+   def __init__(self, role):
+      self.name = role.role_name
+      try:
+          self.state = role.power_state
+      except Exception:
+          self.state = 'Starting'
+      try:
+          self.details = role.instance_state_details
+      except Exception:
+         self.details = ''
+      try:
+         self.error_code = role.instance_error_code
+      except Exception:
+         self.error_code = ''
+      try:
+         self.ip = role.ip_address
+      except Exception:
+         self.ip = '0.0.0.0'
+ 
+#image = "0b11de9248dd4d87b18621318e037d37__RightImage-CentOS-6.5-x64-v14.1.5.1"
+#media_link ="https://testcern.blob.core.windows.net/images/"
+#az = Azure('/home/lvillazo/Downloads/vs.publishsettings','testcern')
+
+#for vm in az.list_vms('testcern'):
+#   az.delete_vm('testcern', vm['name'])
+
+
+#for vm in az.list_vms():
+#   print vm
+
