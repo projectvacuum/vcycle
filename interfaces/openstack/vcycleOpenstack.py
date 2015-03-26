@@ -50,7 +50,7 @@ class vcycleOpenstack(vcycleBase):
         properties['startTime']    = properties['createdTime']        
       else:        
         if not os.path.isfile('/var/lib/vcycle/machines/' + server.name + '/launched'):
-          VCYCLE.createFile('/var/lib/vcycle/machines/' + server.name + '/launched', str(properties['launchedTime']), 0600)
+          createFile('/var/lib/vcycle/machines/' + server.name + '/launched', str(properties['launchedTime']), 0600)
         
       try:
         properties['ip'] = str(getattr(server, 'addresses')['CERN_NETWORK'][0]['addr'])
@@ -64,7 +64,7 @@ class vcycleOpenstack(vcycleBase):
         properties['heartbeatTime'] = None
         properties['heartbeatStr'] = '-'
       
-      VCYCLE.logLine(self.tenancyName, server.name + ' ' + 
+      logLine(self.tenancyName, server.name + ' ' + 
               (vmtypeName + '                  ')[:16] + 
               (properties['ip'] + '            ')[:16] + 
               (server.status + '       ')[:8] + 
@@ -84,9 +84,9 @@ class vcycleOpenstack(vcycleBase):
       tenancyName = self.tenancyName
       
       if server.status == 'SHUTOFF' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(self.tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
+        logLine(self.tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
         try:
-          VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
+          lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
         except:
           # In case vmtype removed from configuration while VMs still existed
           pass
@@ -168,12 +168,12 @@ class vcycleOpenstack(vcycleBase):
              )             
            )
          ):
-        VCYCLE.logLine(self.tenancyName, 'Deleting ' + server.name)
+        logLine(self.tenancyName, 'Deleting ' + server.name)
         try:
           server.delete()
           return True
         except Exception as e:
-          VCYCLE.logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
+          logLine(self.tenancyName, 'Delete ' + server.name + ' fails with ' + str(e))
       return False
           
    def _server_name(self, name=None):
@@ -191,8 +191,8 @@ class vcycleOpenstack(vcycleBase):
            }
       if proxy :
          return self.client.servers.create(serverName, 
-               self.client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-               self.client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
+               self.client.images.find(name=tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+               self.client.flavors.find(name=tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']), 
                meta=meta, 
                userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
       else:
@@ -202,10 +202,10 @@ class vcycleOpenstack(vcycleBase):
          except Exception:
             nics = []
          return self.client.servers.create(serverName, 
-                self.client.images.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
-                self.client.flavors.find(name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
+                self.client.images.find(name=tenancies[tenancyName]['vmtypes'][vmtypeName]['image_name']),
+                self.client.flavors.find(name=tenancies[tenancyName]['vmtypes'][vmtypeName]['flavor_name']),
                 meta=meta, 
                 nics=nics,
-                key_name=VCYCLE.tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
+                key_name=tenancies[tenancyName]['vmtypes'][vmtypeName]['root_key_name'],
                 userdata=open('/var/lib/vcycle/user_data/' + tenancyName + ':' + vmtypeName, 'r').read())
 
