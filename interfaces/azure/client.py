@@ -420,6 +420,7 @@ class Azure():
 class Server(object):
    
    def __init__(self, role):
+      self.id = role.role_name
       self.name = role.role_name
       try:
           self.state = role.power_state
@@ -437,3 +438,14 @@ class Server(object):
          self.ip = role.ip_address
       except Exception:
          self.ip = '0.0.0.0'
+
+#url = "https://testcern.blob.core.windows.net/script/script.sh"
+#storage='testcern'
+#key='Prr6+zV9GMZgcAum8k6u4W77N3EaynU82GAMuQFnX2MAi1hrN2YYKGDHAHiN1sFsYWKC5HB/n2RYPLfEjeJ99A=='
+#image = "0b11de9248dd4d87b18621318e037d37__RightImage-CentOS-6.5-x64-v14.1.5.1"
+#az = Azure('/home/lvillazo/Downloads/vs.publishsettings','testcern',storage_account=storage,account_key=key)
+#az.upload_file("test.user_data")
+#az.create_virtual_machine('testcern','luis','Espronceda1985$',image)
+#for a in az.a():
+#   print "%s %s %s" % (a.publisher, a.name, a.version)
+   
