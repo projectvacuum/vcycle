@@ -1,10 +1,13 @@
+from azure.storage.blobservice import BlobService
 __author__ = 'Luis Villazon Esteban'
 
 from azure.servicemanagement import *
+from azure.storage import *
 from subprocess import Popen, PIPE 
 import base64
 import uuid
 import logging
+import json
 
 
 FORMAT = "%(asctime)-15s  %(message)s"
@@ -13,7 +16,7 @@ logging.basicConfig(format=FORMAT)
 class Azure():
  
     
-    def __init__(self, publish_settings, service_name, location="West Europe", ignoreError=True):
+    def __init__(self, publish_settings, service_name, location="West Europe", ignoreError=True, storage_account=None, account_key=None):
         subscription_id = get_certificate_from_publish_settings(
             publish_settings_path=publish_settings,
             path_to_write_certificate='tmpcert.pem'
@@ -21,6 +24,8 @@ class Azure():
         self.sms = ServiceManagementService(subscription_id, 'tmpcert.pem')
         self._generate_pfx('tmpcert.pem')
         self.service_name = service_name
+        self.storage_account = storage_account
+        self.account_key = account_key
         self.logger = logging.getLogger('azure')
         self.logger.setLevel("INFO")
         self.start(location, ignoreError)
@@ -125,6 +130,7 @@ class Azure():
             role = self.sms.get_role(self.service_name,self.service_name,vm_name)
             return Server(role)
            
+           
     def _create_deployment(self, vm_name=None, image_name=None, flavor=None,
                    media_link=None, user_data=None, username=None, password=None):
         """
@@ -162,12 +168,18 @@ class Azure():
                                                                   values['os_hd'],
                                                                   availability_set_name=self.service_name,
                                                                   network_config=configuration_set,
-                                                                  role_size=flavor)
+                                                                  role_size=flavor,
+                                                                  resource_extension_references=values['resource_extension'],
+                                                                  provision_guest_agent=True)
+            
             self.sms.wait_for_operation_status(response.request_id)
             self.logger.info("Created new deployment %s" % self.service_name)
             self.logger.info("Created new role %s" % vm_name)
             return True
         except Exception,e:
+            if 'waiting' in e.message:
+               self.logger.warning("Role %s is creating" % e.message)
+               return True
             self.logger.error("Error creating VM %s" % e.message)
             return False
 
@@ -196,7 +208,9 @@ class Azure():
                                          values['linux_config'],
                                          values['os_hd'],
                                          network_config=values['configuration_set'],
-                                         role_size=flavor)
+                                         role_size=flavor,
+                                         resource_extension_references=values['resource_extension'],
+                                         provision_guest_agent=True)
             
             self.sms.wait_for_operation_status(response.request_id,failure_callback=failure_callback)
             self.logger.info("Created new role %s" % vm_name)
@@ -213,16 +227,32 @@ class Azure():
         fingerprint = self._generate_certificate_fingerprint("tmpcert.pem")
         linux_config = azure.servicemanagement.LinuxConfigurationSet(name, username, password, True)
         linux_config.ssh.public_keys.public_keys.append(PublicKey(fingerprint,"/home/%s/.ssh/authorized_keys" % username))
-        if user_data:
-           linux_config.custom_data = open(user_data,'r').read()
-           
+                   
         os_hd = azure.servicemanagement.OSVirtualHardDisk(image_name, media_link + name+ ".vhd")
         configuration_set = ConfigurationSet()
         
+        if user_data is None:
+           user_data = "https://%s.blob.core.windows.net/script/script.sh" % self.service_name
+        elif 'http' not in user_data:
+           self.upload_file(user_data)
+           user_data = "https://%s.blob.core.windows.net/script/script.sh" % self.service_name
+        
+        try:
+           parameter = ResourceExtensionParameterValue()
+           parameter.key = 'script'
+           parameter.value = base64.b64encode(json.dumps({"fileUris":[user_data], "commandToExecute": "sh script.sh" }))
+           resource = azure.servicemanagement.ResourceExtensionReference("script", 'Microsoft.OSTCExtensions', 'CustomScriptForLinux', '1.2')
+           resource.resource_extension_parameter_values.resource_extension_parameter_values.append(parameter)
+           resources = azure.servicemanagement.ResourceExtensionReferences()
+           resources.resource_extension_references.append(resource)
+           
+        except Exception,e:
+           print e
         return {'linux_config':linux_config,
                 'configuration_set':configuration_set,
                 'os_hd':os_hd,
-                'user_data':user_data}
+                'user_data':user_data,
+                'resource_extension':resources}
         
     
     def _generate_certificate_fingerprint(self,certificate):
@@ -275,6 +305,17 @@ class Azure():
         ' name Name of the storage to delete
         """
         self.sms.delete_storage_account(self.service_name)
+        
+   
+    def upload_file(self, file_path):
+       blob_service = BlobService(self.storage_account, self.account_key)
+       try:
+           blob_service.create_container("script",x_ms_blob_public_access='blob')
+       except Exception,e:
+           self.logger.warn(e.message)
+           pass
+       blob_service.put_block_blob_from_path("script","script.sh",file_path)
+       pass
         
         
     #====================== Host Services operations ==================================================#
@@ -368,7 +409,14 @@ class Azure():
            print e
        finally:
           return True
-
+       
+    def a(self):
+       return self.sms.list_resource_extensions()
+    
+    def b(self, publisher_name, extension_name):
+       
+       return self.sms.list_resource_extension_versions(publisher_name, extension_name)
+       
 class Server(object):
    
    def __init__(self, role):
@@ -389,15 +437,3 @@ class Server(object):
          self.ip = role.ip_address
       except Exception:
          self.ip = '0.0.0.0'
- 
-#image = "0b11de9248dd4d87b18621318e037d37__RightImage-CentOS-6.5-x64-v14.1.5.1"
-#media_link ="https://testcern.blob.core.windows.net/images/"
-#az = Azure('/home/lvillazo/Downloads/vs.publishsettings','testcern')
-
-#for vm in az.list_vms('testcern'):
-#   az.delete_vm('testcern', vm['name'])
-
-
-#for vm in az.list_vms():
-#   print vm
-
