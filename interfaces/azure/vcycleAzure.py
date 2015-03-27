@@ -12,7 +12,10 @@ class vcycleAzure(vcycleBase):
       '''Creates a new Azure client'''
       tenancy = self.tenancy
       self.provider_name = tenancy['tenancy_name']
-      return interfaces.azure.client.Azure(tenancy['proxy'], tenancy['tenancy_name'])
+      return interfaces.azure.client.Azure(tenancy['proxy'],
+                                           tenancy['tenancy_name'],
+                                           storage_account=tenancy['storage_account'],
+                                           account_key=tenancy['storage_key'])
    
    
    def _servers_list(self):
@@ -59,13 +62,9 @@ class vcycleAzure(vcycleBase):
       tenancy = self.tenancy
       tenancyName = self.tenancyName
       
-      if server.state == 'Stopped' and (properties['updatedTime'] - properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
-        VCYCLE.logLine(tenancyName, server.name + ' was a fizzle! ' + str(properties['updatedTime'] - properties['startTime']) + ' seconds')
-        try:
-          VCYCLE.lastFizzles[tenancyName][vmtypeName] = properties['updatedTime']
-        except:
-          # In case vmtype removed from configuration while VMs still existed
-          pass
+      if server.state == 'Stopped' and (properties['startTime']) < tenancy['vmtypes'][vmtypeName]['fizzle_seconds']:
+        VCYCLE.logLine(tenancyName, server.name + ' was a fizzle! '  + properties['startTime']) + ' seconds'
+        
 
       if server.state == 'Started':
         # These ones are running properly
