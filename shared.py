@@ -885,6 +885,11 @@ def readConf():
       else:
         spaces[spaceName].gocdb_sitename = None
 
+      if parser.has_option(spaceSectionName, 'https_port'):
+        spaces[spaceName].https_port = int(parser.get(spaceSectionName,'https_port').strip())
+      else:
+        spaces[spaceName].https_port = 443
+
     elif sectionType != 'vmtype':
       raise VcycleError('Section type ' + sectionType + 'not recognised')
 

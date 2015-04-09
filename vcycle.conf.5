@@ -47,6 +47,11 @@ If gocdb_sitename is not given, then records are only written to
 apel-archive and the vcycle space name is used as a placeholder in the 
 files.
 
+.B https_port 
+gives the port number used to contact the Vcycle HTTPS server from
+within the VMs. This only needs to be changed if there is an intervening
+firewall. Default 443.
+
 .SH OPENSTACK SPACE SECTIONS
 
 OpenStack spaces are enabled with

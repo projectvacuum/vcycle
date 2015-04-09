@@ -143,13 +143,11 @@ class OpenstackSpace(vcycle.BaseSpace):
 
       uuidStr = str(oneServer['id'])
 
+      # Try to get the IP address. Always use the zeroth member of the earliest network
       try:
-        ip = str(oneServer['addresses']['CERN_NETWORK'][0]['addr'])
+        ip = str(oneServer['addresses'][ min(oneServer['addresses']) ][0]['addr'])
       except:
-        try:
-          ip = str(oneServer['addresses']['novanetwork'][0]['addr'])
-        except:
-          ip = '0.0.0.0'
+        ip = '0.0.0.0'
 
       createdTime  = calendar.timegm(time.strptime(str(oneServer['created']), "%Y-%m-%dT%H:%M:%SZ"))
       updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
@@ -468,9 +466,9 @@ class OpenstackSpace(vcycle.BaseSpace):
                     'flavorRef' : self.getFlavorID(vmtypeName),
                     'metadata'  : { 'cern-services'   : 'false',
                                     'vmtype'	      : vmtypeName,
-                                    'machinefeatures' : 'http://'  + os.uname()[1] + '/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'http://'  + os.uname()[1] + '/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : 'https://' + os.uname()[1] + '/' + machineName + '/machineoutputs' }
+                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/machinefeatures',
+                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/jobfeatures',
+                                    'machineoutputs'  : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/machineoutputs' }
                   }    
                 }
 
