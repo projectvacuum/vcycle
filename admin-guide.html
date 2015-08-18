@@ -5,9 +5,9 @@
 <body>
 
 <h1 align=center>Vcycle Admin Guide<!-- version --></h1>
-
-<p align=center><b>Andrew McNab &lt;Andrew.McNab&nbsp;AT&nbsp;cern.ch&gt;</b>
 <!--
+<p align=center><b>Andrew McNab &lt;Andrew.McNab&nbsp;AT&nbsp;cern.ch&gt;</b>
+
 
 <h2 style="border-bottom: 1px solid">Quick start</h2>
 
@@ -135,7 +135,7 @@ guide but in a lot more detail. It's intended to help you choose
 how best to configure your site.
 
 <p>
-The configuration file /etc/Vcycle.conf uses the Python ConfigParser syntax, 
+The configuration file /etc/vcycle.conf uses the Python ConfigParser syntax, 
 which is similar to MS
 Windows INI files. The file is divided into sections, with each section
 name in square brackets. For example: [settings]. Each section contains
@@ -143,36 +143,14 @@ a series of option=value pairs. Sections with the same name are merged
 and if options are duplicated, later values overwrite values given
 earlier. 
 Any configuration file ending in .conf in the
-directory /etc/Vcycle.d will also be read. These files are read in 
-alphanumeric order, and then /etc/Vcycle.conf is read if present.
+directory /etc/vcycle.d will also be read. These files are read in 
+alphanumeric order, and then /etc/vcycle.conf is read if present.
 
 <p>
-Based on this ordering in /etc/Vcycle.d/, options from space.conf 
+Based on this ordering in /etc/vcycle.d/, options from space.conf 
 would override any given
 in site.conf, but themselves be overwritten by options from 
-subspace.conf or Vcyclefactory.conf .
-
-<p>
-One
-useful approach is to populate /etc/Vcycle.d with a management system
-like Puppet, and only create /etc/Vcycle.conf manually to override the
-state on individual development machines or if a machine is being
-drained of work for maintenance. Site-wide configuration, such 
-as vmtype definitions, can be included in /etc/Vcycle.d files present on 
-every factory, but host specific options, such as HEPSPEC06 values 
-and the total number of VMs to create, can be given in /etc/Vcycle.d
-files which are specific to particular subsets of machines. Vcycle 
-will merge all of this information as outlined above.
-
-<h3>Xen vs kvm</h3>
-
-<p>
-We recommend that hardware virtualization (eg Intel VT-x features)
-with kvm is used for production. Vcycle also supports Xen 
-paravirtualization which can run on old machines without hardware
-virtualization but this is not supported on RHEL6/SL6. (6.x RPMs
-are <a href="http://xen.crc.id.au/support/guides/install/">available
-from Steven Haigh</a>.)
+subspace.conf .
 
 <h3>CernVM images</h3>
 
@@ -190,221 +168,51 @@ generic .iso image file and not the .hdd file listed for KVM.</b>
 <p>
 However, most experiments will supply you with their own
 URL from which Vcycle can automatically fetch their current
-designated image version, which Vcycle caches in /var/lib/Vcycle/imagecache .
+designated image version, which Vcycle caches in /var/lib/vcycle/imagecache 
+and the uploads to the IaaS service for you.
 
-<h3>DNS, IP, MAC</h3>
-
-<p>
-The factory machines must have fully qualified domain names (FDQN) as
-their hostname. So factory1.example.com etc, not just factory1. 
-
-<p>
-Vcycle uses a private NAT network for the set of virtual machines on a
-given factory. Vcycle then creates the VM FQDNs from the factory name
-by adding -00, -01, ... So factory1.example.com has factory1-00.example.com,
-factory1-01.example.com, ... as its VMs. The total number of virtual
-machines on the factory is specified by total_machines. Vcycle assigns IP
-addresses starting 169.254.169.0 for VM 0, 169.254.169.1 for VM 1 etc. 
-Unique MAC addresses are also assigned to each VM. 
-Using libvirt NAT machinery means this network is
-hidden from the rest of the LAN and only visible from the factory and its
-VMs. libvirt configures the dnsmasq server to run dedicated DNS and DHCP
-servers on this private network. The factory's address in this private
-network is 169.254.169.254, which is the so-called Magic IP used by some
-Cloud systems for a local configuration service which VMs look for.
-
-<p>
-To use IP addresses in the 169.254.0.0 network, <b>you must ensure you are
-using a recent
-version of dnsmasq.</b> For SL6, dnsmasq-2.48-13.el6.x86_64.rpm avaiable as part
-of SL6 updates, is suitable.
-
-<p>
-The 169.254.0.0 network should not be configured on the factory machine
-before you start Vcycle. For example, Zeroconf support can be disabled
-by adding NOZEROCONF=yes to /etc/sysconfig/network and restarting
-networking.
-
-<p>
-Vcycle tries to create the Vcycle private network itself if it doesn't already
-exist. You can check the private network exists with the command 
-virsh net-list --all which should list the Vcycle_169.254.0.0 network and
-the &quot;default&quot; network defined by libvirtd as both being active. 
-The Vcycle network should be using the virbr1 virtual interface, with virbr0 
-still used by the default network. The Vcycle network is set up as persistent
-and auto-starting, so it should survive reboots and restarts of libvirtd.
-
-<p>
-However, Vcycle will log the error &quot;Failed to create NAT network
-Vcycle_169.254.0.0&quot; if it doesn't exist and cannot be created. This is 
-usually after a restart or an upgrade of libvirtd which leaves settings
-which block the new network. Vcycle will attempt to fix this too unless the
-setting fix_networking = false is given in the Vcycle configuration.
-
-<p>
-Network problems are usually caused by: 
-<ul>
-<li>Still needing to upgrade dnsmasq to an RPM >= 2.48-13
-<li>Not disabling Zeroconf
-<li>An old dnsmasq process running with argument &quot;--listen-address 
-    169.254.169.254&quot; (Use &quot;service dnsmasq stop&quot;)
-<li>virbr1 already existing (remove with &quot;ifconfig virbr1 down&quot; and
-    &quot;brctl delbr virbr1&quot;, using brctl from the RPM bridge-utils.)
-</ul>
-
-<p>
-libvirtd attempts to configure the factory machine's iptables rules to
-support network address translation / masquerading from the private NAT
-network. In addition, you need to allow NFS mounts of directories exported
-by the factory to the VM. Assumming the virbr1 virtual interface is used
-for the private network, then iptables can be set up using the
-iptables-restore command without relying on libvirtd:
-
-<pre>
-# Set up masquerading from private network for the VMs
-*nat
-:PREROUTING ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:POSTROUTING ACCEPT [0:0]
--A POSTROUTING -s 169.254.0.0/16 ! -d 169.254.0.0/16 -p tcp -j MASQUERADE ---to-ports 1024-65535 
--A POSTROUTING -s 169.254.0.0/16 ! -d 169.254.0.0/16 -p udp -j MASQUERADE ---to-ports 1024-65535 
--A POSTROUTING -s 169.254.0.0/16 ! -d 169.254.0.0/16 -j MASQUERADE 
-COMMIT
-# Filtering and forwarding rules
-*filter
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-# Catch-all, including NFS
--A INPUT -i virbr1 -p udp -j ACCEPT 
--A INPUT -i virbr1 -p tcp -j ACCEPT 
-# Forward to/from private network
--A FORWARD -d 169.254.0.0/16 -o virbr1 -m state --state RELATED,ESTABLISHED --j ACCEPT 
--A FORWARD -s 169.254.0.0/16 -i virbr1 -j ACCEPT 
--A FORWARD -i virbr1 -o virbr1 -j ACCEPT 
--A FORWARD -o virbr1 -j REJECT --reject-with icmp-port-unreachable 
--A FORWARD -i virbr1 -j REJECT --reject-with icmp-port-unreachable 
-COMMIT
-*mangle
-:PREROUTING ACCEPT [0:0]
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:POSTROUTING ACCEPT [0:0]
-# Create checksums for DHCP clients even when using virtio
--A POSTROUTING -o virbr1 -p udp -m udp --dport 68 -j CHECKSUM --checksum-fill 
-COMMIT
-</pre>
-
-This approach allows you to integrate the extra rules needed for the VMs
-private network into any existing rules you use at your site.
-
-<p>
-Vcycle performs a quick check of the current iptables rules at the start of each
-cycle using the iptables-save command. If any obvious problems are identified, 
-then &quot;Failed to match XXX in output of iptables-save.
-Have the NAT rules been removed?&quot; lines will be included in
-/var/log/Vcycled-factory . However, if you have an unusual set of rules, these 
-checks may produce false warnings, and they are not an exhaustive check that
-the rules you have are sufficient for Vcycle.
-
-<h3>Logical volumes</h3>
-
-<p>
-Vcycle virtual machines can use logical volumes on the factory machine
-to provide additional, faster disk space. Normally these will be mounted at
-/scratch by the VM, as they are on conventional grid worker nodes. 
-
-<p>By
-default, the block device associated with the logical volume is available to
-the VM is vdb, but this can changed with the scratch_device option in a
-[vmtype ...] section. 
-
-<p>
-The global volume_group option in [settings] (default
-Vcycle_volume_group) and the virtual machine's name are used to construct the
-logical volume path for each VM. For example, 
-/dev/Vcycle_volume_group/factory1-01.example.com
-
-<p>
-You <b>must</b> create the volume group with a name that matches the volume_group
-setting and you <b>may</b> create the individual logical volumes, with something 
-similar to this, where /dev/sda9 is a physical volume created 
-during Kickstart or with pvcreate:
-<pre>
-vgcreate Vcycle_volume_group /dev/sda9
-lvcreate --name factory1-00.example.com -L 40G Vcycle_volume_group
-lvcreate --name factory1-01.example.com -L 40G Vcycle_volume_group
-lvcreate --name factory1-02.example.com -L 40G Vcycle_volume_group
-...
-</pre>
-
-<p>
-During the creation of each virtual machine instance, Vcycle will attempt to
-create the logical volume in volume_group with lvcreate if it doesn't exist 
-already. The setting scratch_gb (default 40) will be used when doing this.
-Vcycle will then check the logical volume is satisfactory,
-measure its size using lvs, and provide it to the VM as vdb by default.
- 
 <h3>Installation of Vcycle: tar vs RPM</h3>
 
 <p>
 RPM is the recommended installation procedure, and RPMs are available
-from the <a href="http://www.gridpp.ac.uk/Vcycle/versions/">Downloads
+from the <a href="http://www.gridpp.ac.uk/vcycle/versions/">Downloads
 directory</a> on the Vcycle website. 
 
 <p>
 It is also possible to install Vcycle from a tar file, using the install Makefile
 target. 
 
-<h3>Configuration of the Vcycle space</h3>
+<h3>Configuration of Vcycle spaces</h3>
 
 <p>
-The [settings] section must include a Vcycle_space name, which is also used
-as the virtual CE name. 
-
-<p>
-The factories option takes 
-a space separated list of the fully qualified domain names of all
-the factories in this Vcycle space, including this factory. The factories are
-queried using UDP when a factory needs to decide which vmtype to start.
-The Vcycle responder process on the factories replies to these queries with
-a summary of the VM and the outcome of recent attempts to run a VM of each
-vmtype.
-
-<p>
-For ease of management, the factories option can be placed in its own
-[settings] section in a separate
-configuration file in /etc/Vcycle.d which can be automatically generated 
-and maintained from another source, such as the site's assets database.
+Each [space ...] section declaration must include the Vcycle space name, 
+which is also used as the virtual CE name. 
 
 <h3>GOCDB and GGUS</h3>
 
 <p>
 Vcycle is designed to work within the WLCG/EGI grid model of sites composed
 of one or more CEs. Each Vcycle space name corresponds to one CE within a site,
-and can co-exist with conventional CREAM or ARC CEs. If you are at a
-site registered in the <a href="http://goc.egi.eu/">GOCDB</a>, you
-should add your space name(s) to your site in GOCDB as services. There 
-is a registered service type (uk.ac.gridpp.Vcycle) for Vcycle spaces. 
+and can co-exist with conventional CREAM or ARC CEs.
 
 <p>
 Problems encountered during the operation of Vcycle in production may 
 appear as tickets in <a href="https://ggus.eu/">GGUS</a>. The 
-<a href="https://wiki.egi.eu/wiki/GGUS:Vcycle_FAQ">Vcycle/Vcycle Support Unit</a>
+<a href="https://wiki.egi.eu/wiki/GGUS:Vcycle_FAQ">Vac/Vcycle Support Unit</a>
 appears under &quot;Second Level - Software&quot; on the GGUS
 &quot;Assign ticket to support unit&quot; menu.
 
 <p>
 Vcycle writes APEL accounting records as described below. The GOCDB site
-name given by gocdb_sitename in [settings] is included in these records.
-To avoid the risk of polluting the central APEL database with incorrect
-site names, please use your real GOCDB sitename for this option. 
+name given by gocdb_sitename in the [space ...] section is included in these
+records. To avoid the risk of polluting the central APEL database with 
+incorrect site names, please use your real GOCDB sitename for this 
+option. 
 
 <h3>Setting up vmtypes</h3>
 
 <p>
-One [vmtype ...] section must exist for each vmtype in the system, with
+One [vmtype ... ...] section must exist for each vmtype in the system, with
 the name of the vmtype given in the section name, such as [vmtype example].
 A vmtype name must only consist of lowercase letters, numbers,
 and hyphens. The Vcycle.conf(5) man page lists the options
@@ -443,7 +251,7 @@ pair to give to the VM.)
 <h2 style="border-bottom: 1px solid">Starting and stopping Vcycled</h2>
 
 <p>
-The Vcycle daemon, Vcycled, is started and stopped by /etc/rc.d/init.d/Vcycled 
+The Vcycle daemon, vcycled, is started and stopped by /etc/rc.d/init.d/vcycled 
 on conjunction with the usual service and chkconfig commands. As the 
 configuration files are reread at the start of each cycle (by default, 
 one per minute) <b>it is not necessary to restart Vcycled after changing the 

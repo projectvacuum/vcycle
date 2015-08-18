@@ -352,6 +352,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                        'x-image-meta-container_format: bare',
                        'x-image-meta-is_public: False',                       
                        'x-image-meta-name: ' + imageName,
+                       'x-image-meta-property-architecture: x86_64',
                        'x-image-meta-property-last-modified: ' + str(imageLastModified),
                        'X-Auth-Token: ' + self.token
                      ])
@@ -466,9 +467,9 @@ class OpenstackSpace(vcycle.BaseSpace):
                     'flavorRef' : self.getFlavorID(vmtypeName),
                     'metadata'  : { 'cern-services'   : 'false',
                                     'vmtype'	      : vmtypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : 'https://' + os.uname()[1] + ':' + str(self.httpsPort) + '/' + machineName + '/machineoutputs' }
+                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
+                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
+                                    'machineoutputs'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machineoutputs' }
                   }    
                 }
 

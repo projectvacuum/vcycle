@@ -7,6 +7,7 @@
 - OpenStack API can now upload ISO format images (ending in .iso)
 - Better guessing of IP addresses of VMs
 - https_port option allows setting of MJF HTTPS server port
+- Explicitly set the architecture property in uploaded images to x86_64
 ==================== Changes in Vcycle version 0.4.0 =====================
 - VCYCLE.py becomes /usr/lib64/python2.6/site-packages/vcycle
 - Put docs in /usr/share/doc/vcycle-VERSION
