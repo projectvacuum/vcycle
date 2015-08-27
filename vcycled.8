@@ -1,0 +1,31 @@
+.TH VCYCLED 8 "Jan 2015" "vcycled" "Vcycle Manual"
+.SH NAME
+.B vcycled
+\- Vcycle daemon
+.SH SYNOPSIS
+.B vcycled
+.SH DESCRIPTION
+.B vcycled
+is a daemon which implements VM lifecycle management on IaaS Cloud systems 
+in a way inspired by Vac.
+
+.SH CONFIGURATION FILES
+
+See 
+.B
+vcycle.conf(5)
+for a description of the file format and required options. The vcycle daemon
+rereads the configuration files at the start of each cycle - roughly once 
+every 60 seconds. It is not necessary to restart the daemon after changing
+the configuration.
+
+.SH LOG FILES
+
+The daemon writes logging information to /var/log/vcycled
+
+.SH AUTHOR
+Andrew McNab <Andrew.McNab@cern.ch>
+
+vcycled is part of Vcycle: http://www.gridpp.ac.uk/vcycle/
+.SH "SEE ALSO"
+.BR vcycle.conf(5)

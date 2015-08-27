@@ -1,0 +1,40 @@
+==================== Changes in Vcycle version 0.5.0 =====================
+- Create occi_api.py
+- Each cycle is run in a newly forked subprocess for stability
+- Record APEL accounting messages when VMs finish
+- Use hs06 weighting when calculating target shares
+- Proper man pages
+- OpenStack API can now upload ISO format images (ending in .iso)
+- Better guessing of IP addresses of VMs
+- https_port option allows setting of MJF HTTPS server port
+- Explicitly set the architecture property in uploaded images to x86_64
+==================== Changes in Vcycle version 0.4.0 =====================
+- VCYCLE.py becomes /usr/lib64/python2.6/site-packages/vcycle
+- Put docs in /usr/share/doc/vcycle-VERSION
+- Put vcycled, vcycle, vcycle-cgi in /usr/sbin
+- Add user_data_proxy_cert/user_data_proxy_key/legacy_proxy options in
+  vmtypes to put a proxy in user_data rather than a hostcert/hostkey
+- creationsPerCycle calculated as 10% of max_machines in the space
+- Recast using BaseSpace, OpenstackSpace, and Vmtype objects
+- Use OpenStack REST API directly and drop nova dependency
+- Vcycle manages key pairs and boot images automatically
+- OpenstackSpace subclass moved to openstack_api.py API plugin module
+==================== Changes in Vcycle version 0.3.0 =====================
+- Separate [space ...] and [vmtype ...] sections in vcycle.conf
+- Handle multiple vmtypes per space
+- Per-space user_data directories, containing per-vmtype user_data files
+- Use "ROT-1" encoding for passwords in config to avoid accidental 
+  disclosure if browsing around. Obviously this is trivial to get around
+  if one wants to.
+- Allow connections to unauthenticated HTTPS servers for now
+- Proper cleanup of old machine directories
+- Target shares for vmtypes within spaces
+- createdThisCycle becomes creationsThisCycle to track attempts not just
+  successes in case all creations always fail
+- Remove JSON files from httpd
+- Add log_machineoutputs and machineoutputs_days options to vmtypes, 
+  copied from Vac
+- user_data file now in /var/lib/vcycle/vmtypes/SPACE/VMTYPE/user_data
+  by default
+- Default and site configured substitutions in user_data templates
+- user_data can be a remote URL instead of a local file 

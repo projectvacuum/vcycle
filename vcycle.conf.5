@@ -1,0 +1,274 @@
+.TH vcycle.conf 5 "Jan 2014" "vcycle.conf" "vcycle Manual"
+.SH NAME
+.B vcycle.conf
+\- vcycle configuration file
+.SH DESCRIPTION
+.B vcycled
+is a daemon  which implements VM lifecycle management on IaaS Cloud systems 
+in a way inspired by Vac. vcycled reads its configuration from
+.B /etc/vcycle.conf
+and .conf files in
+.B /etc/vcycle.d
+
+The configuration files use the Python ConfigParser syntax, which is similar
+to MS Windows INI files. The files are divided into sections, with each section
+name in square brackets. Each section contains
+a series of option=value pairs. Sections with the same name are merged
+and if options are duplicated, later values overwrite values given
+earlier.
+
+For ease of management, any configuration file ending in .conf in the
+directory /etc/vcycle.d will be read, in 
+alphanumeric order by name, and then /etc/vcycle.conf is read if present. 
+
+.SH [SPACE ...] SECTIONS
+
+One [space ...] section must exist for each tenancy, project, or account in which
+VMs will be created, with the Vcycle space name for the space given in the section
+name, such as [space project1.example.com]. The Vcycle admin has a free choice
+of what names to give each space, but the name must only consist of lowercase 
+letters, numbers, periods, and hyphens so it can be used as the DNS name of
+a virtual CE elsewhere in the system.
+
+.B api
+is required and specifies the lowercase name of the API to use when contacting
+the IaaS service associted with this space. 
+
+.B max_machines
+prevents new machines from being created if the number of machines for
+this space in any state exceeds the given limit.
+
+.B gocdb_sitename
+gives the GOCDB site name to use when writing APEL 
+accounting record files to /var/lib/vcycle/apel-outgoing and 
+/var/lib/vcycle/apel-archive. Please use your official site name to avoid
+the risk of misnamed records getting into the central APEL database.
+If gocdb_sitename is not given, then records are only written to 
+apel-archive and the vcycle space name is used as a placeholder in the 
+files.
+
+.B https_port 
+gives the port number used to contact the Vcycle HTTPS server from
+within the VMs. This only needs to be changed if there is an intervening
+firewall. Default 443.
+
+.SH OPENSTACK SPACE SECTIONS
+
+OpenStack spaces are enabled with
+.B api = openstack
+and the following options are then available.
+
+.B url
+is the URL of the identity (KeyStone) endpoint for this OpenStack service.
+
+.B tenancy_name
+is the tenancy or project name.
+
+.B username
+is a user with access to the tenancy.
+
+.B password
+is the encoded password for the user. Vcycle will decrease the value of 
+each character of the string by one to obtain the true password. This
+encoding is to avoid revealing memorable passwords when casually viewing
+or editing configuration files.
+
+When creating VMs in OpenStack spaces, Vcycle will create machinefeatures,
+jobfeatures, and machineoutputs metadata keys with the URLs of the 
+corresponding directories for the VM on the Vcycle machine's HTTP(S)
+server.
+
+.SH MACHINE / JOB FEATURES HTTP(S) SERVER
+
+Vcycle will create the machinefeatures and jobfeatures files according
+to the WLCG MJF protocol in machinefeatures and jobfeatures subdirectories
+of the VMs directory in /var/lib/vcycle/machines . Using the vcycle-httpd.conf
+Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
+files are publish via HTTP and HTTPS.
+
+In addition, if x509dn is set for the VM's vmtype, then the script vcycle-cgi
+will allow the VM to write heartbeat, logging, and shutdown_message files
+to the VM's machineoutputs directory. 
+
+.SH [VMTYPE ... ...] SECTIONS
+
+One [vmtype ... ...] section must exist for each vmtype in each space, with
+the space name and name of the vmtype given in the section name, such as 
+[vmtype project1.example.com example].
+A vmtype name must only consist of lowercase letters, numbers, and hyphens.
+Each of these sections contain option=value pairs that are specific to 
+that vmtype. The same vmtype name can appear in different spaces and will
+be managed separately.
+
+.B flavor_name
+gives the name of a flavor previously defined in the IaaS system which 
+represents a particular CPU, memory, and disk geometry.
+
+.B hs06
+gives the total HEPSPEC06 power of each virtual machine created for this 
+flavor in this vmtype. This is used as the value $MACHINEFEATURES/hs06 
+supplied to the VM, when calculating target shares, and 
+when writing APEL accounting records. Defaults to 1.
+
+.B target_share
+gives the desired share of the capacity available in this space for this
+vmtype. The shares do not need to add up to 1.0, and if a share is not given
+for a vmtype, then it is set to 0. Vcycle consults these shares
+when deciding which vmtype to start as VM capacity becomes available. 
+Shares are weighted by the hs06 value of the vmtype.
+
+.B backoff_seconds
+is the delay after a VM of this vmtype aborts. If a VM aborts, then no new
+VMs of this type will be created for this amount of time. This can be used 
+to prevent the unnecessary creation of many VMs when no work is available,
+and avoid overloading the matcher or task queue of the VO.
+
+.B fizzle_seconds
+is used in three places within the backoff procedure and in two
+other parts of vcycle:
+.br
+(1) First, if a VM finishes
+without producing a shutdown message code and has lasted less than 
+fizzle_seconds, then it is treated as aborted. 
+.br
+(2) Secondly, after the 
+backoff_seconds time has expired for a VM abort, once at least one VM has
+been started in this vcycle space, then no more new VMs can be started for 
+another fizzle_seconds. 
+.br
+(3) Additionally, when writing the accounting log files, any VMs which 
+run for less than fizzle_seconds are excluded. 
+.br
+(5) Finally, the heartbeat file
+checking is only carried out once an initial period of fizzle_seconds
+has passed.
+
+.B accounting_fqan
+is used to specify a FQAN to include when writing APEL accounting 
+records, to associate usage with particular experiments.
+
+.B max_machines
+prevents new machines from being created if the number of machines for
+this vmtype in any state exceeds the given limit.
+
+.B max_wallclock_seconds
+gives the maximum lifetime of a VM. vcycle will create 
+$MACHINEFEATURES/shutdowntime inside the VM using this value to 
+communicate it to the VM. vcycle will destroy the VM if it is still
+running after this amount of time. Default 86400.
+
+.B x509dn
+is an optional X.509 DN which will be used by the vcycle-cgi script to
+control writing to the machineoutputs directories of each VM. If this
+option is not given, then the heartbeat mechanism and machineoutputs
+logs cannot be used.
+
+.B heartbeat_file
+allows the vmtype to nominate a file which will be created in 
+the machineoutputs directory before fizzle_seconds has passed. If this 
+file is not created by then and maintained for the lifetime of the VM, 
+the VM will be destroyed.
+
+.B heartbeat_seconds
+gives the frequency at which the heartbeat_file must be updated after
+fizzle_seconds has passed. If the file is not updated for 
+heartbeat_seconds then the VM will be destroyed. If heartbeat_seconds
+is 0, then only the existence of the file will be checked. Default 0.
+
+.B log_machineoutputs
+can be set to True to enable recording of all the files from the
+machineoutputs directory for the VM, to subdirectories of 
+/var/lib/vcycle/machineoutputs when the VM finishes or is killed. The 
+subdirectories are in a hierarchy of the space naem, vmtype name,
+and then hostname of the VM. Default False.
+
+.B machineoutputs_days
+sets the expiration time in days for per-VM directories created under
+/var/lib/vcycle/machineoutputs.
+
+For the remaining options, if the file name begins with '/', then it
+will be used as an absolute path; otherwise the path will be interpreted
+relative to the vmtype's subdirectory of /var/lib/vcycle/vmtypes
+
+.B root_image
+is the path to the image file from which the VM will boot. 
+This can also be a remote HTTP or HTTPS URL which vcycle 
+will cache in /var/lib/vcycle/imagecache. The remote server must supply a
+Last-Modified timestamp and vcycle will re-request the image each time a 
+VM starts using an If-Modified-Since request to minimise network load.
+Alternatively, the images may be files in the local filesystem. If 
+root_image ends in .iso , then the image will be declared as ISO format
+(a CD-ROM image), otherwise as a raw HDD image.
+
+.B root_public_key
+is the file name of a public key which Vcycle will set up on the IaaS
+system and supply to the VMs to allow root ssh access. Setting this 
+option to /root/.ssh/id_rsa.pub will give access from the factory machine.
+
+.B user_data
+is the path of a contextualization file provided by the VO and perhaps 
+modified by the site. If the path is a remote HTTP or HTTPS URL, vcycle
+will fetch it over the network each time a VM is started. However the
+file is obtained, vcycle will apply a series of default and locally defined 
+##user_data___## substitutions to it. See USER_DATA SUBSTITUTIONS below
+for a list of the default substitutions.
+
+.B user_data_option_XXX
+and
+.B user_data_file_XXX
+are locally defined substitutions which will be applied to the user_data
+file before the VM is started. user_data_option_XXX takes the string to 
+be substituted. user_data_file_XXX takes the relative or absolute path to
+a file whose contents will be substituted for the pattern in the 
+user_data file.
+
+.B user_data_proxy_cert
+and
+.B user_data_proxy_key
+are the locations of files containing X.509 certificate(s) and an RSA 
+private key, all in PEM format, which will be used to make a limited 
+X.509 proxy. The same file can be given for both options if desired.
+
+.B legacy_proxy
+can be set to True to generate Globus legacy proxies rather than RFC 3820
+proxies. Default False.
+
+.SH USER_DATA SUBSTITUTIONS
+
+Before the user_data file is used in starting a VM, several pattern based
+substitutions are performed by vcycle. These patterns are in the form
+##user_data___##. String values given to the option user_data_option_XXX
+replace patterns of the form ##user_data_option_XXX##. The contents of
+the files given to user_data_file_XXX options replace patterns of the
+form ##user_data_file_XXX##. In both cases XXX are arbitrary strings 
+consisting of letters, numbers, and underscores.
+
+The pattern ##user_data_x509_proxy## is replaced by the proxy created if the
+user_data_proxy_cert and user_data_proxy_key options are given.
+
+In addition, the following substitutions are performed automatically by
+vcycle using data it holds internally:
+
+.br
+.B ##user_data_space##
+is the vcycle space name.
+.br
+.B ##user_data_vmtype## 
+is the name of the vmtype of this VM.
+.br
+.B ##user_data_vm_hostname## 
+is the hostname given to the VM by Vcycle.
+.br
+.B ##user_data_vmlm_version## 
+has the form "Vcycle v.v.v" where v.v.v is the Vcycle version.
+.br
+.B ##user_data_vmlm_hostname##
+is the hostname of the machine on which the Vcycle daemon is running.
+
+.SH AUTHOR
+Andrew McNab <Andrew.McNab@cern.ch>
+
+vcycled is part of vcycle: http://www.gridpp.ac.uk/vcycle/
+.SH "SEE ALSO"
+.BR vcycled(8),
+.BR vcycle-cgi(8)

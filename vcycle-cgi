@@ -1,0 +1,86 @@
+#!/usr/bin/python
+#
+#  vcycle-cgi - Accept HTTP PUT requests of /etc/machineoutputs files
+#
+#  Andrew McNab, University of Manchester.
+#  Copyright (c) 2013-5. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or
+#  without modification, are permitted provided that the following
+#  conditions are met:
+#
+#    o Redistributions of source code must retain the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer. 
+#    o Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials
+#      provided with the distribution. 
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+#  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+#  INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+#  BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+#  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+#  TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+#  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+#  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+#  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+#  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+
+import os
+import sys
+
+import vcycle
+
+try:
+  vcycle.shared.readConf()
+except:
+  print 'Status: 500 Internal Server Error (1)'
+  print
+  sys.exit(0)
+
+try:
+  (hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
+except:
+  print 'Status: 404 Not Found'
+  print
+  sys.exit(0)
+
+if (subDirectory != 'machineoutputs' or 
+    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')):
+  print 'Status: 404 Not Found'
+  print
+  sys.exit(0)
+
+try:
+  spaceName  = open('/var/lib/vcycle/machines/' + hostName + '/space_name',  'r').read()
+  vmtypeName = open('/var/lib/vcycle/machines/' + hostName + '/vmtype_name', 'r').read()
+except:
+  print 'Status: 500 Internal Server Error (2)'
+  print
+  sys.exit(0)
+
+if ('SSL_CLIENT_S_DN' not in os.environ or
+    spaceName not in vcycle.shared.spaces or
+    vmtypeName not in vcycle.shared.spaces[spaceName].vmtypes or 
+    not hasattr(vcycle.shared.spaces[spaceName].vmtypes[vmtypeName], 'x509dn') or 
+    os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName].vmtypes[vmtypeName].x509dn):
+  print 'Status: 403 Forbidden'
+  print
+  sys.exit(0)
+
+try:
+  f = open('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + fileName, 'w')
+  f.write(sys.stdin.read())
+  f.close()
+except:
+  print 'Status: 500 Internal Server Error (3)'
+  print
+else:
+  print 'Status: 200 OK'  
+  print
