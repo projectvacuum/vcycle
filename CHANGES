@@ -1,3 +1,0 @@
-==================== Changes in Vcycle version 0.3.0 =====================
-- Separate [tenancy ...] and [vmtype ...] sections in vcycle.conf
-- Handle multiple vmtypes per tenancy
