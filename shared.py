@@ -546,6 +546,17 @@ class BaseSpace(object):
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+    
+    if hasattr(self, 'usercert') and hasattr(self, 'userkey') and self.usercert and self.userkey:
+      if self.usercert[0] == '/':
+        self.curl.setopt(pycurl.SSLCERT, self.usercert)
+      else :
+        self.curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.usercert)
+        
+      if self.userkey[0] == '/':
+        self.curl.setopt(pycurl.SSLKEY, self.userkey)
+      else :
+        self.curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.userkey)
         
     if os.path.isdir('/etc/grid-security/certificates'):
       self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
