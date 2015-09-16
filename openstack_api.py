@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  openstack_api.py - an OpenStack plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-5. All rights reserved.
