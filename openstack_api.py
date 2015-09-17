@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  openstack_api.py - an OpenStack plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-5. All rights reserved.
@@ -77,7 +77,25 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
-      raise OpenstackError('username is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      self.username = None
+      
+    try:
+      self.usercert = parser.get(spaceSectionName, 'usercert')
+    except Exception as e:
+      self.usercert = None
+      
+    try:
+      self.userkey = parser.get(spaceSectionName, 'userkey')
+    except Exception as e:
+      self.userkey = None
+      
+    if self.usercert and not self.userkey:
+      self.userkey = self.usercert
+    elif self.userkey and not self.usercert:
+      self.usercert = self.userkey
+      
+    if not self.username and not self.usercert:      
+      raise OpenstackError('username or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't

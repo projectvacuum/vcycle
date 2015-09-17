@@ -14,6 +14,20 @@ Requires: httpd,mod_ssl,python-pycurl,m2crypto
 %description
 VM lifecycle manager daemon for OpenStack etc
 
+%package azure
+Summary: Azure plugin for Vcycle
+Requires: vcycle
+
+%description azure
+Azure plugin for Vcycle
+
+%package dbce
+Summary: DBCE plugin for Vcycle
+Requires: vcycle
+
+%description dbce
+DBCE plugin for Vcycle
+
 %prep
 
 %setup -n vcycle
@@ -39,8 +53,18 @@ fi
 %files
 /usr/sbin
 /usr/share/doc/vcycle-%{version}
-/usr/lib64/python2.6/site-packages/vcycle
+/usr/lib64/python2.6/site-packages/vcycle/__init__.py*
+/usr/lib64/python2.6/site-packages/vcycle/shared.py*
+/usr/lib64/python2.6/site-packages/vcycle/vacutils.py*
+/usr/lib64/python2.6/site-packages/vcycle/openstack_api.py*
+/usr/lib64/python2.6/site-packages/vcycle/occi_api.py*
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
 /etc/vcycle.d
+
+%files azure
+/usr/lib64/python2.6/site-packages/vcycle/azure_api.py* 
+
+%files dbce
+/usr/lib64/python2.6/site-packages/vcycle/dbce_api.py*

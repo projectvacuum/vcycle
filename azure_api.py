@@ -1,8 +1,9 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  azure_api.py - an Azure plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
+#  Luis Villazon Esteban, CERN.
 #  Copyright (c) 2013-5. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
@@ -32,6 +33,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 #  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
+#            Luis.Villazon.Esteban@cern.ch
 #
 
 import pprint

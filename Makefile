@@ -34,7 +34,8 @@
 include VERSION
 
 INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
-              openstack_api.py occi_api.py example.vcycle.conf \
+              openstack_api.py occi_api.py azure_api.py \
+              dbce_api.py example.vcycle.conf \
               vcycle-cgi vcycle-httpd.conf vcycled.init \
               vcycled.logrotate VERSION CHANGES
           
@@ -66,6 +67,7 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/usr/sbin
 	cp __init__.py shared.py vacutils.py \
 	   openstack_api.py occi_api.py \
+	   dbce_api.py azure_api.py \
 	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
 	cp VERSION CHANGES vcycle-httpd.conf example.vcycle.conf \
 	   $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION)
