@@ -131,7 +131,7 @@ class AzureSpace(vcycle.BaseSpace):
                 continue
 
             if len(info.deployments) == 0 : continue
-            if result.service_name != 'vcycle-':
+            if not result.service_name.startswith('vcycle-'):
                 # Still count VMs that we didn't create and won't manage, to avoid going above space limit
                 self.totalMachines += 1
                 continue
