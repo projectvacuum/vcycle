@@ -91,6 +91,10 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise DbceError('platform is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
 
+    try:
+      self.network = parser.get(spaceSectionName, 'network')
+    except Exception as e:
+      raise DbceError('network is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
     # Connect to the DBCE service
@@ -98,6 +102,7 @@ class DbceSpace(vcycle.BaseSpace):
     pass
 
   def scanMachines(self):
+    import time
     """Query DBCE compute service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
@@ -120,9 +125,9 @@ class DbceSpace(vcycle.BaseSpace):
 
       uuidStr = str(oneServer['id'])
       ip = '0.0.0.0'
-      createdTime  = None
-      updatedTime  = None
-      startedTime = None
+      createdTime  = int(time.time())
+      updatedTime  = int(time.time())
+      startedTime = int(time.time())
 
       status     = str(oneServer['state'])
       vmtypeName = None
@@ -162,7 +167,7 @@ class DbceSpace(vcycle.BaseSpace):
                 'id': self.vmtypes[vmtypeName].flavor_name,
             },
             'network': {
-                'id': self.vmtypes[vmtypeName].network,
+                'id': self.network,
             },
             'cloudConfig': base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read())
         }
@@ -174,12 +179,12 @@ class DbceSpace(vcycle.BaseSpace):
     try:
       result = self.httpRequest("%s/%s/machines" % (self.url, self.version),
                              request,
-                             verbose=True,
+                             verbose=False,
                              headers = ['DBCE-ApiKey: '+ self.key])
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['data']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
