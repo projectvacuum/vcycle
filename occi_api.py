@@ -44,7 +44,6 @@ import vcycle.vacutils
 
 
 
-
 class OcciError(Exception):
   pass
 
@@ -98,7 +97,7 @@ class OcciSpace(vcycle.BaseSpace):
             self.session.headers.clear()
             self.session.headers.update({"X-Auth-Token": self.token})
             self.session.cert = self.usercert
-            self.session.verify = '/etc/grid-security/certificates/domain.ca-bundle'
+            self.session.verify = '/etc/grid-security/domain.ca-bundle'
 
         self._get_definitions()
         self.computeURL = "%s/compute/" % (self.queryURL)
