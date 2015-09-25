@@ -84,6 +84,8 @@ class OcciSpace(vcycle.BaseSpace):
             self.username = parser.get(spaceSectionName, 'username')
             self.password = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
 
+        self._create_ca_file()
+
     def connect(self):
         # Connect to the OCCI service
         self.session = requests.Session()
@@ -375,3 +377,17 @@ class OcciSpace(vcycle.BaseSpace):
                 print e
             if 'access' in result['response']:
                 return result['response']['access']['token']['id']
+
+    def _create_ca_file(self):
+        import subprocess
+        import os.path
+        if not os.path.exists('/etc/grid-security/occi.ca-certs'):
+            subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > /etc/grid-security/occi.ca-certs',
+                            shell=True)
+        else:
+            modification_time = os.lstat('/etc/grid-security/occi.ca-certs').st_mtime
+            for file in os.listdir('/etc/grid-security/'):
+                if os.lstat(file).st_mtime > modification_time:
+                    subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > /etc/grid-security/occi.ca-certs',
+                            shell=True)
+                    return
