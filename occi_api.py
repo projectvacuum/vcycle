@@ -388,8 +388,8 @@ class OcciSpace(vcycle.BaseSpace):
                             shell=True)
         else:
             modification_time = os.lstat(ca_path).st_mtime
-            for file in os.listdir('/etc/grid-security/'):
-                if os.lstat(file).st_mtime > modification_time:
+            for file in os.listdir('/etc/grid-security/certificates/'):
+                if os.lstat('/etc/grid-security/certificates/%s' % file).st_mtime > modification_time:
                     subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > %s' % ca_path,
                             shell=True)
                     return
