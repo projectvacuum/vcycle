@@ -48,6 +48,8 @@ class OcciError(Exception):
   pass
 
 
+ca_path = '/etc/grid-security/occi.ca-certs'
+
 class OcciSpace(vcycle.BaseSpace):
 
     def __init__(self, api, spaceName, parser, spaceSectionName):
@@ -99,7 +101,7 @@ class OcciSpace(vcycle.BaseSpace):
             self.session.headers.clear()
             self.session.headers.update({"X-Auth-Token": self.token})
             self.session.cert = self.usercert
-            self.session.verify = '/etc/grid-security/domain.ca-bundle'
+            self.session.verify = ca_path
 
         self._get_definitions()
         self.computeURL = "%s/compute/" % (self.queryURL)
@@ -250,7 +252,7 @@ class OcciSpace(vcycle.BaseSpace):
         response = requests.get("%s/-/" % self.queryURL,
                                     headers=headers,
                                     cert=self.usercert,
-                                    verify=False)
+                                    verify=ca_path)
 
         self.categories = {}
         categories = response.text.split("\n")[1:]
@@ -281,7 +283,7 @@ class OcciSpace(vcycle.BaseSpace):
             result = requests.head(self.queryURL + '/-/',
                                    headers={"Content-Type": "application/json"},
                                    cert=self.usercert,
-                                   verify=False
+                                   verify=ca_path
                                    )
         except Exception as e:
             raise OcciError('Cannot connect to ' + self.queryURL + ' (' + str(e) + ')')
@@ -325,7 +327,7 @@ class OcciSpace(vcycle.BaseSpace):
             result = {'response':requests.post(keystone_url+"/v2.0/tokens",
                                  data='{"auth":{"voms": true}}',
                                  headers={"Content-Type": "application/json"},
-                                 cert=self.usercert, verify=False).json()}
+                                 cert=self.usercert, verify=ca_path).json()}
         except Exception as e:
             raise OcciError('Cannot connect to ' + keystone_url + ' (' + str(e) + ')')
 
@@ -343,7 +345,7 @@ class OcciSpace(vcycle.BaseSpace):
                                            data='{"auth":{"voms": true}}',
                                            headers={"Content-Type": "application/json", "X-Auth-Token": temporal_token},
                                            cert=self.usercert,
-                                           verify=False).json()}
+                                           verify=ca_path).json()}
 
         return [tenant['name'] for tenant in result['response']['tenants']]
 
@@ -372,7 +374,7 @@ class OcciSpace(vcycle.BaseSpace):
                                                 data=json.dumps(data),
                                                 headers= headers,
                                                 cert=self.usercert,
-                                                verify=False).json()}
+                                                verify=ca_path).json()}
             except Exception as e:
                 print e
             if 'access' in result['response']:
@@ -381,13 +383,13 @@ class OcciSpace(vcycle.BaseSpace):
     def _create_ca_file(self):
         import subprocess
         import os.path
-        if not os.path.exists('/etc/grid-security/occi.ca-certs'):
-            subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > /etc/grid-security/occi.ca-certs',
+        if not os.path.exists(ca_path):
+            subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > %s' % ca_path,
                             shell=True)
         else:
-            modification_time = os.lstat('/etc/grid-security/occi.ca-certs').st_mtime
+            modification_time = os.lstat(ca_path).st_mtime
             for file in os.listdir('/etc/grid-security/'):
                 if os.lstat(file).st_mtime > modification_time:
-                    subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > /etc/grid-security/occi.ca-certs',
+                    subprocess.call('cat `ls /etc/grid-security/certificates/*.pem` > %s' % ca_path,
                             shell=True)
                     return
