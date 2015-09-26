@@ -83,7 +83,7 @@ used as a virtual CE name where necessary in other systems.
     example, factory1.example.com will lead to factory1-00.example.com,
     factory1-01.example.com, ...
   
-<dt><b>root_public_key =</b> in [vmtype example]
+<dt><b>root_public_key =</b> in [machinetype example]
 <dd>This setting is not strictly necessary but is very useful. By copying
     an RSA key pair to /root/.ssh on the factory machine, or creating
     one with ssh-keygen you will be able to ssh into the VM as root and
@@ -91,7 +91,7 @@ used as a virtual CE name where necessary in other systems.
     place a public key at the location given in this option, you need 
     to comment the line out.
 
-<dt><b>user_data_option_cvmfs_proxy =</b> in [vmtype example]
+<dt><b>user_data_option_cvmfs_proxy =</b> in [machinetype example]
 <dd>The value of this option is included in the user_data file given to the
     VM. It must be set to the URL of an HTTP cache you have access to. If 
     you are already using cvmfs for grid worker nodes, you can use the same
@@ -100,7 +100,7 @@ used as a virtual CE name where necessary in other systems.
 </dl>
 
 <p>
-The files needed for the example vmtype are fetched over HTTPS, as 
+The files needed for the example machinetype are fetched over HTTPS, as 
 indicated by the root_disk and user_data options which should not be
 changed. 
 
@@ -209,43 +209,43 @@ records. To avoid the risk of polluting the central APEL database with
 incorrect site names, please use your real GOCDB sitename for this 
 option. 
 
-<h3>Setting up vmtypes</h3>
+<h3>Setting up machinetypes</h3>
 
 <p>
-One [vmtype ... ...] section must exist for each vmtype in the system, with
-the name of the vmtype given in the section name, such as [vmtype example].
-A vmtype name must only consist of lowercase letters, numbers,
+One [machinetype ... ...] section must exist for each machinetype in the system, with
+the name of the machinetype given in the section name, such as [machinetype example].
+A machinetype name must only consist of lowercase letters, numbers,
 and hyphens. The Vcycle.conf(5) man page lists the options
-that can be given for each vmtype.
+that can be given for each machinetype.
 
 <p>
-The target_share option for the vmtype gives
+The target_share option for the machinetype gives
 the desired share of the total VMs available in this space for that
-vmtype. The shares do not need to add up to 1.0, and if a share is not given
-for a vmtype, then it is set to 0. The creation of new VMs can be completely
+machinetype. The shares do not need to add up to 1.0, and if a share is not given
+for a machinetype, then it is set to 0. The creation of new VMs can be completely
 disabled by setting all shares to 0. Vcycle factories consult these shares
-when deciding which vmtype to start as VMs become available.
+when deciding which machinetype to start as VMs become available.
 
 <p>
 For ease of management, the target_shares options can be grouped 
-together in a separate file in /etc/Vcycle.d apart from the main [vmtype ...]
+together in a separate file in /etc/Vcycle.d apart from the main [machinetype ...]
 sections, which is convenient if shares
 are generated automatically or frequently edited by hand and pushed
 out to the factory machines. For example:
 <pre>
-[vmtype example1]
+[machinetype example1]
 target_share = 5.0
-[vmtype example2]
+[machinetype example2]
 target_share = 6.0
-[vmtype example3]
+[machinetype example3]
 target_share = 7.0
 </pre>
 
 <p>
-The experiment or VO responsible for each vmtype should supply 
-step by step intructions on how to set up the rest of the [vmtype ...]
+The experiment or VO responsible for each machinetype should supply 
+step by step intructions on how to set up the rest of the [machinetype ...]
 section and how to create the files to be placed in its subdirectory
-of /var/lib/Vcycle/vmtypes (likely to be a hostcert.pem and hostkey.pem
+of /var/lib/Vcycle/machinetypes (likely to be a hostcert.pem and hostkey.pem
 pair to give to the VM.)
 
 <h2 style="border-bottom: 1px solid">Starting and stopping Vcycled</h2>
@@ -308,11 +308,11 @@ written to /var/lib/Vcycle/apel-outgoing .
 
 <p>
 Vcycle uses the UUID of the VM as the local job 
-ID, the factory hostname as the local user ID, and the vmtype name as the
+ID, the factory hostname as the local user ID, and the machinetype name as the
 batch queue name. A unique user DN is constructed from the components 
 of the Vcycle space name. For example, Vcycle01.example.com becomes
 /DC=com/DC=example/DC=Vcycle01 . If the accounting_fqan option is present in
-the [vmtype ...] section, then for VMs of that type the value of that option 
+the [machinetype ...] section, then for VMs of that type the value of that option 
 is included as the user FQAN, which indicates the VO associated with the VM.
 The GOCDB sitename field is either the value you
 gave explicitly or the Vcycle site name as a placeholder. 
