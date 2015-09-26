@@ -87,7 +87,7 @@ def secondsToHHMMSS(seconds):
    mm, ss = divmod(ss, 60)
    return '%02d:%02d:%02d' % (hh, mm, ss)
 
-def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName, vmtypeName, userDataPath, hostName, uuidStr):
+def createUserData(shutdownTime, machinetypesPath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr):
    
    # Get raw user_data template file, either from network ...
    if (userDataPath[0:7] == 'http://') or (userDataPath[0:8] == 'https://'):
@@ -119,7 +119,7 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
      if userDataPath[0] == '/':
        userDataFile = userDataPath
      else:
-       userDataFile = vmtypesPath + '/' + vmtypeName + '/' + userDataPath
+       userDataFile = machinetypesPath + '/' + machinetypeName + '/' + userDataPath
 
      try:
        u = open(userDataFile, 'r')
@@ -129,11 +129,17 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
        raise NameError('Failed to read ' + userDataFile)
 
    # Default substitutions
-   userDataContents = userDataContents.replace('##user_data_space##',         spaceName)
-   userDataContents = userDataContents.replace('##user_data_vmtype##',        vmtypeName)
-   userDataContents = userDataContents.replace('##user_data_vm_hostname##',   hostName)
-   userDataContents = userDataContents.replace('##user_data_vmlm_version##',  versionString)
-   userDataContents = userDataContents.replace('##user_data_vmlm_hostname##', os.uname()[1])
+   userDataContents = userDataContents.replace('##user_data_space##',            spaceName)
+   userDataContents = userDataContents.replace('##user_data_machinetype##',      machinetypeName)
+   userDataContents = userDataContents.replace('##user_data_machine_hostname##', hostName)
+   userDataContents = userDataContents.replace('##user_data_manager_version##',  versionString)
+   userDataContents = userDataContents.replace('##user_data_manager_hostname##', os.uname()[1])
+
+   # Deprecated vmtype/VM/VMLM terminology
+   userDataContents = userDataContents.replace('##user_data_vmtype##',           machinetypeName)
+   userDataContents = userDataContents.replace('##user_data_vm_hostname##',      hostName)
+   userDataContents = userDataContents.replace('##user_data_vmlm_version##',     versionString)
+   userDataContents = userDataContents.replace('##user_data_vmlm_hostname##',    os.uname()[1])
 
    if uuidStr:
      userDataContents = userDataContents.replace('##user_data_uuid##', uuidStr)
@@ -144,12 +150,12 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
      if options['user_data_proxy_cert'][0] == '/':
        certPath = options['user_data_proxy_cert']
      else:
-       certPath = vmtypesPath + '/' + vmtypeName + '/' + options['user_data_proxy_cert']
+       certPath = machinetypesPath + '/' + machinetypeName + '/' + options['user_data_proxy_cert']
 
      if options['user_data_proxy_key'][0] == '/':
        keyPath = options['user_data_proxy_key']
      else:
-       keyPath = vmtypesPath + '/' + vmtypeName + '/' + options['user_data_proxy_key']
+       keyPath = machinetypesPath + '/' + machinetypeName + '/' + options['user_data_proxy_key']
 
      try:
        if ('legacy_proxy' in options) and options['legacy_proxy']:
@@ -161,7 +167,7 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
      except Exception as e:
        raise NameError('Faled to make proxy (' + str(e) + ')')
 
-   # Site configurable substitutions for this vmtype
+   # Site configurable substitutions for this machinetype
    for oneOption, oneValue in options.iteritems():
       if oneOption[0:17] == 'user_data_option_':
         userDataContents = userDataContents.replace('##' + oneOption + '##', oneValue)
@@ -170,7 +176,7 @@ def createUserData(shutdownTime, vmtypesPath, options, versionString, spaceName,
            if oneValue[0] == '/':
              f = open(oneValue, 'r')
            else:
-             f = open(vmtypesPath + '/' + vmtypeName + '/' + oneValue, 'r')
+             f = open(machinetypesPath + '/' + machinetypeName + '/' + oneValue, 'r')
                            
            userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
            f.close()

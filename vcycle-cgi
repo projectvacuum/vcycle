@@ -59,7 +59,7 @@ if (subDirectory != 'machineoutputs' or
 
 try:
   spaceName  = open('/var/lib/vcycle/machines/' + hostName + '/space_name',  'r').read()
-  vmtypeName = open('/var/lib/vcycle/machines/' + hostName + '/vmtype_name', 'r').read()
+  machinetypeName = open('/var/lib/vcycle/machines/' + hostName + '/machinetype_name', 'r').read()
 except:
   print 'Status: 500 Internal Server Error (2)'
   print
@@ -67,9 +67,9 @@ except:
 
 if ('SSL_CLIENT_S_DN' not in os.environ or
     spaceName not in vcycle.shared.spaces or
-    vmtypeName not in vcycle.shared.spaces[spaceName].vmtypes or 
-    not hasattr(vcycle.shared.spaces[spaceName].vmtypes[vmtypeName], 'x509dn') or 
-    os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName].vmtypes[vmtypeName].x509dn):
+    machinetypeName not in vcycle.shared.spaces[spaceName].machinetypes or 
+    not hasattr(vcycle.shared.spaces[spaceName].machinetypes[machinetypeName], 'x509dn') or 
+    os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName].machinetypes[machinetypeName].x509dn):
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)

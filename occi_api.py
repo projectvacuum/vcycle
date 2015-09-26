@@ -161,9 +161,9 @@ class OcciSpace(vcycle.BaseSpace):
                                                  startedTime=startedTime,
                                                  updatedTime=updatedTime,
                                                  uuidStr=uuidStr,
-                                                 vmtypeName=None)
+                                                 machinetypeName=None)
 
-    def createMachine(self, machineName, vmtypeName):
+    def createMachine(self, machineName, machinetypeName):
 
         # OCCI-specific machine creation steps
         #    'metadata'  : { 'cern-services'   : 'false',
@@ -178,33 +178,33 @@ class OcciSpace(vcycle.BaseSpace):
                    'Connection': 'close'
         }
 
-        image = self.vmtypes[vmtypeName].root_image[6:].strip()
+        image = self.machinetypes[machinetypeName].root_image[6:].strip()
         data = 'Category: compute;scheme="http://schemas.ogf.org/occi/infrastructure#";class="kind";location="/compute/";title="Compute Resource"\n'
         data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (image, self.categories[image]['scheme'], image)
-        data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (self.vmtypes[vmtypeName].flavor_name, self.categories[self.vmtypes[vmtypeName].flavor_name]['scheme'], self.vmtypes[vmtypeName].flavor_name)
+        data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (self.machinetypes[machinetypeName].flavor_name, self.categories[self.machinetypes[machinetypeName].flavor_name]['scheme'], self.machinetypes[machinetypeName].flavor_name)
         data += 'Category: user_data;"%s";class="mixin";location="%s";title="OS contextualization mixin"\n' % (self.categories['user_data']['scheme'], self.categories['user_data']['location']);
         data += 'X-OCCI-Attribute: occi.core.id="%s"\n' % str(uuid.uuid4())
         data += 'X-OCCI-Attribute: occi.core.title="%s"\n' % machineName
         data += 'X-OCCI-Attribute: occi.compute.hostname="%s"\n' % machineName
         data += 'X-OCCI-Attribute: org.openstack.compute.user_data="%s"' % base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read())
 
-        if self.vmtypes[vmtypeName].root_public_key:
-            if self.vmtypes[vmtypeName].root_public_key[0] == '/':
+        if self.machinetypes[machinetypeName].root_public_key:
+            if self.machinetypes[machinetypeName].root_public_key[0] == '/':
                 try:
-                    f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
+                    f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
                 except Exception as e:
-                    OcciError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
+                    OcciError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
             else:
                 try:
-                    f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
+                    f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key, 'r')
                 except Exception as e:
-                    OcciError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
+                    OcciError('Cannot open ' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key)
 
             while True:
                 try:
                     line = f.read()
                 except:
-                    raise OcciError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
+                    raise OcciError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
         
                 if line[:8] == 'ssh-rsa ':
                     sshPublicKey = line.split(' ')[1]
@@ -218,7 +218,7 @@ class OcciSpace(vcycle.BaseSpace):
         except Exception as e:
             raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-        vcycle.vacutils.logLine('Created ' + machineName + ' for ' + vmtypeName + ' within ' + self.spaceName)
+        vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
         self.machines[machineName] = vcycle.shared.Machine(name=machineName,
                                              spaceName=self.spaceName,
@@ -228,7 +228,7 @@ class OcciSpace(vcycle.BaseSpace):
                                              startedTime=int(time.time()),
                                              updatedTime=int(time.time()),
                                              uuidStr=None,
-                                             vmtypeName=vmtypeName)
+                                             machinetypeName=machinetypeName)
 
         return machineName
 

@@ -180,9 +180,9 @@ class OpenstackSpace(vcycle.BaseSpace):
       status     = str(oneServer['status'])
 
       try:
-        vmtypeName = str(oneServer['metadata']['vmtype'])
+        machinetypeName = str(oneServer['metadata']['machinetype'])
       except:
-        vmtypeName = None
+        machinetypeName = None
       
       if taskState == 'Deleting':
         state = vcycle.MachineState.deleting
@@ -207,16 +207,16 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                                startedTime = startedTime,
                                                                updatedTime = updatedTime,
                                                                uuidStr     = uuidStr,
-                                                               vmtypeName  = vmtypeName)
+                                                               machinetypeName  = machinetypeName)
 
-  def getFlavorID(self, vmtypeName):
+  def getFlavorID(self, machinetypeName):
     """Get the "flavor" ID"""
   
-    if hasattr(self.vmtypes[vmtypeName], '_flavorID'):
-      if self.vmtypes[vmtypeName]._flavorID:
-        return self.vmtypes[vmtypeName]._flavorID
+    if hasattr(self.machinetypes[machinetypeName], '_flavorID'):
+      if self.machinetypes[machinetypeName]._flavorID:
+        return self.machinetypes[machinetypeName]._flavorID
       else:
-        raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OpenstackError('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
       
     try:
       result = self.httpRequest(self.computeURL + '/flavors/detail',
@@ -226,38 +226,38 @@ class OpenstackSpace(vcycle.BaseSpace):
     
     try:
       for flavor in result['response']['flavors']:
-        if flavor['name'] == self.vmtypes[vmtypeName].flavor_name:
+        if flavor['name'] == self.machinetypes[machinetypeName].flavor_name:
 
-          self.vmtypes[vmtypeName]._flavorID = flavor['id']
+          self.machinetypes[machinetypeName]._flavorID = flavor['id']
 
           try:
             # Record if available
-            self.vmtypes[vmtypeName].mb = int(flavor['ram'])
+            self.machinetypes[machinetypeName].mb = int(flavor['ram'])
           except:
             pass
             
           try:
             # Record if available
-            self.vmtypes[vmtypeName].cpus = int(flavor['vcpus'])
+            self.machinetypes[machinetypeName].cpus = int(flavor['vcpus'])
           except:
             pass
             
-          return self.vmtypes[vmtypeName]._flavorID
+          return self.machinetypes[machinetypeName]._flavorID
     except:
       pass
         
-    raise OpenstackError('Flavor "' + self.vmtypes[vmtypeName].flavor_name + '" for vmtype ' + vmtypeName + ' not available!')
+    raise OpenstackError('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
 
-  def getImageID(self, vmtypeName):
+  def getImageID(self, machinetypeName):
     """Get the image ID"""
 
     # If we already know the image ID, then just return it
-    if hasattr(self.vmtypes[vmtypeName], '_imageID'):
-      if self.vmtypes[vmtypeName]._imageID:
-        return self.vmtypes[vmtypeName]._imageID
+    if hasattr(self.machinetypes[machinetypeName], '_imageID'):
+      if self.machinetypes[machinetypeName]._imageID:
+        return self.machinetypes[machinetypeName]._imageID
       else:
         # If _imageID is None, then it's not available for this cycle
-        raise OpenstackError('Image "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OpenstackError('Image "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' not available!')
 
     # Get the existing images for this tenancy
     try:
@@ -267,60 +267,60 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     # Specific image, not managed by Vcycle, lookup ID
-    if self.vmtypes[vmtypeName].root_image[:6] == 'image:':
+    if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
       for image in result['response']['images']:
-         if self.vmtypes[vmtypeName].root_image[6:] == image['name']:
-           self.vmtypes[vmtypeName]._imageID = str(image['id'])
-           return self.vmtypes[vmtypeName]._imageID
+         if self.machinetypes[machinetypeName].root_image[6:] == image['name']:
+           self.machinetypes[machinetypeName]._imageID = str(image['id'])
+           return self.machinetypes[machinetypeName]._imageID
 
-      raise OpenstackError('Image "' + self.vmtypes[vmtypeName].root_image[6:] + '" for vmtype ' + vmtypeName + ' not available!')
+      raise OpenstackError('Image "' + self.machinetypes[machinetypeName].root_image[6:] + '" for machinetype ' + machinetypeName + ' not available!')
 
     # Always store/make the image name
-    if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
-       self.vmtypes[vmtypeName].root_image[:8] == 'https://' or \
-       self.vmtypes[vmtypeName].root_image[0] == '/':
-      imageName = self.vmtypes[vmtypeName].root_image
+    if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
+       self.machinetypes[machinetypeName].root_image[:8] == 'https://' or \
+       self.machinetypes[machinetypeName].root_image[0] == '/':
+      imageName = self.machinetypes[machinetypeName].root_image
     else:
-      imageName = '/var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + '/' + self.vmtypes[vmtypeName].root_image
+      imageName = '/var/lib/vcycle/' + self.spaceName + '/' + machinetypeName + '/' + self.machinetypes[machinetypeName].root_image
 
     # Find the local copy of the image file
-    if not hasattr(self.vmtypes[vmtypeName], '_imageFile'):
+    if not hasattr(self.machinetypes[machinetypeName], '_imageFile'):
 
-      if self.vmtypes[vmtypeName].root_image[:7] == 'http://' or \
-         self.vmtypes[vmtypeName].root_image[:8] == 'https://':
+      if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
+         self.machinetypes[machinetypeName].root_image[:8] == 'https://':
 
         try:
-          imageFile = vcycle.vacutils.getRemoteRootImage(self.vmtypes[vmtypeName].root_image,
+          imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
                                          '/var/lib/vcycle/imagecache', 
                                          '/var/lib/vcycle/tmp')
 
           imageLastModified = int(os.stat(imageFile).st_mtime)
         except Exception as e:
-          raise OpenstackError('Failed fetching ' + self.vmtypes[vmtypeName].root_image + ' (' + str(e) + ')')
+          raise OpenstackError('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
 
-        self.vmtypes[vmtypeName]._imageFile = imageFile
+        self.machinetypes[machinetypeName]._imageFile = imageFile
  
-      elif self.vmtypes[vmtypeName].root_image[0] == '/':
+      elif self.machinetypes[machinetypeName].root_image[0] == '/':
         
         try:
-          imageLastModified = int(os.stat(self.vmtypes[vmtypeName].root_image).st_mtime)
+          imageLastModified = int(os.stat(self.machinetypes[machinetypeName].root_image).st_mtime)
         except Exception as e:
-          raise OpenstackError('Image file "' + self.vmtypes[vmtypeName].root_image + '" for vmtype ' + vmtypeName + ' does not exist!')
+          raise OpenstackError('Image file "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' does not exist!')
 
-        self.vmtypes[vmtypeName]._imageFile = self.vmtypes[vmtypeName].root_image
+        self.machinetypes[machinetypeName]._imageFile = self.machinetypes[machinetypeName].root_image
 
       else: # root_image is not an absolute path, but imageName is
         
         try:
           imageLastModified = int(os.stat(imageName).st_mtime)
         except Exception as e:
-          raise OpenstackError('Image file "' + self.vmtypes[vmtypeName].root_image +
-                            '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + vmtypeName + ' !')
+          raise OpenstackError('Image file "' + self.machinetypes[machinetypeName].root_image +
+                            '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + machinetypeName + ' !')
 
-        self.vmtypes[vmtypeName]._imageFile = imageName
+        self.machinetypes[machinetypeName]._imageFile = imageName
 
     else:
-      imageLastModified = int(os.stat(self.vmtypes[vmtypeName]._imageFile).st_mtime)
+      imageLastModified = int(os.stat(self.machinetypes[machinetypeName]._imageFile).st_mtime)
 
     # Go through the existing images looking for a name and time stamp match
 # We should delete old copies of the current image name if we find them here
@@ -330,17 +330,17 @@ class OpenstackSpace(vcycle.BaseSpace):
          if image['name'] == imageName and \
             image['status'] == 'ACTIVE' and \
             image['metadata']['last_modified'] == str(imageLastModified):
-           self.vmtypes[vmtypeName]._imageID = str(image['id'])
-           return self.vmtypes[vmtypeName]._imageID
+           self.machinetypes[machinetypeName]._imageID = str(image['id'])
+           return self.machinetypes[machinetypeName]._imageID
       except:
         pass
 
-    vcycle.vacutils.logLine('Image "' + self.vmtypes[vmtypeName].root_image + '" not found in image service, so uploading')
+    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
 
     # Try to upload the image
     try:
-      self.vmtypes[vmtypeName]._imageID = self.uploadImage(self.vmtypes[vmtypeName]._imageFile, imageName, imageLastModified)
-      return self.vmtypes[vmtypeName]._imageID
+      self.machinetypes[machinetypeName]._imageID = self.uploadImage(self.machinetypes[machinetypeName]._imageFile, imageName, imageLastModified)
+      return self.machinetypes[machinetypeName]._imageID
     except Exception as e:
       raise OpenstackError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
 
@@ -406,33 +406,33 @@ class OpenstackSpace(vcycle.BaseSpace):
     except:
       raise OpenstackError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
 
-  def getKeyPairName(self, vmtypeName):
+  def getKeyPairName(self, machinetypeName):
     """Get the key pair name from root_public_key"""
 
-    if hasattr(self.vmtypes[vmtypeName], '_keyPairName'):
-      if self.vmtypes[vmtypeName]._keyPairName:
-        return self.vmtypes[vmtypeName]._keyPairName
+    if hasattr(self.machinetypes[machinetypeName], '_keyPairName'):
+      if self.machinetypes[machinetypeName]._keyPairName:
+        return self.machinetypes[machinetypeName]._keyPairName
       else:
-        raise OpenstackError('Key pair "' + self.vmtypes[vmtypeName].root_public_key + '" for vmtype ' + vmtypeName + ' not available!')
+        raise OpenstackError('Key pair "' + self.machinetypes[machinetypeName].root_public_key + '" for machinetype ' + machinetypeName + ' not available!')
       
     # Get the ssh public key from the root_public_key file
         
-    if self.vmtypes[vmtypeName].root_public_key[0] == '/':
+    if self.machinetypes[machinetypeName].root_public_key[0] == '/':
       try:
-        f = open(self.vmtypes[vmtypeName].root_public_key, 'r')
+        f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
-        OpenstackError('Cannot open ' + self.vmtypes[vmtypeName].root_public_key)
+        OpenstackError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
     else:  
       try:
-        f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key, 'r')
+        f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
-        OpenstackError('Cannot open ' + self.spaceName + '/' + self.vmtypeName + '/' + self.vmtypes[vmtypeName].root_public_key)
+        OpenstackError('Cannot open ' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key)
 
     while True:
       try:
         line = f.read()
       except:
-        raise OpenstackError('Cannot find ssh-rsa public key line in ' + self.vmtypes[vmtypeName].root_public_key)
+        raise OpenstackError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
         
       if line[:8] == 'ssh-rsa ':
         sshPublicKey =  line.split(' ')[1]
@@ -449,8 +449,8 @@ class OpenstackSpace(vcycle.BaseSpace):
     for keypair in result['response']['keypairs']:
       try:
         if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
-          self.vmtypes[vmtypeName]._keyPairName = str(keypair['keypair']['name'])
-          return self.vmtypes[vmtypeName]._keyPairName
+          self.machinetypes[machinetypeName]._keyPairName = str(keypair['keypair']['name'])
+          return self.machinetypes[machinetypeName]._keyPairName
       except:
         pass
       
@@ -468,12 +468,12 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.vmtypes[vmtypeName].root_public_key + ' in ' + self.spaceName)
+    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
 
-    self.vmtypes[vmtypeName]._keyPairName = keyName
-    return self.vmtypes[vmtypeName]._keyPairName
+    self.machinetypes[machinetypeName]._keyPairName = keyName
+    return self.machinetypes[machinetypeName]._keyPairName
 
-  def createMachine(self, machineName, vmtypeName):
+  def createMachine(self, machineName, machinetypeName):
 
     # OpenStack-specific machine creation steps
 
@@ -481,18 +481,18 @@ class OpenstackSpace(vcycle.BaseSpace):
       request = { 'server' : 
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
-                    'imageRef'  : self.getImageID(vmtypeName),
-                    'flavorRef' : self.getFlavorID(vmtypeName),
+                    'imageRef'  : self.getImageID(machinetypeName),
+                    'flavorRef' : self.getFlavorID(machinetypeName),
                     'metadata'  : { 'cern-services'   : 'false',
-                                    'vmtype'	      : vmtypeName,
+                                    'machinetype'	      : machinetypeName,
                                     'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machineoutputs' }
                   }    
                 }
 
-      if self.vmtypes[vmtypeName].root_public_key:
-        request['server']['key_name'] = self.getKeyPairName(vmtypeName)
+      if self.machinetypes[machinetypeName].root_public_key:
+        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
 
     except Exception as e:
       raise OpenstackError('Failed to create new machine: ' + str(e))
@@ -504,7 +504,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
@@ -514,7 +514,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
                                                        uuidStr     = None,
-                                                       vmtypeName  = vmtypeName)
+                                                       machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
 
