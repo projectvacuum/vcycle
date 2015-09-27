@@ -3,6 +3,8 @@
 - Add usercert/userkey to openstack_api.py as username alternative
 - Import azure_api.py and dbce_api.py
 - Add vcycle-azure and vcycle-dbce RPM subpackages 
+- Update revised OCCI plugin from Luis Villazon Esteban
+- Rename vmtype -> machinetype in code, configuration, and documentation
 ==================== Changes in Vcycle version 0.5.0 =====================
 - Create occi_api.py
 - Each cycle is run in a newly forked subprocess for stability
