@@ -1,8 +1,9 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  dbce_api.py - a DBCE plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
+#  Luis Villazon Esteban, CERN.
 #  Copyright (c) 2013-5. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
@@ -32,6 +33,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 #  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
+#            Luis.Villazon.Esteban@cern.ch
 #
 
 import pprint
@@ -89,6 +91,10 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise DbceError('platform is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
 
+    try:
+      self.network = parser.get(spaceSectionName, 'network')
+    except Exception as e:
+      raise DbceError('network is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
     # Connect to the DBCE service
@@ -96,6 +102,7 @@ class DbceSpace(vcycle.BaseSpace):
     pass
 
   def scanMachines(self):
+    import time
     """Query DBCE compute service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
@@ -118,12 +125,12 @@ class DbceSpace(vcycle.BaseSpace):
 
       uuidStr = str(oneServer['id'])
       ip = '0.0.0.0'
-      createdTime  = None
-      updatedTime  = None
-      startedTime = None
+      createdTime  = int(time.time())
+      updatedTime  = int(time.time())
+      startedTime = int(time.time())
 
       status     = str(oneServer['state'])
-      vmtypeName = None
+      machinetypeName = None
 
       if status == 'started':
           state = vcycle.MachineState.running
@@ -140,10 +147,10 @@ class DbceSpace(vcycle.BaseSpace):
                                                                startedTime = startedTime,
                                                                updatedTime = updatedTime,
                                                                uuidStr     = uuidStr,
-                                                               vmtypeName  = vmtypeName)
+                                                               machinetypeName  = machinetypeName)
 
 
-  def createMachine(self, machineName, vmtypeName):
+  def createMachine(self, machineName, machinetypeName):
 
     # DBCE-specific machine creation steps
 
@@ -154,13 +161,13 @@ class DbceSpace(vcycle.BaseSpace):
                 'id': self.platform
             },
             'image': {
-                'id': self.vmtypes[vmtypeName].root_image
+                'id': self.machinetypes[machinetypeName].root_image
             },
             'configuration': {
-                'id': self.vmtypes[vmtypeName].flavor_name,
+                'id': self.machinetypes[machinetypeName].flavor_name,
             },
             'network': {
-                'id': self.vmtypes[vmtypeName].network,
+                'id': self.network,
             },
             'cloudConfig': base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read())
         }
@@ -172,12 +179,12 @@ class DbceSpace(vcycle.BaseSpace):
     try:
       result = self.httpRequest("%s/%s/machines" % (self.url, self.version),
                              request,
-                             verbose=True,
+                             verbose=False,
                              headers = ['DBCE-ApiKey: '+ self.key])
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + vmtypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['data']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
@@ -187,7 +194,7 @@ class DbceSpace(vcycle.BaseSpace):
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
                                                        uuidStr     = None,
-                                                       vmtypeName  = vmtypeName)
+                                                       machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
 

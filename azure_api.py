@@ -1,8 +1,9 @@
 #!/usr/bin/python
 #
-#  openstack_api.py - common functions, classes, and variables for Vcycle
+#  azure_api.py - an Azure plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
+#  Luis Villazon Esteban, CERN.
 #  Copyright (c) 2013-5. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
@@ -32,6 +33,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 #  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
+#            Luis.Villazon.Esteban@cern.ch
 #
 
 import pprint
@@ -141,7 +143,7 @@ class AzureSpace(vcycle.BaseSpace):
             createdTime  = calendar.timegm(time.strptime(result.hosted_service_properties.date_created, "%Y-%m-%dT%H:%M:%SZ"))
             updatedTime  = calendar.timegm(time.strptime(result.hosted_service_properties.date_last_modified, "%Y-%m-%dT%H:%M:%SZ"))
             startedTime = calendar.timegm(time.strptime(result.hosted_service_properties.date_created, "%Y-%m-%dT%H:%M:%SZ"))
-            vmtypeName = None
+            machinetypeName = None
 
             try:
                 status = info.deployments[0].role_instance_list[0].instance_status
@@ -167,21 +169,21 @@ class AzureSpace(vcycle.BaseSpace):
                                                                 startedTime = startedTime,
                                                                 updatedTime = updatedTime,
                                                                 uuidStr     = uuidStr,
-                                                                vmtypeName  = vmtypeName)
+                                                                machinetypeName  = machinetypeName)
 
 
-    def createMachine(self, machineName, vmtypeName):
+    def createMachine(self, machineName, machinetypeName):
         try:
             self.__create_service(name=machineName, location=self.location)
             fingerprint, path = self.__add_certificate_to_service(name=machineName, pfx=self.pfx)
             self.__create_vm(name=machineName,
-                             flavor=self.vmtypes[vmtypeName].flavor_name,
-                             image=self.vmtypes[vmtypeName].root_image,
+                             flavor=self.machinetypes[machinetypeName].flavor_name,
+                             image=self.machinetypes[machinetypeName].root_image,
                              username= self.username,
                              password= self.password,
                              user_data=base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                              fingerprint=(fingerprint, path))
-            vcycle.vacutils.logLine('Created ' + machineName + ' (' + machineName + ') for ' + vmtypeName + ' within ' + self.spaceName)
+            vcycle.vacutils.logLine('Created ' + machineName + ' (' + machineName + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
             self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                                spaceName   = self.spaceName,
@@ -191,7 +193,7 @@ class AzureSpace(vcycle.BaseSpace):
                                                                startedTime = None,
                                                                updatedTime = int(time.time()),
                                                                uuidStr     = None,
-                                                               vmtypeName  = vmtypeName)
+                                                               machinetypeName  = machinetypeName)
         except Exception as ex:
             try:
                 self.__delete(machineName)

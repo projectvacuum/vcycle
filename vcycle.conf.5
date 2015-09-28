@@ -86,18 +86,18 @@ of the VMs directory in /var/lib/vcycle/machines . Using the vcycle-httpd.conf
 Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
 files are publish via HTTP and HTTPS.
 
-In addition, if x509dn is set for the VM's vmtype, then the script vcycle-cgi
+In addition, if x509dn is set for the VM's machinetype, then the script vcycle-cgi
 will allow the VM to write heartbeat, logging, and shutdown_message files
 to the VM's machineoutputs directory. 
 
-.SH [VMTYPE ... ...] SECTIONS
+.SH [MACHINETYPE ... ...] SECTIONS
 
-One [vmtype ... ...] section must exist for each vmtype in each space, with
-the space name and name of the vmtype given in the section name, such as 
-[vmtype project1.example.com example].
-A vmtype name must only consist of lowercase letters, numbers, and hyphens.
+One [machinetype ... ...] section must exist for each machinetype in each space, with
+the space name and name of the machinetype given in the section name, such as 
+[machinetype project1.example.com example].
+A machinetype name must only consist of lowercase letters, numbers, and hyphens.
 Each of these sections contain option=value pairs that are specific to 
-that vmtype. The same vmtype name can appear in different spaces and will
+that machinetype. The same machinetype name can appear in different spaces and will
 be managed separately.
 
 .B flavor_name
@@ -106,19 +106,19 @@ represents a particular CPU, memory, and disk geometry.
 
 .B hs06
 gives the total HEPSPEC06 power of each virtual machine created for this 
-flavor in this vmtype. This is used as the value $MACHINEFEATURES/hs06 
+flavor in this machinetype. This is used as the value $MACHINEFEATURES/hs06 
 supplied to the VM, when calculating target shares, and 
 when writing APEL accounting records. Defaults to 1.
 
 .B target_share
 gives the desired share of the capacity available in this space for this
-vmtype. The shares do not need to add up to 1.0, and if a share is not given
-for a vmtype, then it is set to 0. Vcycle consults these shares
-when deciding which vmtype to start as VM capacity becomes available. 
-Shares are weighted by the hs06 value of the vmtype.
+machinetype. The shares do not need to add up to 1.0, and if a share is not given
+for a machinetype, then it is set to 0. Vcycle consults these shares
+when deciding which machinetype to start as VM capacity becomes available. 
+Shares are weighted by the hs06 value of the machinetype.
 
 .B backoff_seconds
-is the delay after a VM of this vmtype aborts. If a VM aborts, then no new
+is the delay after a VM of this machinetype aborts. If a VM aborts, then no new
 VMs of this type will be created for this amount of time. This can be used 
 to prevent the unnecessary creation of many VMs when no work is available,
 and avoid overloading the matcher or task queue of the VO.
@@ -149,7 +149,7 @@ records, to associate usage with particular experiments.
 
 .B max_machines
 prevents new machines from being created if the number of machines for
-this vmtype in any state exceeds the given limit.
+this machinetype in any state exceeds the given limit.
 
 .B max_wallclock_seconds
 gives the maximum lifetime of a VM. vcycle will create 
@@ -164,7 +164,7 @@ option is not given, then the heartbeat mechanism and machineoutputs
 logs cannot be used.
 
 .B heartbeat_file
-allows the vmtype to nominate a file which will be created in 
+allows the machinetype to nominate a file which will be created in 
 the machineoutputs directory before fizzle_seconds has passed. If this 
 file is not created by then and maintained for the lifetime of the VM, 
 the VM will be destroyed.
@@ -179,7 +179,7 @@ is 0, then only the existence of the file will be checked. Default 0.
 can be set to True to enable recording of all the files from the
 machineoutputs directory for the VM, to subdirectories of 
 /var/lib/vcycle/machineoutputs when the VM finishes or is killed. The 
-subdirectories are in a hierarchy of the space naem, vmtype name,
+subdirectories are in a hierarchy of the space naem, machinetype name,
 and then hostname of the VM. Default False.
 
 .B machineoutputs_days
@@ -188,7 +188,7 @@ sets the expiration time in days for per-VM directories created under
 
 For the remaining options, if the file name begins with '/', then it
 will be used as an absolute path; otherwise the path will be interpreted
-relative to the vmtype's subdirectory of /var/lib/vcycle/vmtypes
+relative to the machinetype's subdirectory of /var/lib/vcycle/machinetypes
 
 .B root_image
 is the path to the image file from which the VM will boot. 
@@ -253,17 +253,29 @@ vcycle using data it holds internally:
 .B ##user_data_space##
 is the vcycle space name.
 .br
+.B ##user_data_machinetype## 
+and 
 .B ##user_data_vmtype## 
-is the name of the vmtype of this VM.
+(deprecated) 
+are the name of the machinetype of this VM.
 .br
+.B ##user_data_machine_hostname## 
+and
 .B ##user_data_vm_hostname## 
-is the hostname given to the VM by Vcycle.
+(deprecated) 
+are the hostname given to the VM by Vcycle.
 .br
+.B ##user_data_manager_version## 
+and 
 .B ##user_data_vmlm_version## 
-has the form "Vcycle v.v.v" where v.v.v is the Vcycle version.
+(deprecated) 
+have the form "Vcycle v.v.v" where v.v.v is the Vcycle version.
 .br
+.B ##user_data_manager_hostname##
+and 
 .B ##user_data_vmlm_hostname##
-is the hostname of the machine on which the Vcycle daemon is running.
+(deprecated) 
+are the hostname of the machine on which the Vcycle daemon is running.
 
 .SH AUTHOR
 Andrew McNab <Andrew.McNab@cern.ch>
