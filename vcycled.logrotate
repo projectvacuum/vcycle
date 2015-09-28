@@ -1,0 +1,6 @@
+/var/log/vcycled
+{
+  daily
+  missingok
+  rotate 3
+}
