@@ -91,7 +91,7 @@ class OcciSpace(vcycle.BaseSpace):
     def connect(self):
         # Connect to the OCCI service
         self.session = requests.Session()
-        self.session.mount(self.queryURL, requests.adapters.HTTPAdapter(pool_connections=20, max_retries=3))
+        self.session.mount(self.queryURL, requests.adapters.HTTPAdapter(pool_connections=20))
 
         #Retrieve token
         keystone_url = self._get_keystone()
