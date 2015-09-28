@@ -63,6 +63,9 @@ fi
 /etc/logrotate.d/vcycled
 /etc/vcycle.d
 
+%post azure
+pip install azure-servicemanagement-legacy
+
 %files azure
 /usr/lib64/python2.6/site-packages/vcycle/azure_api.py* 
 
