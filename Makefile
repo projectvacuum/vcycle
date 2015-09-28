@@ -54,7 +54,7 @@ install: $(INSTALL_FILES)
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/vmtypes \
+	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machinetypes \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-archive \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-outgoing \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/spaces \
