@@ -87,11 +87,6 @@ class DbceSpace(vcycle.BaseSpace):
       raise DbceError('version is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
-      self.platform = parser.get(spaceSectionName, 'platform')
-    except Exception as e:
-      raise DbceError('platform is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
-
-    try:
       self.network = parser.get(spaceSectionName, 'network')
     except Exception as e:
       raise DbceError('network is required in DBCE [space ' + spaceName + '] (' + str(e) + ')')
@@ -158,7 +153,7 @@ class DbceSpace(vcycle.BaseSpace):
         request = {
             'name': machineName,
             'platform': {
-                'id': self.platform
+                'id': self.tenancy_name
             },
             'image': {
                 'id': self.machinetypes[machinetypeName].root_image
