@@ -132,7 +132,7 @@ class DbceSpace(vcycle.BaseSpace):
       elif status == 'error':
           state = vcycle.MachineState.failed
       else:
-        state = vcycle.MachineState.unknown
+        state = vcycle.MachineState.shutdown
 
       self.machines[oneServer['name']] = vcycle.Machine(name        = oneServer['name'],
                                                                spaceName   = self.spaceName,
