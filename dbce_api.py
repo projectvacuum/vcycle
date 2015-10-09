@@ -132,7 +132,17 @@ class DbceSpace(vcycle.BaseSpace):
       elif status == 'error':
           state = vcycle.MachineState.failed
       else:
-        state = vcycle.MachineState.shutdown
+        state = vcycle.MachineState.unknown
+
+      try:
+        if os.path.isfile("/var/lib/vcycle/machines/%/started" % oneServer['name']):
+            created_time = int(open("/var/lib/vcycle/machines/%/started" % oneServer['name']).read())
+            if created_time - int(time.time()) < 300:
+                state = vcycle.MachineState.starting
+            else:
+                state = vcycle.MachineState.shutdown
+      except Exception as e:
+          pass
 
       self.machines[oneServer['name']] = vcycle.Machine(name        = oneServer['name'],
                                                                spaceName   = self.spaceName,
