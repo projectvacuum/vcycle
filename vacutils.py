@@ -87,7 +87,8 @@ def secondsToHHMMSS(seconds):
    mm, ss = divmod(ss, 60)
    return '%02d:%02d:%02d' % (hh, mm, ss)
 
-def createUserData(shutdownTime, machinetypesPath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr):
+def createUserData(shutdownTime, machinetypesPath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr, 
+                   machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None):
    
    # Get raw user_data template file, either from network ...
    if (userDataPath[0:7] == 'http://') or (userDataPath[0:8] == 'https://'):
@@ -134,6 +135,15 @@ def createUserData(shutdownTime, machinetypesPath, options, versionString, space
    userDataContents = userDataContents.replace('##user_data_machine_hostname##', hostName)
    userDataContents = userDataContents.replace('##user_data_manager_version##',  versionString)
    userDataContents = userDataContents.replace('##user_data_manager_hostname##', os.uname()[1])
+
+   if machinefeaturesURL:
+     userDataContents = userDataContents.replace('##user_data_machinefeatures_url##', machinefeaturesURL)
+
+   if jobfeaturesURL:
+     userDataContents = userDataContents.replace('##user_data_jobfeatures_url##', jobfeaturesURL)
+
+   if joboutputsURL:
+     userDataContents = userDataContents.replace('##user_data_joboutputs_url##', joboutputsURL)     
 
    # Deprecated vmtype/VM/VMLM terminology
    userDataContents = userDataContents.replace('##user_data_vmtype##',           machinetypeName)

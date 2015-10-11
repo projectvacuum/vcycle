@@ -260,7 +260,8 @@ class Machine:
             'EndTime: ' + str(self.stoppedTime) + '\n' +
             memoryField +
             'ServiceLevelType: HEPSPEC\n' +
-            'ServiceLevel: ' + str(self.hs06) + '\n')
+            'ServiceLevel: ' + str(self.hs06) + '\n' +
+            '%%\n')
 
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
                           
