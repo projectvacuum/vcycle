@@ -243,7 +243,7 @@ class Machine:
 
     mesg = ('APEL-individual-job-message: v0.3\n' + 
             'Site: ' + tmpGocdbSitename + '\n' +
-            'SubmitHost: ' + self.spaceName + '/vcycle-' + self.machinetypeName + '\n' +
+            'SubmitHost: ' + self.spaceName + '/vcycle-' + os.uname()[1] + '\n' +
             'LocalJobId: ' + self.uuidStr + '\n' +
             'LocalUserId: ' + self.name + '\n' +
             'Queue: ' + self.machinetypeName + '\n' +
@@ -782,16 +782,21 @@ class BaseSpace(object):
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     try:
-      userDataContents = vcycle.vacutils.createUserData(shutdownTime   = int(time.time() +
-                                                                             self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypesPath    = '/var/lib/vcycle/machinetypes/' + self.spaceName,
-                                                        options        = self.machinetypes[machinetypeName].options,
-                                                        versionString  = 'Vcycle ' + vcycleVersion,
-                                                        spaceName      = self.spaceName,
-                                                        machinetypeName     = machinetypeName,
-                                                        userDataPath   = self.machinetypes[machinetypeName].user_data,
-                                                        hostName       = machineName + '.' + self.spaceName,
-                                                        uuidStr        = None)
+      userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
+                                                                              self.machinetypes[machinetypeName].max_wallclock_seconds),
+                                                        machinetypesPath   = '/var/lib/vcycle/machinetypes/' + self.spaceName,
+                                                        options            = self.machinetypes[machinetypeName].options,
+                                                        versionString      = 'Vcycle ' + vcycleVersion,
+                                                        spaceName          = self.spaceName,
+                                                        machinetypeName    = machinetypeName,
+                                                        userDataPath       = self.machinetypes[machinetypeName].user_data,
+                                                        hostName           = machineName + '.' + self.spaceName,
+                                                        uuidStr            = None,
+                                                        machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
+                                                        jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
+                                                        # This has to point to the machineoutputs subdirectory for now!
+                                                        joboutputsURL      = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machineoutputs'
+                                                       )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
