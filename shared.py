@@ -797,6 +797,7 @@ class BaseSpace(object):
 
     try:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
     except:
       pass
       
