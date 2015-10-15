@@ -1,3 +1,5 @@
+==================== Changes in Vcycle version 0.7.0 =====================
+- Use machineoutputs -> joboutputs internally and in options
 ==================== Changes in Vcycle version 0.6.0 =====================
 - Add usercert/userkey to httpRequest if need to handle X.509/Proxy/VOMS
 - Add usercert/userkey to openstack_api.py as username alternative

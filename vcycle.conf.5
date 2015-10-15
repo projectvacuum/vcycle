@@ -74,7 +74,7 @@ encoding is to avoid revealing memorable passwords when casually viewing
 or editing configuration files.
 
 When creating VMs in OpenStack spaces, Vcycle will create machinefeatures,
-jobfeatures, and machineoutputs metadata keys with the URLs of the 
+jobfeatures, and joboutputs metadata keys with the URLs of the 
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
@@ -88,7 +88,7 @@ files are publish via HTTP and HTTPS.
 
 In addition, if x509dn is set for the VM's machinetype, then the script vcycle-cgi
 will allow the VM to write heartbeat, logging, and shutdown_message files
-to the VM's machineoutputs directory. 
+to the VM's $JOBOUTPUTS directory. 
 
 .SH [MACHINETYPE ... ...] SECTIONS
 
@@ -159,13 +159,13 @@ running after this amount of time. Default 86400.
 
 .B x509dn
 is an optional X.509 DN which will be used by the vcycle-cgi script to
-control writing to the machineoutputs directories of each VM. If this
-option is not given, then the heartbeat mechanism and machineoutputs
+control writing to the $JOBOUTPUTS directories of each VM. If this
+option is not given, then the heartbeat mechanism and $JOBOUTPUTS
 logs cannot be used.
 
 .B heartbeat_file
 allows the machinetype to nominate a file which will be created in 
-the machineoutputs directory before fizzle_seconds has passed. If this 
+the $JOBOUTPUTS directory before fizzle_seconds has passed. If this 
 file is not created by then and maintained for the lifetime of the VM, 
 the VM will be destroyed.
 
@@ -175,16 +175,16 @@ fizzle_seconds has passed. If the file is not updated for
 heartbeat_seconds then the VM will be destroyed. If heartbeat_seconds
 is 0, then only the existence of the file will be checked. Default 0.
 
-.B log_machineoutputs
+.B log_joboutputs
 can be set to True to enable recording of all the files from the
-machineoutputs directory for the VM, to subdirectories of 
-/var/lib/vcycle/machineoutputs when the VM finishes or is killed. The 
-subdirectories are in a hierarchy of the space naem, machinetype name,
+$JOBOUTPUTS directory for the VM, to subdirectories of 
+/var/lib/vcycle/joboutputs when the VM finishes or is killed. The 
+subdirectories are in a hierarchy of the space name, machinetype name,
 and then hostname of the VM. Default False.
 
-.B machineoutputs_days
+.B joboutputs_days
 sets the expiration time in days for per-VM directories created under
-/var/lib/vcycle/machineoutputs.
+/var/lib/vcycle/joboutputs.
 
 For the remaining options, if the file name begins with '/', then it
 will be used as an absolute path; otherwise the path will be interpreted

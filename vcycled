@@ -126,7 +126,7 @@ if __name__ == '__main__':
                 print 'Processing space ' + spaceName + ' fails with exception ' + str(e)
 
           vcycle.shared.cleanupMachines()
-          vcycle.shared.cleanupMachineoutputs() 
+          vcycle.shared.cleanupJoboutputs() 
           vcycle.vacutils.logLine('================ End cycle ================')
           sys.exit(0)
 

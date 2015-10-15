@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  vcycle-cgi - Accept HTTP PUT requests of /etc/machineoutputs files
+#  vcycle-cgi - Accept HTTP PUT requests of $JOBOUTPUTS files
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-5. All rights reserved.
@@ -51,8 +51,8 @@ except:
   print
   sys.exit(0)
 
-if (subDirectory != 'machineoutputs' or 
-    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/machineoutputs')):
+if (subDirectory != 'joboutputs' or 
+    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/joboutputs')):
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
@@ -75,7 +75,7 @@ if ('SSL_CLIENT_S_DN' not in os.environ or
   sys.exit(0)
 
 try:
-  f = open('/var/lib/vcycle/machines/' + hostName + '/machineoutputs/' + fileName, 'w')
+  f = open('/var/lib/vcycle/machines/' + hostName + '/joboutputs/' + fileName, 'w')
   f.write(sys.stdin.read())
   f.close()
 except:
