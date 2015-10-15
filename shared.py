@@ -197,17 +197,38 @@ class Machine:
       else:
         self.stoppedTime = None
 
+    if self.startedTime:
+      logStartedTimeStr = str(self.startedTime - self.createdTime) + 's'
+    else:
+      logStartedTimeStr = '-'
+      
+    if self.updatedTime:
+      logUpdatedTimeStr = str(self.updatedTime - self.createdTime) + 's'
+    else:
+      logUpdatedTimeStr = '-'
+    
+    if self.stoppedTime:  
+      logStoppedTimeStr = str(self.stoppedTime - self.createdTime) + 's'
+    else:
+      logStoppedTimeStr = '-'
+      
+    if self.heartbeatTime:
+      logHeartbeatTimeStr = str(int(time.time()) - self.heartbeatTime) + 's'
+    else:
+      logHeartbeatTimeStr = '-'
+
     vcycle.vacutils.logLine('= ' + name + ' in ' + 
                             str(self.spaceName) + ':' +
                             str(self.machinetypeName) + ' ' + 
                             self.ip + ' ' + 
                             self.state + ' ' + 
-                            str(self.createdTime) + '-' +
-                            str(self.startedTime) + '-' +
-                            str(self.updatedTime) + '-' +
-                            str(self.stoppedTime) + ' ' +
-                            str(self.heartbeatTime))
-                            
+                            time.strftime("%b %d %H:%M:%S ", time.localtime(self.createdTime)) + 
+                            logStartedTimeStr + ':' +
+                            logUpdatedTimeStr + ':' +
+                            logStoppedTimeStr + ':' +                            
+                            logHeartbeatTimeStr
+                           )
+
   def writeApel(self):
 
     # If the VM just ran for fizzle_seconds, then we don't log it
