@@ -408,7 +408,7 @@ class Machinetype:
     else:
       self.log_joboutputs = False
 
-    if parser.has_option(machinetypeSectionName, 'joboutputs_days'):
+    if parser.has_option(machinetypeSectionName, 'machineoutputs_days'):
       print 'machineoutputs_days is deprecated. Please use joboutputs_days'
 
     try:
