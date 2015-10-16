@@ -146,7 +146,7 @@ class Machine:
 
     # Possibly created by the machine itself
     try:
-      self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + name + '/joboutputs/vm-heartbeat').st_ctime)
+      self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + name + '/joboutputs/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file).st_ctime)
     except:
       self.heartbeatTime = None
 
@@ -804,19 +804,8 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots', "1", 0644, '/var/lib/vcycle/tmp')
-
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
-                               str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
-
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdown_time_job',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',  
@@ -853,6 +842,19 @@ class BaseSpace(object):
       self.createMachine(machineName, machinetypeName)
     except Exception as e:
       vcycle.vacutils.logLine('Machine creation fails with: ' + str(e))
+
+    # createMachine() may determine cpus and hs06 for this machinetype, so we wait till after to set
+    # those values in MJF
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots', 
+                               "1", 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
+                               str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
 
   def oneCycle(self):
   
