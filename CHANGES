@@ -12,6 +12,7 @@
 - Add joboutputs URL to metadata in OpenStack plugin 
 - APEL job records now have SubmitHost: SPACE/vcycle-HOSTNAME where
   HOSTNAME is the host name of this Vcycle instance
+- Add cpu_per_machine for platforms where this can't be determined
 ==================== Changes in Vcycle version 0.5.0 =====================
 - Create occi_api.py
 - Each cycle is run in a newly forked subprocess for stability
