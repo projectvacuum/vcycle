@@ -252,6 +252,7 @@ class Machine:
     else:
       memoryField = ''
 
+    # Always true now?
     if hasattr(spaces[self.spaceName].machinetypes[self.machinetypeName], 'cpus'):
       cpusField = 'Processors: ' + str(spaces[self.spaceName].machinetypes[self.machinetypeName].cpus) + '\n'
     else:
@@ -422,6 +423,11 @@ class Machinetype:
       self.hs06 = parser.get(machinetypeSectionName, 'hs06')
     except:
       self.hs06 = 1.0
+  
+    try:
+      self.cpus = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
+    except:
+      self.cpus = 1
   
     try:
       self.user_data = parser.get(machinetypeSectionName, 'user_data')
@@ -795,16 +801,21 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
-    try:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
-    except:
-      pass
-      
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots', "1", 0644, '/var/lib/vcycle/tmp')
+
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
+                               str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdown_time_job',
+                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',  
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs', 

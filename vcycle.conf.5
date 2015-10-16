@@ -110,6 +110,13 @@ flavor in this machinetype. This is used as the value $MACHINEFEATURES/hs06
 supplied to the VM, when calculating target shares, and 
 when writing APEL accounting records. Defaults to 1.
 
+.B cpu_per_machine
+gives the number of processors of each virtual machine created for this flavor
+in this machinetype. This is used as the value of $MACHINEFEATURES/phys_cores
+and $MACHINEFEATURES/log_cores supplied to the VM. If the api plugin can
+positively determine the number from metadata about the flavor, it will be 
+used in preference to the value given here. Default 1.
+
 .B target_share
 gives the desired share of the capacity available in this space for this
 machinetype. The shares do not need to add up to 1.0, and if a share is not given
