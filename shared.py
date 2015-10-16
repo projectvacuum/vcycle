@@ -232,7 +232,10 @@ class Machine:
   def writeApel(self):
 
     # If the VM just ran for fizzle_seconds, then we don't log it
-    if (self.stoppedTime - self.startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds:
+    try:
+      if (self.stoppedTime - self.startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds:
+        return
+    except:
       return
         
     nowTime = time.localtime()
