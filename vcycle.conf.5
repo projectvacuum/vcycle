@@ -206,9 +206,11 @@ where SPACE is the parent space name.
 .B remote_joboutputs_cert
 and
 .B remote_joboutputs_key
-are used as X.509 client certificate and key when requesting 
-$JOBOUTPUTS/shutdown_message and any heartbeat file in $JOBOUTPUTS.
-Defaults /etc/grid-security/hostcert.pem and /etc/grid-security/hostkey.pem
+give filesnames of an X.509 client 
+certificate and key to use when requesting 
+$JOBOUTPUTS/shutdown_message and any heartbeat file in $JOBOUTPUTS. If
+both are contained in the same file then the same value can be given
+to both options.
 
 .B root_image
 is the path to the image file from which the VM will boot. 
