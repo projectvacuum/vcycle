@@ -167,7 +167,9 @@ class Machine:
             shutdownCode = int(self.shutdownMessage.split(' ')[0])
           except:
             shutdownCode = None
-
+        else:
+            shutdownCode = None
+        
         if self.machinetypeName:
           # Store last abort time for stopped machines, based on shutdown message code
           if shutdownCode and \
@@ -433,6 +435,7 @@ class Machine:
        except Exception as e:
          vcycle.vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
        else:
+
          if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
            try:
              heartbeatTime = float(spaces[self.spaceName].curl.getinfo(pycurl.INFO_FILETIME))
@@ -445,10 +448,13 @@ class Machine:
                  pass
            except:
              pass
-         else:               
-           if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
-             vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+
+         elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 0:
+             vcycle.vacutils.logLine('Fetching ' + url + ' fails with curl error ' + str(spaces[self.spaceName].curl.errstr()))
              
+         elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
+             vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+
      try:
        # Use the last saved time, possibly from a previous call to this method
        self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat').st_mtime)
