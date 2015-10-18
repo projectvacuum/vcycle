@@ -326,11 +326,8 @@ class Machine:
      # Remote URL must be https://
      if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] == 'https://':
        buffer = StringIO.StringIO()
-
-       url = spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/shutdown_message'
+       url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/shutdown_message')
        spaces[self.spaceName].curl.unsetopt(pycurl.CUSTOMREQUEST)
-       spaces[self.spaceName].curl.unsetopt(pycurl.WRITEFUNCTION)
-       spaces[self.spaceName].curl.unsetopt(pycurl.HEADERFUNCTION)
 
        try:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
@@ -338,7 +335,7 @@ class Machine:
         else:
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
        except:
-          spaces[self.spaceName].curl.unsetopt(pycurl.SSLCERT)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
           
        try:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
@@ -346,7 +343,7 @@ class Machine:
         else:
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
        except:
-          spaces[self.spaceName].curl.unsetopt(pycurl.SSLKEY)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
           
        spaces[self.spaceName].curl.setopt(pycurl.URL, url)
        spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 0)
@@ -360,12 +357,12 @@ class Machine:
        if os.path.isdir('/etc/grid-security/certificates'):
          spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
        else:
-         logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
 
        try:
          spaces[self.spaceName].curl.perform()
        except Exception as e:
-         logLine('Failed to read ' + self.remote_joboutputs_url + self.name + '/shutdown_message (' + str(e) + ')')
+         vcycle.vacutils.logLine('Failed to read ' + self.remote_joboutputs_url + self.name + '/shutdown_message (' + str(e) + ')')
          self.shutdownMessage = None
          return
 
@@ -379,7 +376,7 @@ class Machine:
 
        return
 
-     logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+     vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
 
   def setHeartbeatTime(self):
 
@@ -394,10 +391,9 @@ class Machine:
 
      # Remote URL must be https://
      if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] == 'https://':
-       url = spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file
+       buffer = StringIO.StringIO()
+       url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file)
        spaces[self.spaceName].curl.unsetopt(pycurl.CUSTOMREQUEST)
-       spaces[self.spaceName].curl.unsetopt(pycurl.WRITEFUNCTION)
-       spaces[self.spaceName].curl.unsetopt(pycurl.HEADERFUNCTION)
 
        try:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
@@ -405,7 +401,7 @@ class Machine:
         else:
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
        except:
-          spaces[self.spaceName].curl.unsetopt(pycurl.SSLCERT)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
           
        try:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
@@ -413,41 +409,47 @@ class Machine:
         else:
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
        except:
-          spaces[self.spaceName].curl.unsetopt(pycurl.SSLKEY)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
           
        spaces[self.spaceName].curl.setopt(pycurl.URL, url)
        spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 1)
+       spaces[self.spaceName].curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
        spaces[self.spaceName].curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
        spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, 30)
        spaces[self.spaceName].curl.setopt(pycurl.FOLLOWLOCATION, True)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYPEER, 1)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+       spaces[self.spaceName].curl.setopt(pycurl.OPT_FILETIME, 1)
                
        if os.path.isdir('/etc/grid-security/certificates'):
          spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
        else:
-         logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
 
        try:
          spaces[self.spaceName].curl.perform()
        except Exception as e:
-         logLine('Failed to read ' + url + ' (' + str(e) + ')')
+         vcycle.vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
          self.heartbeatTime = None
          return
 
        if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
          try:
            self.heartbeatTime = int(spaces[self.spaceName].curl.getinfo(pycurl.INFO_FILETIME))
+           if self.heartbeatTime < 0:
+             self.heartbeatTime = None
          except:
            self.heartbeatTime = None
        else:               
+         if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
+           vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+
          self.heartbeatTime = None
-         logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
          return
 
        return
 
-     logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+     vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
 
 class Machinetype:
 
@@ -967,6 +969,11 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs', 
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
+    if self.machinetypes[machinetypeName].remote_joboutputs_url:
+      joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
+    else:
+      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/joboutputs'
+
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
@@ -980,7 +987,7 @@ class BaseSpace(object):
                                                         uuidStr            = None,
                                                         machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
                                                         jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
-                                                        joboutputsURL      = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/joboutputs'
+                                                        joboutputsURL      = joboutputsURL
                                                        )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
