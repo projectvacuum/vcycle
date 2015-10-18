@@ -390,7 +390,9 @@ class Machine:
        return
 
      # Remote URL must be https://
-     if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] == 'https://':
+     if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] != 'https://':
+       vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+     else:
        buffer = StringIO.StringIO()
        url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file)
        spaces[self.spaceName].curl.unsetopt(pycurl.CUSTOMREQUEST)
@@ -430,26 +432,28 @@ class Machine:
          spaces[self.spaceName].curl.perform()
        except Exception as e:
          vcycle.vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
-         self.heartbeatTime = None
-         return
-
-       if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
-         try:
-           self.heartbeatTime = int(spaces[self.spaceName].curl.getinfo(pycurl.INFO_FILETIME))
-           if self.heartbeatTime < 0:
-             self.heartbeatTime = None
-         except:
-           self.heartbeatTime = None
-       else:               
-         if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
-           vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
-
-         self.heartbeatTime = None
-         return
-
-       return
-
-     vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+       else:
+         if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
+           try:
+             heartbeatTime = float(spaces[self.spaceName].curl.getinfo(pycurl.INFO_FILETIME))
+             if heartbeatTime > 0.0:
+               # Save the time we got from the remote webserver
+               try:
+                 open('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat', 'a')
+                 os.utime('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat', (time.time(), heartbeatTime))
+               except:
+                 pass
+           except:
+             pass
+         else:               
+           if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
+             vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+             
+     try:
+       # Use the last saved time, possibly from a previous call to this method
+       self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat').st_mtime)
+     except:
+       self.heartbeatTime = None
 
 class Machinetype:
 
