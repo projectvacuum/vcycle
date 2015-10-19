@@ -144,6 +144,8 @@ class DbceSpace(vcycle.BaseSpace):
                     state = vcycle.MachineState.starting
                 else:
                     state = vcycle.MachineState.shutdown
+            else:
+                state = vcycle.MachineState.unknown
         except Exception as e:
             state = vcycle.MachineState.unknown
       else:
