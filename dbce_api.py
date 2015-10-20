@@ -54,6 +54,7 @@ import calendar
 
 import vcycle.vacutils
 
+
 class DbceError(Exception):
   pass
 
@@ -120,29 +121,33 @@ class DbceSpace(vcycle.BaseSpace):
 
       uuidStr = str(oneServer['id'])
       ip = '0.0.0.0'
-      createdTime  = int(time.time())
-      updatedTime  = int(time.time())
-      startedTime = int(time.time())
+      if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
+          createdTime = int(open("/var/lib/vcycle/machines/%s/started" % oneServer['name']).read())
+          updatedTime = createdTime
+          startedTime = createdTime
+      else:
+          createdTime  = int(time.time())
+          updatedTime  = int(time.time())
+          startedTime = int(time.time())
 
       status     = str(oneServer['state'])
-      machinetypeName = None
+      machinetypeName = oneServer['name'][oneServer['name'].find('-')+1:oneServer['name'].rfind('-')]
 
       if status == 'started':
           state = vcycle.MachineState.running
       elif status == 'error':
           state = vcycle.MachineState.failed
+      elif status == 'stopped':
+        try:
+            if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
+                if int(time.time()) - createdTime < self.machinetypes[machinetypeName].fizzle_seconds:
+                    state = vcycle.MachineState.starting
+                else:
+                    state = vcycle.MachineState.shutdown
+        except Exception as e:
+            state = vcycle.MachineState.unknown
       else:
-        state = vcycle.MachineState.unknown
-
-      try:
-        if os.path.isfile("/var/lib/vcycle/machines/%/started" % oneServer['name']):
-            created_time = int(open("/var/lib/vcycle/machines/%/started" % oneServer['name']).read())
-            if created_time - int(time.time()) < 300:
-                state = vcycle.MachineState.starting
-            else:
-                state = vcycle.MachineState.shutdown
-      except Exception as e:
-          pass
+          state = vcycle.MachineState.failed
 
       self.machines[oneServer['name']] = vcycle.Machine(name        = oneServer['name'],
                                                                spaceName   = self.spaceName,
@@ -191,7 +196,7 @@ class DbceSpace(vcycle.BaseSpace):
 
     vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['data']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+    self.machines[machineName] = vcycle.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
                                                        state       = vcycle.MachineState.starting,
                                                        ip          = '0.0.0.0',
