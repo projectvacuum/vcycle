@@ -1,3 +1,5 @@
+==================== Changes in Vcycle version 0.7.1 =====================
+- Use spaceDir not spaceName in cleanupJoboutputs()
 ==================== Changes in Vcycle version 0.7.0 =====================
 - Use machineoutputs -> joboutputs internally and in options
 ==================== Changes in Vcycle version 0.6.0 =====================
