@@ -1252,7 +1252,7 @@ def cleanupJoboutputs():
         hostNameDirCtime = int(os.stat('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir).st_ctime)
 
         try: 
-          expirationDays = spaces[spaceName].machinetypes[machinetypeDir].joboutputs_days
+          expirationDays = spaces[spaceDir].machinetypes[machinetypeDir].joboutputs_days
         except:
           # use the default if something goes wrong (configuration file changed?)
           expirationDays = 3.0
