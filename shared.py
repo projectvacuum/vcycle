@@ -144,11 +144,8 @@ class Machine:
     except:
       self.deletedTime = None
 
-    # Possibly created by the machine itself
-    try:
-      self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + name + '/machineoutputs/vm-heartbeat').st_ctime)
-    except:
-      self.heartbeatTime = None
+    # Set heartbeat time if available
+    self.setHeartbeatTime()
 
     # Check if the machine already has a stopped timestamp
     try:
@@ -162,14 +159,17 @@ class Machine:
         vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
 
         # Record the shutdown message if available
-        try:
-          self.shutdownMessage = open('/var/lib/vcycle/machines/' + name + '/machineoutputs/shutdown_message', 'r').read().strip()
-          vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
-          shutdownCode = int(self.shutdownMessage.split(' ')[0])
-        except:
-          self.shutdownMessage = None
-          shutdownCode = None
+        self.setShutdownMessage()
 
+        if self.shutdownMessage:
+          vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
+          try:
+            shutdownCode = int(self.shutdownMessage.split(' ')[0])
+          except:
+            shutdownCode = None
+        else:
+            shutdownCode = None
+        
         if self.machinetypeName:
           # Store last abort time for stopped machines, based on shutdown message code
           if shutdownCode and \
@@ -197,21 +197,45 @@ class Machine:
       else:
         self.stoppedTime = None
 
+    if self.startedTime:
+      logStartedTimeStr = str(self.startedTime - self.createdTime) + 's'
+    else:
+      logStartedTimeStr = '-'
+      
+    if self.updatedTime:
+      logUpdatedTimeStr = str(self.updatedTime - self.createdTime) + 's'
+    else:
+      logUpdatedTimeStr = '-'
+    
+    if self.stoppedTime:  
+      logStoppedTimeStr = str(self.stoppedTime - self.createdTime) + 's'
+    else:
+      logStoppedTimeStr = '-'
+      
+    if self.heartbeatTime:
+      logHeartbeatTimeStr = str(int(time.time()) - self.heartbeatTime) + 's'
+    else:
+      logHeartbeatTimeStr = '-'
+
     vcycle.vacutils.logLine('= ' + name + ' in ' + 
                             str(self.spaceName) + ':' +
                             str(self.machinetypeName) + ' ' + 
                             self.ip + ' ' + 
                             self.state + ' ' + 
-                            str(self.createdTime) + '-' +
-                            str(self.startedTime) + '-' +
-                            str(self.updatedTime) + '-' +
-                            str(self.stoppedTime) + ' ' +
-                            str(self.heartbeatTime))
-                            
+                            time.strftime("%b %d %H:%M:%S ", time.localtime(self.createdTime)) + 
+                            logStartedTimeStr + ':' +
+                            logUpdatedTimeStr + ':' +
+                            logStoppedTimeStr + ':' +                            
+                            logHeartbeatTimeStr
+                           )
+
   def writeApel(self):
 
     # If the VM just ran for fizzle_seconds, then we don't log it
-    if (self.stoppedTime - self.startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds:
+    try:
+      if (self.stoppedTime - self.startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds:
+        return
+    except:
       return
         
     nowTime = time.localtime()
@@ -231,6 +255,7 @@ class Machine:
     else:
       memoryField = ''
 
+    # Always true now?
     if hasattr(spaces[self.spaceName].machinetypes[self.machinetypeName], 'cpus'):
       cpusField = 'Processors: ' + str(spaces[self.spaceName].machinetypes[self.machinetypeName].cpus) + '\n'
     else:
@@ -243,7 +268,7 @@ class Machine:
 
     mesg = ('APEL-individual-job-message: v0.3\n' + 
             'Site: ' + tmpGocdbSitename + '\n' +
-            'SubmitHost: ' + self.spaceName + '/vcycle-' + self.machinetypeName + '\n' +
+            'SubmitHost: ' + self.spaceName + '/vcycle-' + os.uname()[1] + '\n' +
             'LocalJobId: ' + self.uuidStr + '\n' +
             'LocalUserId: ' + self.name + '\n' +
             'Queue: ' + self.machinetypeName + '\n' +
@@ -260,7 +285,8 @@ class Machine:
             'EndTime: ' + str(self.stoppedTime) + '\n' +
             memoryField +
             'ServiceLevelType: HEPSPEC\n' +
-            'ServiceLevel: ' + str(self.hs06) + '\n')
+            'ServiceLevel: ' + str(self.hs06) + '\n' +
+            '%%\n')
 
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
                           
@@ -287,6 +313,153 @@ class Machine:
       except:
         vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
         return
+
+  def setShutdownMessage(self):
+
+     # Easy if a local file rather than remote
+     if not spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url: 
+       try:
+         self.shutdownMessage = open('/var/lib/vcycle/machines/' + self.name + '/joboutputs/shutdown_message', 'r').read().strip()
+       except:
+         self.shutdownMessage = None
+
+       return
+
+     # Remote URL must be https://
+     if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] == 'https://':
+       buffer = StringIO.StringIO()
+       url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/shutdown_message')
+       spaces[self.spaceName].curl.unsetopt(pycurl.CUSTOMREQUEST)
+
+       try:
+        if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+        else:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+       except:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
+          
+       try:
+        if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+        else:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+       except:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
+          
+       spaces[self.spaceName].curl.setopt(pycurl.URL, url)
+       spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 0)
+       spaces[self.spaceName].curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
+       spaces[self.spaceName].curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
+       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, 30)
+       spaces[self.spaceName].curl.setopt(pycurl.FOLLOWLOCATION, True)
+       spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+       spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+               
+       if os.path.isdir('/etc/grid-security/certificates'):
+         spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+       else:
+         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+
+       try:
+         spaces[self.spaceName].curl.perform()
+       except Exception as e:
+         vcycle.vacutils.logLine('Failed to read ' + self.remote_joboutputs_url + self.name + '/shutdown_message (' + str(e) + ')')
+         self.shutdownMessage = None
+         return
+
+       try:
+         self.shutdownMessage = buffer.getvalue().strip()
+
+         if self.shutdownMessage == '':
+           self.shutdownMessage = None
+       except:
+         self.shutdownMessage = None
+
+       return
+
+     vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+
+  def setHeartbeatTime(self):
+
+     # Easy if a local file rather than remote
+     if not spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url: 
+       try:
+         self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/joboutputs/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file).st_ctime)
+       except:
+         self.heartbeatTime = None
+
+       return
+
+     # Remote URL must be https://
+     if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] != 'https://':
+       vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+     else:
+       buffer = StringIO.StringIO()
+       url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file)
+       spaces[self.spaceName].curl.unsetopt(pycurl.CUSTOMREQUEST)
+
+       try:
+        if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+        else:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+       except:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
+          
+       try:
+        if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+        else:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+       except:
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
+          
+       spaces[self.spaceName].curl.setopt(pycurl.URL, url)
+       spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 1)
+       spaces[self.spaceName].curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
+       spaces[self.spaceName].curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
+       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, 30)
+       spaces[self.spaceName].curl.setopt(pycurl.FOLLOWLOCATION, True)
+       spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+       spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+       spaces[self.spaceName].curl.setopt(pycurl.OPT_FILETIME, 1)
+               
+       if os.path.isdir('/etc/grid-security/certificates'):
+         spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+       else:
+         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+
+       try:
+         spaces[self.spaceName].curl.perform()
+       except Exception as e:
+         vcycle.vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
+       else:
+
+         if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
+           try:
+             heartbeatTime = float(spaces[self.spaceName].curl.getinfo(pycurl.INFO_FILETIME))
+             if heartbeatTime > 0.0:
+               # Save the time we got from the remote webserver
+               try:
+                 open('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat', 'a')
+                 os.utime('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat', (time.time(), heartbeatTime))
+               except:
+                 pass
+           except:
+             pass
+
+         elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 0:
+             vcycle.vacutils.logLine('Fetching ' + url + ' fails with curl error ' + str(spaces[self.spaceName].curl.errstr()))
+             
+         elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
+             vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+
+     try:
+       # Use the last saved time, possibly from a previous call to this method
+       self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat').st_mtime)
+     except:
+       self.heartbeatTime = None
 
 class Machinetype:
 
@@ -357,7 +530,7 @@ class Machinetype:
     except:
       self.x509dn = None
 
-# The heartbeat and machineoutputs options should cause errors if x509dn isn't given!
+# The heartbeat and joboutputs options should cause errors if x509dn isn't given!
     
     try:      
       self.heartbeat_file = parser.get(machinetypeSectionName, 'heartbeat_file')
@@ -374,18 +547,44 @@ class Machinetype:
 
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
                parser.get(machinetypeSectionName, 'log_machineoutputs').strip().lower() == 'true':
-      self.log_machineoutputs = True
+      self.log_joboutputs = True
+      print 'log_machineoutputs is deprecated. Please use log_joboutputs'
+    elif parser.has_option(machinetypeSectionName, 'log_joboutputs') and \
+               parser.get(machinetypeSectionName, 'log_joboutputs').strip().lower() == 'true':
+      self.log_joboutputs = True
     else:
-      self.log_machineoutputs = False
+      self.log_joboutputs = False
+
+    if parser.has_option(machinetypeSectionName, 'machineoutputs_days'):
+      print 'machineoutputs_days is deprecated. Please use joboutputs_days'
 
     try:
-      if parser.has_option(machinetypeSectionName, 'machineoutputs_days'):
-        self.machineoutputs_days = float(parser.get(machinetypeSectionName, 'machineoutputs_days'))
+      if parser.has_option(machinetypeSectionName, 'joboutputs_days'):
+        self.joboutputs_days = float(parser.get(machinetypeSectionName, 'joboutputs_days'))
       else:
-        self.machineoutputs_days = 3.0
+        self.joboutputs_days = 3.0
     except Exception as e:
-      raise VcycleError('Failed to parse machineoutputs_days in [' + machinetypeSectionName + '] (' + str(e) + ')')
+      raise VcycleError('Failed to parse joboutputs_days in [' + machinetypeSectionName + '] (' + str(e) + ')')
       
+    try:      
+      self.remote_joboutputs_url = parser.get(machinetypeSectionName, 'remote_joboutputs_url').rstrip('/') + '/'
+    except:
+      self.remote_joboutputs_url = None
+
+    if parser.has_option(machinetypeSectionName, 'remote_joboutputs_cert') and \
+                not parser.has_option(machinetypeSectionName, 'remote_joboutputs_key') :
+      raise VcycleError('remote_joboutputs_cert given but remote_joboutputs_key missing (they can point to the same file if necessary)')
+    elif not parser.has_option(machinetypeSectionName, 'remote_joboutputs_cert') and \
+                  parser.has_option(machinetypeSectionName, 'remote_joboutputs_key') :
+      raise VcycleError('remote_joboutputs_key given but remote_joboutputs_cert missing (they can point to the same file if necessary)')
+    elif parser.has_option(machinetypeSectionName, 'remote_joboutputs_cert') and \
+                  parser.has_option(machinetypeSectionName, 'remote_joboutputs_key') :
+      self.remote_joboutputs_cert = parser.get(machinetypeSectionName, 'remote_joboutputs_cert')
+      self.remote_joboutputs_key  = parser.get(machinetypeSectionName, 'remote_joboutputs_key')
+    else:
+      self.remote_joboutputs_cert = None
+      self.remote_joboutputs_key  = None
+
     if parser.has_option(machinetypeSectionName, 'accounting_fqan'):
       self.accounting_fqan = parser.get(machinetypeSectionName, 'accounting_fqan').strip()
 
@@ -393,6 +592,11 @@ class Machinetype:
       self.hs06 = parser.get(machinetypeSectionName, 'hs06')
     except:
       self.hs06 = 1.0
+  
+    try:
+      self.cpus = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
+    except:
+      self.cpus = 1
   
     try:
       self.user_data = parser.get(machinetypeSectionName, 'user_data')
@@ -758,7 +962,7 @@ class BaseSpace(object):
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     os.makedirs('/var/lib/vcycle/machines/' + machineName + '/jobfeatures',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-    os.makedirs('/var/lib/vcycle/machines/' + machineName + '/machineoutputs',
+    os.makedirs('/var/lib/vcycle/machines/' + machineName + '/joboutputs',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + 
                 stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP + 
                 stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
@@ -766,31 +970,35 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
-    try:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
-    except:
-      pass
-      
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
-
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdown_time_job',
+                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',  
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs', 
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
+    if self.machinetypes[machinetypeName].remote_joboutputs_url:
+      joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
+    else:
+      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/joboutputs'
+
     try:
-      userDataContents = vcycle.vacutils.createUserData(shutdownTime   = int(time.time() +
-                                                                             self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypesPath    = '/var/lib/vcycle/machinetypes/' + self.spaceName,
-                                                        options        = self.machinetypes[machinetypeName].options,
-                                                        versionString  = 'Vcycle ' + vcycleVersion,
-                                                        spaceName      = self.spaceName,
-                                                        machinetypeName     = machinetypeName,
-                                                        userDataPath   = self.machinetypes[machinetypeName].user_data,
-                                                        hostName       = machineName + '.' + self.spaceName,
-                                                        uuidStr        = None)
+      userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
+                                                                              self.machinetypes[machinetypeName].max_wallclock_seconds),
+                                                        machinetypesPath   = '/var/lib/vcycle/machinetypes/' + self.spaceName,
+                                                        options            = self.machinetypes[machinetypeName].options,
+                                                        versionString      = 'Vcycle ' + vcycleVersion,
+                                                        spaceName          = self.spaceName,
+                                                        machinetypeName    = machinetypeName,
+                                                        userDataPath       = self.machinetypes[machinetypeName].user_data,
+                                                        hostName           = machineName + '.' + self.spaceName,
+                                                        uuidStr            = None,
+                                                        machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
+                                                        jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
+                                                        joboutputsURL      = joboutputsURL
+                                                       )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
@@ -804,6 +1012,19 @@ class BaseSpace(object):
       self.createMachine(machineName, machinetypeName)
     except Exception as e:
       vcycle.vacutils.logLine('Machine creation fails with: ' + str(e))
+
+    # createMachine() may determine cpus and hs06 for this machinetype, so we wait till after to set
+    # those values in MJF
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots', 
+                               "1", 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
+                               str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU', 
+                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
 
   def oneCycle(self):
   
@@ -949,14 +1170,14 @@ def cleanupMachines():
       except:
         machinetypeName = None
 
-      # Log machineoutputs if a current space and machinetype and logging is enabled
+      # Log joboutputs if a current space and machinetype and logging is enabled
       if spaceName and \
          machinetypeName and \
          spaceName in spaces and \
          machinetypeName in spaces[spaceName].machinetypes and \
-         spaces[spaceName].machinetypes[machinetypeName].log_machineoutputs:
-        vcycle.vacutils.logLine('Saving machineoutputs to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
-        logMachineOutputs(spaceName, machinetypeName, machineName)
+         spaces[spaceName].machinetypes[machinetypeName].log_joboutputs:
+        vcycle.vacutils.logLine('Saving joboutputs to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
+        logJoboutputs(spaceName, machinetypeName, machineName)
 
       # Always delete the working copies
       try:
@@ -965,48 +1186,48 @@ def cleanupMachines():
       except:
         vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
 
-def logMachineOutputs(spaceName, machinetypeName, machineName):
+def logJoboutputs(spaceName, machinetypeName, machineName):
 
-  if os.path.exists('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName):
+  if os.path.exists('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName):
     # Copy (presumably) already exists so don't need to do anything
     return
    
   try:
-    os.makedirs('/var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
+    os.makedirs('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
   except:
-    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
+    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
     return
 
   try:
-    # Get the list of files that the VM wrote in its /etc/machineoutputs
-    outputs = os.listdir('/var/lib/vcycle/machines/' + machineName + '/machineoutputs')
+    # Get the list of files that the VM wrote in its /etc/joboutputs
+    outputs = os.listdir('/var/lib/vcycle/machines/' + machineName + '/joboutputs')
   except:
-    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/machineoutputs')
+    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/joboutputs')
     return
         
   if outputs:
-    # Go through the files one by one, adding them to the machineoutputs directory
+    # Go through the files one by one, adding them to the joboutputs directory
     for oneOutput in outputs:
 
       try:
         # first we try a hard link, which is efficient in time and space used
-        os.link('/var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput,
-                '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
+        os.link('/var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput,
+                '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
       except:
         try:
           # if linking failed (different filesystems?) then we try a copy
-          shutil.copyfile('/var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput,
-                            '/var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
+          shutil.copyfile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput,
+                            '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
         except:
-          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/machineoutputs/' + oneOutput + 
-                                  ' to /var/lib/vcycle/machineoutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
+          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput + 
+                                  ' to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
 
-def cleanupMachineoutputs():
-  """Go through /var/lib/vcycle/machineoutputs deleting expired directory trees whether they are current spaces/machinetypes or not"""
+def cleanupJoboutputs():
+  """Go through /var/lib/vcycle/joboutputs deleting expired directory trees whether they are current spaces/machinetypes or not"""
 
   try:
-    spacesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/')
+    spacesDirslist = os.listdir('/var/lib/vcycle/joboutputs/')
   except:
     return
       
@@ -1014,34 +1235,34 @@ def cleanupMachineoutputs():
   for spaceDir in spacesDirslist:
   
     try:
-      machinetypesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir)
+      machinetypesDirslist = os.listdir('/var/lib/vcycle/joboutputs/' + spaceDir)
     except:
       continue
 
     for machinetypeDir in machinetypesDirslist:
         
       try:
-        hostNamesDirslist = os.listdir('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + machinetypeDir)
+        hostNamesDirslist = os.listdir('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir)
       except:
         continue
  
       for hostNameDir in hostNamesDirslist:
 
         # Expiration is based on file timestamp from when the COPY was created
-        hostNameDirCtime = int(os.stat('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir).st_ctime)
+        hostNameDirCtime = int(os.stat('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir).st_ctime)
 
         try: 
-          expirationDays = spaces[spaceName].machinetypes[machinetypeDir].machineoutputs_days
+          expirationDays = spaces[spaceDir].machinetypes[machinetypeDir].joboutputs_days
         except:
           # use the default if something goes wrong (configuration file changed?)
           expirationDays = 3.0
            
         if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
           try:
-            shutil.rmtree('/var/lib/vcycle/machineoutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
-            vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + machinetypeDir + 
+            shutil.rmtree('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
+            vcycle.vacutils.logLine('Deleted /var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + 
                                     '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
           except:
-            vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machineoutputs/' + spaceDir + '/' + 
+            vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/joboutputs/' + spaceDir + '/' + 
                                     machinetypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
 

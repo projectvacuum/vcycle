@@ -58,7 +58,7 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-archive \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-outgoing \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/spaces \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machineoutputs \
+	         $(RPM_BUILD_ROOT)/var/lib/vcycle/joboutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
 	         $(RPM_BUILD_ROOT)/etc/rc.d/init.d \
 	         $(RPM_BUILD_ROOT)/etc/logrotate.d \

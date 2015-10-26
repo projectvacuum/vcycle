@@ -1,3 +1,7 @@
+==================== Changes in Vcycle version 0.8.0 =====================
+- Use spaceDir not spaceName in cleanupJoboutputs()
+==================== Changes in Vcycle version 0.7.0 =====================
+- Use machineoutputs -> joboutputs internally and in options
 ==================== Changes in Vcycle version 0.6.0 =====================
 - Add usercert/userkey to httpRequest if need to handle X.509/Proxy/VOMS
 - Add usercert/userkey to openstack_api.py as username alternative
@@ -5,6 +9,13 @@
 - Add vcycle-azure and vcycle-dbce RPM subpackages 
 - Update revised OCCI plugin from Luis Villazon Esteban
 - Rename vmtype -> machinetype in code, configuration, and documentation
+- Use vacutils.py with MACHINEFEATURES, JOBFEATURES, and JOBOUTPUTS
+  substitutions in user_data
+- Add joboutputs URL to metadata in OpenStack plugin 
+- APEL job records now have SubmitHost: SPACE/vcycle-HOSTNAME where
+  HOSTNAME is the host name of this Vcycle instance
+- Add cpu_per_machine for platforms where this can't be determined
+- Remote $JOBOUTPUTS support
 ==================== Changes in Vcycle version 0.5.0 =====================
 - Create occi_api.py
 - Each cycle is run in a newly forked subprocess for stability

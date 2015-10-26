@@ -74,7 +74,7 @@ encoding is to avoid revealing memorable passwords when casually viewing
 or editing configuration files.
 
 When creating VMs in OpenStack spaces, Vcycle will create machinefeatures,
-jobfeatures, and machineoutputs metadata keys with the URLs of the 
+jobfeatures, and joboutputs metadata keys with the URLs of the 
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
@@ -88,7 +88,7 @@ files are publish via HTTP and HTTPS.
 
 In addition, if x509dn is set for the VM's machinetype, then the script vcycle-cgi
 will allow the VM to write heartbeat, logging, and shutdown_message files
-to the VM's machineoutputs directory. 
+to the VM's $JOBOUTPUTS directory. 
 
 .SH [MACHINETYPE ... ...] SECTIONS
 
@@ -109,6 +109,13 @@ gives the total HEPSPEC06 power of each virtual machine created for this
 flavor in this machinetype. This is used as the value $MACHINEFEATURES/hs06 
 supplied to the VM, when calculating target shares, and 
 when writing APEL accounting records. Defaults to 1.
+
+.B cpu_per_machine
+gives the number of processors of each virtual machine created for this flavor
+in this machinetype. This is used as the value of $MACHINEFEATURES/phys_cores
+and $MACHINEFEATURES/log_cores supplied to the VM. If the api plugin can
+positively determine the number from metadata about the flavor, it will be 
+used in preference to the value given here. Default 1.
 
 .B target_share
 gives the desired share of the capacity available in this space for this
@@ -157,15 +164,9 @@ $MACHINEFEATURES/shutdowntime inside the VM using this value to
 communicate it to the VM. vcycle will destroy the VM if it is still
 running after this amount of time. Default 86400.
 
-.B x509dn
-is an optional X.509 DN which will be used by the vcycle-cgi script to
-control writing to the machineoutputs directories of each VM. If this
-option is not given, then the heartbeat mechanism and machineoutputs
-logs cannot be used.
-
 .B heartbeat_file
 allows the machinetype to nominate a file which will be created in 
-the machineoutputs directory before fizzle_seconds has passed. If this 
+the $JOBOUTPUTS directory before fizzle_seconds has passed. If this 
 file is not created by then and maintained for the lifetime of the VM, 
 the VM will be destroyed.
 
@@ -175,20 +176,41 @@ fizzle_seconds has passed. If the file is not updated for
 heartbeat_seconds then the VM will be destroyed. If heartbeat_seconds
 is 0, then only the existence of the file will be checked. Default 0.
 
-.B log_machineoutputs
-can be set to True to enable recording of all the files from the
-machineoutputs directory for the VM, to subdirectories of 
-/var/lib/vcycle/machineoutputs when the VM finishes or is killed. The 
-subdirectories are in a hierarchy of the space naem, machinetype name,
+.B x509dn
+is an optional X.509 DN which will be used by the vcycle-cgi script to
+control writing to VMs' $JOBOUTPUTS directories on the local HTTPS
+server.
+
+.B log_joboutputs
+can be set to True to enable recording of all the files from 
+local $JOBOUTPUTS directories for VMs, to subdirectories of 
+/var/lib/vcycle/joboutputs when the VMs finish or are killed. The 
+subdirectories are in a hierarchy of the space name, machinetype name,
 and then hostname of the VM. Default False.
 
-.B machineoutputs_days
+.B joboutputs_days
 sets the expiration time in days for per-VM directories created under
-/var/lib/vcycle/machineoutputs.
+/var/lib/vcycle/joboutputs.
+
+.B remote_joboutputs_url
+sets a base URL on a remote HTTPS server to which VMs of this machinetype
+can write. The value of $JOBOUTPUTS will be the VM
+name chosen by Vcycle appended as a directory name to the URL given
+by this option.
 
 For the remaining options, if the file name begins with '/', then it
 will be used as an absolute path; otherwise the path will be interpreted
-relative to the machinetype's subdirectory of /var/lib/vcycle/machinetypes
+relative to the machinetype's subdirectory of /var/lib/vcycle/machinetypes/SPACE
+where SPACE is the parent space name.
+
+.B remote_joboutputs_cert
+and
+.B remote_joboutputs_key
+give filesnames of an X.509 client 
+certificate and key to use when requesting 
+$JOBOUTPUTS/shutdown_message and any heartbeat file in $JOBOUTPUTS. If
+both are contained in the same file then the same value can be given
+to both options.
 
 .B root_image
 is the path to the image file from which the VM will boot. 
