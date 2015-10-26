@@ -101,7 +101,7 @@ class DbceSpace(vcycle.BaseSpace):
     import time
     """Query DBCE compute service for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each machine found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
     # or (b) creating a Machine object for the VM in self.spaces
 
@@ -118,6 +118,17 @@ class DbceSpace(vcycle.BaseSpace):
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
         self.totalMachines += 1
         continue
+
+      # checks if the machine belongs to the space name
+      # if the machine does not belong to the actual space name,
+      # the machine will be omitted.
+      space_file = "/var/lib/vcycle/machines/%s/space_name" % oneServer['name']
+      if os.path.isfile(space_file):
+        server_space_name = open(space_file).read()
+        if server_space_name != self.spaceName:
+            continue
+      else:
+          continue
 
       uuidStr = str(oneServer['id'])
       ip = '0.0.0.0'
@@ -144,6 +155,8 @@ class DbceSpace(vcycle.BaseSpace):
                     state = vcycle.MachineState.starting
                 else:
                     state = vcycle.MachineState.shutdown
+            else:
+                state = vcycle.MachineState.unknown
         except Exception as e:
             state = vcycle.MachineState.unknown
       else:
