@@ -42,6 +42,7 @@ import base64
 
 import vcycle.vacutils
 
+
 class DbceError(Exception):
   pass
 
@@ -121,7 +122,7 @@ class DbceSpace(vcycle.BaseSpace):
           continue
 
       uuidStr = str(oneServer['id'])
-      ip = self.get_ip(oneServer['addresses'])
+      ip = self.get_ip(oneServer['id'])
       createdTime, updatedTime, startedTime = self.get_times(oneServer['name'])
       machinetypeName = oneServer['name'][oneServer['name'].find('-')+1:oneServer['name'].rfind('-')]
 
@@ -226,8 +227,8 @@ class DbceSpace(vcycle.BaseSpace):
       if status == 'started':
           state = vcycle.MachineState.running
       elif status == 'error':
-          state = vcycle.MachineState.failed
-      elif status == 'stopped' or status == "unknown":
+          state = vcycle. MachineState.failed
+      elif status == 'stopped' or status == 'unknown':
         try:
             if os.path.isfile("/var/lib/vcycle/machines/%s/started" % name):
                 if int(time.time()) - created_time < self.machinetypes[machinetypeName].fizzle_seconds:
@@ -253,20 +254,20 @@ class DbceSpace(vcycle.BaseSpace):
           startedTime = int(time.time())
       return createdTime, updatedTime, startedTime
 
-  def get_ip(self, addresses):
+  def get_ip(self, id):
       try:
-        return [address['address'] for address in ['addresses']
-            if address['machineAddressType'].upper() == 'PUBLIC'][0]
-      except:
+        result = self.httpRequest("%s/%s/machines/%s" % (self.url, self.version, id),
+                         headers = ['DBCE-ApiKey: '+ self.key])
+
+        return [address['address'] for address in result['response']['data']['addresses']
+                if address['machineAddressType'].upper() == 'PUBLIC'][0]
+      except Exception as e:
+          print str(e)
           return "0.0.0.0"
 
   def add_public_ip(self, id):
       self.httpRequest("%s/%s/machines/%s/actions/assign-public-ip" % (self.url, self.version, id),
-                             request= None,
+                             request= {'empty':True},
                              method = 'POST',
                              headers = ['DBCE-ApiKey: '+ self.key])
-
-      result = self.httpRequest("%s/%s/machines/%s" % (self.url, self.version, id),
-                       headers = ['DBCE-ApiKey: '+ self.key])
-
-      return self.get_ip(result['response']['data']['addresses'])
+      return self.get_ip(id)
