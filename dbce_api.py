@@ -54,7 +54,6 @@ import calendar
 
 import vcycle.vacutils
 
-
 class DbceError(Exception):
   pass
 
@@ -202,8 +201,9 @@ class DbceSpace(vcycle.BaseSpace):
     try:
       result = self.httpRequest("%s/%s/machines" % (self.url, self.version),
                              request,
-                             verbose=False,
                              headers = ['DBCE-ApiKey: '+ self.key])
+      ip = self.add_public_ip(result['response']['data']['id'])
+
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
@@ -212,7 +212,7 @@ class DbceSpace(vcycle.BaseSpace):
     self.machines[machineName] = vcycle.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
                                                        state       = vcycle.MachineState.starting,
-                                                       ip          = '0.0.0.0',
+                                                       ip          = ip,
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
@@ -230,3 +230,19 @@ class DbceSpace(vcycle.BaseSpace):
                                'DBCE-ApiKey: '+ self.key])
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.url + ' (' + str(e) + ')')
+
+
+  def add_public_ip(self, id):
+      self.httpRequest("%s/%s/machines/%s/actions/assign-public-ip" % (self.url, self.version, id),
+                             request= None,
+                             method = 'POST',
+                             headers = ['DBCE-ApiKey: '+ self.key])
+
+      result = self.httpRequest("%s/%s/machines/%s" % (self.url, self.version, id),
+                       headers = ['DBCE-ApiKey: '+ self.key])
+
+      try:
+        return [address['address'] for address in result['response']['data']['addresses']
+            if address['machineAddressType'].upper() == 'PUBLIC'][0]
+      except:
+          return "0.0.0.0"
