@@ -120,6 +120,7 @@ if __name__ == '__main__':
             print 'readConf() fails with "' + str(e) + '", skipping cycle'
           else:
             for spaceName, space in vcycle.shared.spaces.iteritems():
+              vcycle.vacutils.logLine('--- Space ' + spaceName + ' ---------------------------')
               try:              
                 space.oneCycle()
               except Exception as e:
