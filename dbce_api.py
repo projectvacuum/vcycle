@@ -36,21 +36,9 @@
 #            Luis.Villazon.Esteban@cern.ch
 #
 
-import pprint
-
 import os
-import sys
-import stat
 import time
-import json
-import shutil
-import string
-import pycurl
-import random
 import base64
-import StringIO
-import tempfile
-import calendar
 
 import vcycle.vacutils
 
@@ -111,8 +99,8 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    for oneServer in result['response']['data']:
 
+    for oneServer in result['response']['data']:
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
@@ -131,7 +119,6 @@ class DbceSpace(vcycle.BaseSpace):
           continue
 
       uuidStr = str(oneServer['id'])
-      ip = '0.0.0.0'
       if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
           createdTime = int(open("/var/lib/vcycle/machines/%s/started" % oneServer['name']).read())
           updatedTime = createdTime
@@ -141,14 +128,13 @@ class DbceSpace(vcycle.BaseSpace):
           updatedTime  = int(time.time())
           startedTime = int(time.time())
 
-      status     = str(oneServer['state'])
       machinetypeName = oneServer['name'][oneServer['name'].find('-')+1:oneServer['name'].rfind('-')]
-
+      status = str(oneServer['state'])
       if status == 'started':
           state = vcycle.MachineState.running
       elif status == 'error':
           state = vcycle.MachineState.failed
-      elif status == 'stopped':
+      elif status == 'stopped' or status == 'unknown':
         try:
             if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
                 if int(time.time()) - createdTime < self.machinetypes[machinetypeName].fizzle_seconds:
@@ -162,16 +148,15 @@ class DbceSpace(vcycle.BaseSpace):
       else:
           state = vcycle.MachineState.failed
 
-      self.machines[oneServer['name']] = vcycle.Machine(name        = oneServer['name'],
-                                                               spaceName   = self.spaceName,
-                                                               state       = state,
-                                                               ip          = ip,
-                                                               createdTime = createdTime,
-                                                               startedTime = startedTime,
-                                                               updatedTime = updatedTime,
-                                                               uuidStr     = uuidStr,
-                                                               machinetypeName  = machinetypeName)
-
+      self.machines[oneServer['name']] = vcycle.Machine(name             = oneServer['name'],
+                                                 spaceName        = self.spaceName,
+                                                 state            = state,
+                                                 ip               = "0.0.0.0",
+                                                 createdTime      = createdTime,
+                                                 startedTime      = startedTime,
+                                                 updatedTime      = updatedTime,
+                                                 uuidStr          = uuidStr,
+                                                 machinetypeName  = machinetypeName)
 
   def createMachine(self, machineName, machinetypeName):
 
@@ -202,17 +187,21 @@ class DbceSpace(vcycle.BaseSpace):
     try:
       result = self.httpRequest("%s/%s/machines" % (self.url, self.version),
                              request,
-                             verbose=False,
                              headers = ['DBCE-ApiKey: '+ self.key])
+      ip = self.add_public_ip(result['response']['data']['id'])
+
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
     vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['data']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
-
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/uuid',
+                        str(result['response']['data']['id']),
+                        0644,
+                        '/var/lib/vcycle/tmp')
     self.machines[machineName] = vcycle.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
                                                        state       = vcycle.MachineState.starting,
-                                                       ip          = '0.0.0.0',
+                                                       ip          = ip,
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
@@ -220,7 +209,6 @@ class DbceSpace(vcycle.BaseSpace):
                                                        machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
-
     try:
       self.httpRequest("%s/%s/machines/%s" % (self.url, self.version, self.machines[machineName].uuidStr),
                     request =  None,
@@ -230,3 +218,11 @@ class DbceSpace(vcycle.BaseSpace):
                                'DBCE-ApiKey: '+ self.key])
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.url + ' (' + str(e) + ')')
+
+
+  def add_public_ip(self, id):
+      self.httpRequest("%s/%s/machines/%s/actions/assign-public-ip" % (self.url, self.version, id),
+                             request= {'empty':True},
+                             method = 'POST',
+                             headers = ['DBCE-ApiKey: '+ self.key])
+      return "0.0.0.0"
