@@ -119,10 +119,34 @@ class DbceSpace(vcycle.BaseSpace):
 
       uuidStr = str(oneServer['id'])
       ip = self.get_ip(oneServer['id'])
-      createdTime, updatedTime, startedTime = self.get_times(oneServer['name'])
-      machinetypeName = oneServer['name'][oneServer['name'].find('-')+1:oneServer['name'].rfind('-')]
+      if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
+          createdTime = int(open("/var/lib/vcycle/machines/%s/started" % oneServer['name']).read())
+          updatedTime = createdTime
+          startedTime = createdTime
+      else:
+          createdTime  = int(time.time())
+          updatedTime  = int(time.time())
+          startedTime = int(time.time())
 
-      state = self.get_status(oneServer['name'], createdTime, machinetypeName, str(oneServer['state']))
+      machinetypeName = oneServer['name'][oneServer['name'].find('-')+1:oneServer['name'].rfind('-')]
+      status = str(oneServer['state'])
+      if status == 'started':
+          state = vcycle.MachineState.running
+      elif status == 'error':
+          state = vcycle.MachineState.failed
+      elif status == 'stopped' or status == 'unknown':
+        try:
+            if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
+                if int(time.time()) - createdTime < self.machinetypes[machinetypeName].fizzle_seconds:
+                    state = vcycle.MachineState.starting
+                else:
+                    state = vcycle.MachineState.shutdown
+            else:
+                state = vcycle.MachineState.unknown
+        except Exception as e:
+            state = vcycle.MachineState.unknown
+      else:
+          state = vcycle.MachineState.failed
 
       self.machines[oneServer['name']] = vcycle.Machine(name             = oneServer['name'],
                                                  spaceName        = self.spaceName,
@@ -195,38 +219,6 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.url + ' (' + str(e) + ')')
 
-
-
-  def get_status(self, name, created_time, machinetypeName, status="unknown"):
-      if status == 'started':
-          state = vcycle.MachineState.running
-      elif status == 'error':
-          state = vcycle.MachineState.failed
-      elif status == 'stopped' or status == 'unknown':
-        try:
-            if os.path.isfile("/var/lib/vcycle/machines/%s/started" % name):
-                if int(time.time()) - created_time < self.machinetypes[machinetypeName].fizzle_seconds:
-                    state = vcycle.MachineState.starting
-                else:
-                    state = vcycle.MachineState.shutdown
-            else:
-                state = vcycle.MachineState.unknown
-        except Exception as e:
-            state = vcycle.MachineState.unknown
-      else:
-          state = vcycle.MachineState.failed
-      return state
-
-  def get_times(self, name):
-      if os.path.isfile("/var/lib/vcycle/machines/%s/started" % name):
-          createdTime = int(open("/var/lib/vcycle/machines/%s/started" % name).read())
-          updatedTime = createdTime
-          startedTime = createdTime
-      else:
-          createdTime  = int(time.time())
-          updatedTime  = int(time.time())
-          startedTime = int(time.time())
-      return createdTime, updatedTime, startedTime
 
   def get_ip(self, id):
       try:
