@@ -42,6 +42,7 @@ import base64
 
 import vcycle.vacutils
 
+
 class DbceError(Exception):
   pass
 
@@ -118,7 +119,6 @@ class DbceSpace(vcycle.BaseSpace):
           continue
 
       uuidStr = str(oneServer['id'])
-      ip = self.get_ip(oneServer['id'])
       if os.path.isfile("/var/lib/vcycle/machines/%s/started" % oneServer['name']):
           createdTime = int(open("/var/lib/vcycle/machines/%s/started" % oneServer['name']).read())
           updatedTime = createdTime
@@ -151,7 +151,7 @@ class DbceSpace(vcycle.BaseSpace):
       self.machines[oneServer['name']] = vcycle.Machine(name             = oneServer['name'],
                                                  spaceName        = self.spaceName,
                                                  state            = state,
-                                                 ip               = ip,
+                                                 ip               = "0.0.0.0",
                                                  createdTime      = createdTime,
                                                  startedTime      = startedTime,
                                                  updatedTime      = updatedTime,
@@ -220,19 +220,9 @@ class DbceSpace(vcycle.BaseSpace):
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.url + ' (' + str(e) + ')')
 
 
-  def get_ip(self, id):
-      try:
-        result = self.httpRequest("%s/%s/machines/%s" % (self.url, self.version, id),
-                         headers = ['DBCE-ApiKey: '+ self.key])
-
-        return [address['address'] for address in result['response']['data']['addresses']
-                if address['machineAddressType'].upper() == 'PUBLIC'][0]
-      except Exception as e:
-          return "0.0.0.0"
-
   def add_public_ip(self, id):
       self.httpRequest("%s/%s/machines/%s/actions/assign-public-ip" % (self.url, self.version, id),
                              request= {'empty':True},
                              method = 'POST',
                              headers = ['DBCE-ApiKey: '+ self.key])
-      return self.get_ip(id)
+      return "0.0.0.0"
