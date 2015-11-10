@@ -281,7 +281,7 @@ class OpenstackSpace(vcycle.BaseSpace):
        self.machinetypes[machinetypeName].root_image[0] == '/':
       imageName = self.machinetypes[machinetypeName].root_image
     else:
-      imageName = '/var/lib/vcycle/' + self.spaceName + '/' + machinetypeName + '/' + self.machinetypes[machinetypeName].root_image
+      imageName = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_image
 
     # Find the local copy of the image file
     if not hasattr(self.machinetypes[machinetypeName], '_imageFile'):
@@ -315,7 +315,7 @@ class OpenstackSpace(vcycle.BaseSpace):
           imageLastModified = int(os.stat(imageName).st_mtime)
         except Exception as e:
           raise OpenstackError('Image file "' + self.machinetypes[machinetypeName].root_image +
-                            '" does not exist in /var/lib/vcycle/' + self.spaceName + '/' + machinetypeName + ' !')
+                            '" does not exist in /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/ !')
 
         self.machinetypes[machinetypeName]._imageFile = imageName
 
@@ -424,9 +424,9 @@ class OpenstackSpace(vcycle.BaseSpace):
         OpenstackError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
     else:  
       try:
-        f = open('/var/lib/vcycle/' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key, 'r')
+        f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
-        OpenstackError('Cannot open ' + self.spaceName + '/' + self.machinetypeName + '/' + self.machinetypes[machinetypeName].root_public_key)
+        OpenstackError('Cannot open /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key)
 
     while True:
       try:
