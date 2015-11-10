@@ -42,7 +42,6 @@ import base64
 
 import vcycle.vacutils
 
-
 class DbceError(Exception):
   pass
 
@@ -99,11 +98,8 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    if len(result['response']['data']) == 0:
-        self.read_machines_from_local()
 
     for oneServer in result['response']['data']:
-
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
@@ -200,34 +196,12 @@ class DbceSpace(vcycle.BaseSpace):
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.url + ' (' + str(e) + ')')
 
 
-  def read_machines_from_local(self):
-      for vm in os.listdir('/var/lib/vcycle/machines'):
-         server_space_name = open("/var/lib/vcycle/machines/%s/space_name" % vm).read()
-         if server_space_name == self.spaceName:
-             if not os.path.isfile("/var/lib/vcycle/machines/%s/deleted" % vm):
-                createdTime, updatedTime, startedTime = self.get_times(vm)
-                machinetypeName =  vm[vm.find('-')+1:vm.rfind('-')]
-                state = self.get_status(vm, createdTime, machinetypeName)
-                try:
-                    uuid = open("/var/lib/vcycle/machines/%s/uuid" % vm).read()
-                except:
-                    uuid = None
-                self.machines[vm] = vcycle.Machine(name=vm,
-                                             spaceName=self.spaceName,
-                                             state=state,
-                                             ip="0.0.0.0",
-                                             createdTime=createdTime,
-                                             startedTime= startedTime,
-                                             updatedTime= updatedTime,
-                                             uuidStr=uuid,
-                                             machinetypeName=machinetypeName)
-
 
   def get_status(self, name, created_time, machinetypeName, status="unknown"):
       if status == 'started':
           state = vcycle.MachineState.running
       elif status == 'error':
-          state = vcycle. MachineState.failed
+          state = vcycle.MachineState.failed
       elif status == 'stopped' or status == 'unknown':
         try:
             if os.path.isfile("/var/lib/vcycle/machines/%s/started" % name):
