@@ -335,7 +335,7 @@ class Machine:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
         else:
-          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
        except:
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
           
@@ -343,7 +343,7 @@ class Machine:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
         else:
-          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
        except:
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
           
@@ -403,7 +403,7 @@ class Machine:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert[0] == '/':
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
         else:
-          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_cert)
        except:
           spaces[self.spaceName].curl.setopt(pycurl.SSLCERT, '')
           
@@ -411,7 +411,7 @@ class Machine:
         if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key[0] == '/':
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
         else:
-          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/machinetypes/' + self.spaceName + '/' + self.machinetypeName + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
+          spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_key)
        except:
           spaces[self.spaceName].curl.setopt(pycurl.SSLKEY, '')
           
@@ -472,7 +472,7 @@ class Machinetype:
 
     # Recreate lastAbortTime (must be set/updated with setLastAbortTime() to create file)
     try:
-      f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.machinetypeName + '/last_abort_time', 'r')
+      f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time', 'r')
     except:
       self.lastAbortTime = 0
     else:     
@@ -649,12 +649,12 @@ class Machinetype:
       self.lastAbortTime = abortTime
 
       try:
-        os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.machinetypeName,
+        os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName,
                     stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
       except:
         pass
         
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/' + self.machinetypeName + '/last_abort_time',
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time',
                                  str(abortTime), tmpDir = '/var/lib/vcycle/tmp')
 
   def makeMachineName(self):
@@ -987,7 +987,7 @@ class BaseSpace(object):
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypesPath   = '/var/lib/vcycle/machinetypes/' + self.spaceName,
+                                                        machinetypesPath   = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes',
                                                         options            = self.machinetypes[machinetypeName].options,
                                                         versionString      = 'Vcycle ' + vcycleVersion,
                                                         spaceName          = self.spaceName,
