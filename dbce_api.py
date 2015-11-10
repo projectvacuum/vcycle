@@ -228,7 +228,6 @@ class DbceSpace(vcycle.BaseSpace):
         return [address['address'] for address in result['response']['data']['addresses']
                 if address['machineAddressType'].upper() == 'PUBLIC'][0]
       except Exception as e:
-          print str(e)
           return "0.0.0.0"
 
   def add_public_ip(self, id):
