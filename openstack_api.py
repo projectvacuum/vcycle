@@ -481,7 +481,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
-        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/joboutputs'
+        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
     
       request = { 'server' : 
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
@@ -490,8 +490,8 @@ class OpenstackSpace(vcycle.BaseSpace):
                     'flavorRef' : self.getFlavorID(machinetypeName),
                     'metadata'  : { 'cern-services'   : 'false',
                                     'machinetype'     : machinetypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
+                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : joboutputsURL,
                                     'joboutputs'      : joboutputsURL  }
                     # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 

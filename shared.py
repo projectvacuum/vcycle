@@ -808,6 +808,79 @@ class BaseSpace(object):
     except:
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
+  def publishStatus(self):
+    """Write out a GLUE2 JSON file describing this space's status"""
+
+    # This must only be run after the scanMachines method for this space!
+
+    self.glue2 = { 'ComputingService' : [ {
+                     'CreationTime' : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                     'ID'           : 'urn:glue2:ComputingService:' + self.spaceName,
+                     'Name'         : 'Vcycle',
+                     'Type'         : 'uk.ac.gridpp.vcycle',
+                     'QualityLevel' : 'production',
+                     'RunningJobs'  : self.runningMachines,
+                     'TotalJobs'    : self.totalMachines
+                                        } ]
+                 }
+                 
+    computingShares       = []
+    mappingPolicies       = []
+    executionEnvironments = []
+
+    for machinetypeName in self.machinetypes:
+      
+      computingShares.append({
+                    'Associations'   : { 'ServiceID' : 'urn:glue2:ComputingService:' + self.spaceName },
+                    'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    'ID'             : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName,
+                    'Name'           : machinetypeName,
+                    'RunningJobs'    : self.machinetypes[machinetypeName].runningMachines,
+                    'TotalJobs'      : self.machinetypes[machinetypeName].totalMachines,
+                    'ServingState'   : 'production',
+                    'MaxWallTime'    : self.machinetypes[machinetypeName].max_wallclock_seconds,
+                    'MaxCPUTime'     : self.machinetypes[machinetypeName].max_wallclock_seconds,
+                    'MaxTotalJobs'   : self.machinetypes[machinetypeName].max_machines,
+                    'MaxRunningJobs' : self.machinetypes[machinetypeName].max_machines
+                             })
+      try:
+        vo = self.machinetypes[machinetypeName].accounting_fqan.split('/')[1]
+      except:
+        pass
+      else:                
+        mappingPolicies.append({
+                    'Associations'   : { 'ShareID' : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName },
+                    'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    'ID'             : 'urn:glue2:MappingPolicy:' + self.spaceName + ':' + machinetypeName,
+                    'Name'           : machinetypeName,
+                    'Rule'           : [ 'VO:' + vo, 'VOMS:' + self.machinetypes[machinetypeName].accounting_fqan ],
+                    'Scheme'         : 'org.glite.standard'
+                               })
+
+      executionEnvironments.append({
+                    'Associations'   : { 'ShareID' : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName },
+                    'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    'ID'             : 'urn:glue2:ExecutionEnvironment:' + self.spaceName + ':' + machinetypeName,
+                    'Name'           : machinetypeName,
+                    'Platform'       : 'x86_64',
+                    'OSFamily'       : 'linux',
+                    'OSName'         : 'CernVM 3'
+                                   })
+
+    if len(computingShares) > 0:
+      self.glue2['ComputingShare'] = computingShares
+
+      if len(mappingPolicies) > 0:
+        self.glue2['MappingPolicy'] = mappingPolicies
+        
+      if len(executionEnvironments) > 0:
+        self.glue2['ExecutionEnvironment'] = executionEnvironments
+
+    try:
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/glue2.json', json.dumps(self.glue2), 0644, '/var/lib/vcycle/tmp')
+    except:
+      vcycle.vacutils.logLine('Failed writing GLUE2 JSON to /var/lib/vcycle/spaces/' + self.spaceName + '/glue2.json')
+
   def _deleteOneMachine(self, machineName):
   
     vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
@@ -982,7 +1055,7 @@ class BaseSpace(object):
     if self.machinetypes[machinetypeName].remote_joboutputs_url:
       joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
     else:
-      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/joboutputs'
+      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
@@ -995,8 +1068,8 @@ class BaseSpace(object):
                                                         userDataPath       = self.machinetypes[machinetypeName].user_data,
                                                         hostName           = machineName + '.' + self.spaceName,
                                                         uuidStr            = None,
-                                                        machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/machinefeatures',
-                                                        jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/' + machineName + '/jobfeatures',
+                                                        machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+                                                        jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
                                                         joboutputsURL      = joboutputsURL
                                                        )
     except Exception as e:
@@ -1039,6 +1112,12 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
+      
+    try:
+      self.publishStatus()
+    except Exception as e:
+      vcycle.vacutils.logLine('Publishing status of ' + self.spaceName + ' fails: ' + str(e))
+      # We carry on because this isn't fatal
       
     try:
       self.deleteMachines()

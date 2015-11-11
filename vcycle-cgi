@@ -45,13 +45,14 @@ except:
   sys.exit(0)
 
 try:
-  (hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
+  (hostName, machinesDirectory, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
 except:
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
-if (subDirectory != 'joboutputs' or 
+if (machinesDirectory != 'machines' or
+    subDirectory != 'joboutputs' or 
     not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/joboutputs')):
   print 'Status: 404 Not Found'
   print
