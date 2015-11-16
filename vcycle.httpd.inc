@@ -61,7 +61,7 @@
 
 <VirtualHost *:80>
 ServerName vm21.tier2.hep.manchester.ac.uk
-DocumentRoot "/var/lib/vcycle/www"
+DocumentRoot "/var/lib/vcycle/machines"
 
 CustomLog logs/http--vcycle.log combined
 
@@ -77,7 +77,7 @@ Alias          /blank404error /dev/null
 
 <VirtualHost vm21.tier2.hep.manchester.ac.uk:443>
 ServerName vm21.tier2.hep.manchester.ac.uk
-DocumentRoot "/var/lib/vcycle/www"
+DocumentRoot "/var/lib/vcycle/machines"
 
 SSLEngine               on
 SSLCertificateFile      /etc/grid-security/vcycle.cert.pem
