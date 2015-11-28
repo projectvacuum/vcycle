@@ -485,7 +485,12 @@ class Machinetype:
       self.root_image = parser.get(machinetypeSectionName, 'root_image')
     except Exception as e:
       raise VcycleError('root_image is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
-    
+
+    try:
+      self.cernvm_signing_dn = parser.get(machinetypeSectionName, 'cernvm_signing_dn').strip()
+    except:
+      self.cernvm_signing_dn = None
+
     try:
       self.flavor_name = parser.get(machinetypeSectionName, 'flavor_name')
     except Exception as e:
@@ -809,7 +814,7 @@ class BaseSpace(object):
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
   def publishStatus(self):
-    """Write out a GLUE2 JSON file describing this space's status"""
+    """Write out a GLUE 2.0 JSON file describing this space's status"""
 
     # This must only be run after the scanMachines method for this space!
 
@@ -877,9 +882,9 @@ class BaseSpace(object):
         self.glue2['ExecutionEnvironment'] = executionEnvironments
 
     try:
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/glue2.json', json.dumps(self.glue2), 0644, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/glue-2.0.json', json.dumps(self.glue2), 0644, '/var/lib/vcycle/tmp')
     except:
-      vcycle.vacutils.logLine('Failed writing GLUE2 JSON to /var/lib/vcycle/spaces/' + self.spaceName + '/glue2.json')
+      vcycle.vacutils.logLine('Failed writing GLUE 2.0 JSON to /var/lib/vcycle/spaces/' + self.spaceName + '/glue-2.0.json')
 
   def _deleteOneMachine(self, machineName):
   
@@ -1060,7 +1065,7 @@ class BaseSpace(object):
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files',
+                                                        machinetypesPath   = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files',
                                                         options            = self.machinetypes[machinetypeName].options,
                                                         versionString      = 'Vcycle ' + vcycleVersion,
                                                         spaceName          = self.spaceName,

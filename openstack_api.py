@@ -37,6 +37,7 @@
 import pprint
 
 import os
+import re
 import sys
 import stat
 import time
@@ -336,6 +337,16 @@ class OpenstackSpace(vcycle.BaseSpace):
         pass
 
     vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
+
+    if self.machinetypes[machinetypeName].cernvm_signing_dn:
+      cernvmDict = vac.vacutils.getCernvmImageData(self.machinetypes[machinetypeName]._imageFile)
+
+      if cernvmDict['verified'] == False:
+        raise OpenstackError('Failed to verify signature/cert for ' + self.machinetypes[machinetypeName].root_image)
+      elif re.search(self.machinetypes[machinetypeName].cernvm_signing_dn,  cernvmDict['dn']) is None:
+        raise OpenstackError('Signing DN ' + cernvmDict['dn'] + ' does not match cernvm_signing_dn = ' + self.machinetypes[machinetypeName].cernvm_signing_dn)
+      else:
+        vac.vacutils.logLine('Verified image signed by ' + cernvmDict['dn'])
 
     # Try to upload the image
     try:

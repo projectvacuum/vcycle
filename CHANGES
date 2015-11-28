@@ -2,6 +2,8 @@
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
 - Use common Vac Project vcycle.httpd.conf and specific vcycle.httpd.inc
+- cernvm_signing_dn option added, to check signatures of CernVM boot
+  images
 ==================== Changes in Vcycle version 0.7.0 =====================
 - Use machineoutputs -> joboutputs internally and in options
 ==================== Changes in Vcycle version 0.6.0 =====================
