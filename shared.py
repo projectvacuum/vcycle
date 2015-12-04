@@ -751,10 +751,11 @@ class BaseSpace(object):
     else:
       self.curl.setopt(pycurl.VERBOSE, 0)
 
-    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.TIMEOUT,        30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+    self.curl.setopt(pycurl.SSLVERSION,     pycurl.SSLVERSION_TLSv1)
     
     if hasattr(self, 'usercert') and hasattr(self, 'userkey') and self.usercert and self.userkey:
       if self.usercert[0] == '/':
