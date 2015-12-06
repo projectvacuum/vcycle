@@ -99,9 +99,9 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('username or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
-      # We use ROT-1 (A -> B etc) encoding so browsing around casually doesn't
-      # reveal passwords in a memorable way. 
-      self.password = ''.join([ chr(ord(c)-1) for c in parser.get(spaceSectionName, 'password')])
+      # We use Base64 encoding so browsing around casually 
+      # doesn't reveal passwords in a memorable way. 
+      self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64'))
     except Exception:
       self.password = ''
 

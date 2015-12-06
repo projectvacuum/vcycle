@@ -67,11 +67,10 @@ is the tenancy or project name.
 .B username
 is a user with access to the tenancy.
 
-.B password
-is the encoded password for the user. Vcycle will decrease the value of 
-each character of the string by one to obtain the true password. This
-encoding is to avoid revealing memorable passwords when casually viewing
-or editing configuration files.
+.B password_base64
+is the base64 encoded password for the user. Vcycle will decode the 
+value to obtain the true password. This encoding is to avoid revealing 
+memorable passwords when casually viewing or editing configuration files.
 
 When creating VMs in OpenStack spaces, Vcycle will create machinefeatures,
 jobfeatures, and joboutputs metadata keys with the URLs of the 
