@@ -62,6 +62,8 @@ fi
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
 /etc/vcycle.d
+/usr/share/man/man5/*
+/usr/share/man/man8/*
 
 %post azure
 pip install azure-servicemanagement-legacy

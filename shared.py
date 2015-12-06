@@ -1102,7 +1102,7 @@ class BaseSpace(object):
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypesPath   = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files',
+                                                        machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files',
                                                         options            = self.machinetypes[machinetypeName].options,
                                                         versionString      = 'Vcycle ' + vcycleVersion,
                                                         spaceName          = self.spaceName,

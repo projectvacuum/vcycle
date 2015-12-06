@@ -37,7 +37,8 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               openstack_api.py occi_api.py azure_api.py \
               dbce_api.py example.vcycle.conf \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
-              vcycled.logrotate VERSION CHANGES
+              vcycled.logrotate VERSION CHANGES \
+              vcycle.conf. vcycled.8
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
@@ -52,6 +53,8 @@ install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
  	         $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle \
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
+ 	         $(RPM_BUILD_ROOT)/usr/share/man/man5 \
+                 $(RPM_BUILD_ROOT)/usr/share/man/man8 \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-archive \
@@ -69,7 +72,8 @@ install: $(INSTALL_FILES)
 	   openstack_api.py occi_api.py \
 	   dbce_api.py azure_api.py \
 	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
-	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc example.vcycle.conf \
+	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
+	   example.vcycle.conf vcycle.conf.5 vcycled.8 \
 	   $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION)
 	cp VERSION \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle
@@ -77,6 +81,11 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/etc/rc.d/init.d/vcycled
 	cp vcycled.logrotate \
 	   $(RPM_BUILD_ROOT)/etc/logrotate.d/vcycled
+	cp vcycle.conf.5 \
+	   $(RPM_BUILD_ROOT)/usr/share/man/man5
+	cp vcycled.8 \
+	   $(RPM_BUILD_ROOT)/usr/share/man/man8
+	   
 	
 rpm: vcycle.tgz
 	rm -Rf RPMTMP
