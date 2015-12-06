@@ -101,7 +101,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       # We use Base64 encoding so browsing around casually 
       # doesn't reveal passwords in a memorable way. 
-      self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64'))
+      self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64').strip()).strip()
     except Exception:
       self.password = ''
 
