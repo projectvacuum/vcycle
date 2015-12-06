@@ -814,48 +814,69 @@ class BaseSpace(object):
     except:
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
-  def publishStatus(self):
-    """Write out a GLUE 2.0 JSON file describing this space's status"""
+  def publishGlueStatus(self, glueVersion):
+    """Write out a GLUE 2.0/2.1 JSON files describing this space's status"""
+
+    if glueVersion == '2.0':
+      attributePrefix          = ''
+      jobsOrVM                 = 'Jobs'
+    elif glueVersion == '2.1':
+      attributePrefix          = 'Cloud'
+      jobsOrVM                 = 'VM'
+    else:
+      return
 
     # This must only be run after the scanMachines method for this space!
 
-    self.glue2 = { 'ComputingService' : [ {
-                     'CreationTime' : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                     'ID'           : 'urn:glue2:ComputingService:' + self.spaceName,
-                     'Name'         : 'Vcycle',
-                     'Type'         : 'uk.ac.gridpp.vcycle',
-                     'QualityLevel' : 'production',
-                     'RunningJobs'  : self.runningMachines,
-                     'TotalJobs'    : self.totalMachines
+    self.glue2 = { attributePrefix + 'ComputingService' : [ {
+                     'CreationTime'       : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                     'ID'                 : 'urn:glue2:' + attributePrefix + 'ComputingService:' + self.spaceName,
+                     'Name'               : 'Vcycle',
+                     'Type'               : 'uk.ac.gridpp.vcycle',
+                     'QualityLevel'       : 'production',
+                     'Running' + jobsOrVM : self.runningMachines,
+                     'Total' + jobsOrVM   : self.totalMachines
                                         } ]
                  }
                  
-    computingShares       = []
-    mappingPolicies       = []
-    executionEnvironments = []
+    computingShares           = []
+    mappingPolicies           = []
+    executionEnvironments     = []
+    cloudComputeInstanceTypes = []
 
     for machinetypeName in self.machinetypes:
+
+      # (Cloud)ComputingShare
       
-      computingShares.append({
-                    'Associations'   : { 'ServiceID' : 'urn:glue2:ComputingService:' + self.spaceName },
+      tmpDict = {
+                    'Associations'   : { 'ServiceID' : 'urn:glue2:' + attributePrefix + 'ComputingService:' + self.spaceName },
                     'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                    'ID'             : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName,
+                    'ID'             : 'urn:glue2:' + attributePrefix + 'ComputingShare:' + self.spaceName + ':' + machinetypeName,
                     'Name'           : machinetypeName,
-                    'RunningJobs'    : self.machinetypes[machinetypeName].runningMachines,
-                    'TotalJobs'      : self.machinetypes[machinetypeName].totalMachines,
+                    'Running' + jobsOrVM : self.machinetypes[machinetypeName].runningMachines,
                     'ServingState'   : 'production',
-                    'MaxWallTime'    : self.machinetypes[machinetypeName].max_wallclock_seconds,
-                    'MaxCPUTime'     : self.machinetypes[machinetypeName].max_wallclock_seconds,
                     'MaxTotalJobs'   : self.machinetypes[machinetypeName].max_machines,
                     'MaxRunningJobs' : self.machinetypes[machinetypeName].max_machines
-                             })
+                }
+
+      if glueVersion == '2.0':
+        tmpDict['MaxWallTime'] = self.machinetypes[machinetypeName].max_wallclock_seconds
+        tmpDict['MaxCPUTime']  = self.machinetypes[machinetypeName].max_wallclock_seconds
+        tmpDict['TotalJobs']   = self.machinetypes[machinetypeName].totalMachines
+      elif glueVersion == '2.1':
+        tmpDict['MaxVM']       = self.machinetypes[machinetypeName].totalMachines
+
+      computingShares.append(tmpDict)
+
+      # Mapping policy
+
       try:
         vo = self.machinetypes[machinetypeName].accounting_fqan.split('/')[1]
       except:
         pass
       else:                
         mappingPolicies.append({
-                    'Associations'   : { 'ShareID' : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName },
+                    'Associations'   : { 'ShareID' : 'urn:glue2:' + attributePrefix + 'ComputingShare:' + self.spaceName + ':' + machinetypeName },
                     'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     'ID'             : 'urn:glue2:MappingPolicy:' + self.spaceName + ':' + machinetypeName,
                     'Name'           : machinetypeName,
@@ -863,7 +884,10 @@ class BaseSpace(object):
                     'Scheme'         : 'org.glite.standard'
                                })
 
-      executionEnvironments.append({
+      # ExecutionEnvironment or CloudComputeInstanceType
+
+      if glueVersion == '2.0':
+        executionEnvironments.append({
                     'Associations'   : { 'ShareID' : 'urn:glue2:ComputingShare:' + self.spaceName + ':' + machinetypeName },
                     'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     'ID'             : 'urn:glue2:ExecutionEnvironment:' + self.spaceName + ':' + machinetypeName,
@@ -871,10 +895,18 @@ class BaseSpace(object):
                     'Platform'       : 'x86_64',
                     'OSFamily'       : 'linux',
                     'OSName'         : 'CernVM 3'
-                                   })
+                                     })
+      elif glueVersion == '2.1':
+        cloudComputeInstanceTypes.append({
+                    'Associations'   : { 'ShareID' : 'urn:glue2:CloudComputingShare:' + self.spaceName + ':' + machinetypeName },
+                    'CreationTime'   : time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    'ID'             : 'urn:glue2:CloudComputeInstanceType:' + self.spaceName + ':' + machinetypeName,
+                    'Name'           : machinetypeName,
+                    'Platform'       : 'x86_64'
+                                         })
 
     if len(computingShares) > 0:
-      self.glue2['ComputingShare'] = computingShares
+      self.glue2[attributePrefix + 'ComputingShare'] = computingShares
 
       if len(mappingPolicies) > 0:
         self.glue2['MappingPolicy'] = mappingPolicies
@@ -882,10 +914,14 @@ class BaseSpace(object):
       if len(executionEnvironments) > 0:
         self.glue2['ExecutionEnvironment'] = executionEnvironments
 
+      if len(cloudComputeInstanceTypes) > 0:
+        self.glue2['CloudComputeInstanceType'] = cloudComputeInstanceTypes
+
     try:
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/glue-2.0.json', json.dumps(self.glue2), 0644, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/glue-' + glueVersion + '.json', json.dumps(self.glue2), 
+                                 0644, '/var/lib/vcycle/tmp')
     except:
-      vcycle.vacutils.logLine('Failed writing GLUE 2.0 JSON to /var/lib/vcycle/spaces/' + self.spaceName + '/glue-2.0.json')
+      vcycle.vacutils.logLine('Failed writing GLUE ' + glueVersion + ' JSON to /var/lib/vcycle/spaces/' + self.spaceName + '/glue-' + glueVersion + '.json')
 
   def _deleteOneMachine(self, machineName):
   
@@ -1120,7 +1156,8 @@ class BaseSpace(object):
       return
       
     try:
-      self.publishStatus()
+      self.publishGlueStatus('2.0')
+      self.publishGlueStatus('2.1')
     except Exception as e:
       vcycle.vacutils.logLine('Publishing status of ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
