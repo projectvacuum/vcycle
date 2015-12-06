@@ -854,17 +854,18 @@ class BaseSpace(object):
                     'ID'             : 'urn:glue2:' + attributePrefix + 'ComputingShare:' + self.spaceName + ':' + machinetypeName,
                     'Name'           : machinetypeName,
                     'Running' + jobsOrVM : self.machinetypes[machinetypeName].runningMachines,
-                    'ServingState'   : 'production',
-                    'MaxTotalJobs'   : self.machinetypes[machinetypeName].max_machines,
-                    'MaxRunningJobs' : self.machinetypes[machinetypeName].max_machines
+                    'ServingState'   : 'production'
                 }
 
       if glueVersion == '2.0':
-        tmpDict['MaxWallTime'] = self.machinetypes[machinetypeName].max_wallclock_seconds
-        tmpDict['MaxCPUTime']  = self.machinetypes[machinetypeName].max_wallclock_seconds
-        tmpDict['TotalJobs']   = self.machinetypes[machinetypeName].totalMachines
+        tmpDict['MaxWallTime']    = self.machinetypes[machinetypeName].max_wallclock_seconds
+        tmpDict['MaxCPUTime']     = self.machinetypes[machinetypeName].max_wallclock_seconds
+        tmpDict['MaxTotalJobs']   = self.machinetypes[machinetypeName].max_machines
+        tmpDict['MaxRunningJobs'] = self.machinetypes[machinetypeName].max_machines
+        tmpDict['TotalJobs']      = self.machinetypes[machinetypeName].totalMachines
       elif glueVersion == '2.1':
-        tmpDict['MaxVM']       = self.machinetypes[machinetypeName].totalMachines
+        tmpDict['MaxVM']          = self.machinetypes[machinetypeName].max_machines
+        tmpDict['TotalVM']        = self.machinetypes[machinetypeName].totalMachines
 
       computingShares.append(tmpDict)
 

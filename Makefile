@@ -38,7 +38,7 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               dbce_api.py example.vcycle.conf \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
               vcycled.logrotate VERSION CHANGES \
-              vcycle.conf. vcycled.8
+              vcycle.conf.5 vcycled.8
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
