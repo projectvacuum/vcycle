@@ -45,7 +45,7 @@ except:
   sys.exit(0)
 
 try:
-  (hostName, machinesDirectory, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:4]
+  (machinesDirectory, hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:5]
 except:
   print 'Status: 404 Not Found'
   print

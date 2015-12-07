@@ -479,7 +479,7 @@ class Machinetype:
       self.lastAbortTime = int(f.read().strip())
       f.close()
   
-    vcycle.vacutils.logLine('At ' + str(int(time.time())) + ' lastAbortTime for ' + spaceName + ':' + machinetypeName + ' set to ' + str(self.lastAbortTime))
+#    vcycle.vacutils.logLine('At ' + str(int(time.time())) + ' lastAbortTime for ' + spaceName + ':' + machinetypeName + ' set to ' + str(self.lastAbortTime))
 
     try:
       self.root_image = parser.get(machinetypeSectionName, 'root_image')
@@ -963,6 +963,7 @@ class BaseSpace(object):
            machine.machinetypeName in self.machinetypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].max_wallclock_seconds)):
+        vcycle.vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
         self._deleteOneMachine(machineName)
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes and \
@@ -975,6 +976,7 @@ class BaseSpace(object):
             (machine.heartbeatTime is None) or 
             (machine.heartbeatTime < (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
            ):
+        vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName)
 
   def makeMachines(self):
