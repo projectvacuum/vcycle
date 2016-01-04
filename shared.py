@@ -45,11 +45,13 @@ import json
 import shutil
 import string
 import pycurl
+import urllib
 import random
 import base64
 import StringIO
 import tempfile
 import calendar
+import xmltodict
 import ConfigParser
 
 import vcycle.vacutils
@@ -712,21 +714,67 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def httpRequest(self, url, request = None, headers = None, verbose = False, method = None, anyStatus = False):
+  def connect(self):
+     # Null method in case this API doesn't need a connect step
+     pass
+
+  def _xmlToDictPostprocessor(self, path, key, value):
+    # xmltodict postprocessor to remove whitespace
+    try:
+      value = value.strip()
+      if not value:
+        return None
+    except:
+      pass
+
+    return key, value
+
+  def httpRequest(self, 
+                  url, 			# HTTP(S) URL to contact
+                  request = None, 	# = jsonRequest for compatibility
+                  jsonRequest = None, 	# dictionary to be converted to JSON body (overrides formRequest)
+                  formRequest = None,   # dictionary to be converted into HTML Form body, or body itself
+                  headers = None, 	# request headers
+                  verbose = False, 	# turn on Curl logging messages
+                  method = None, 	# DELETE, otherwise always GET/POST
+                  anyStatus = False	# accept any HTTP status without exception, not just 2xx
+                 ):
+
+    # Returns dictionary:  { 'headers' : HEADERS, 'response' : DICTIONARY, 'status' : CURL RESPONSE CODE }
 
     self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
     self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
+   
+    # backwards compatible
+    if request:
+      jsonRequest = request
     
     if method and method.upper() == 'DELETE':
       self.curl.setopt(pycurl.CUSTOMREQUEST, 'DELETE')
-    elif not request:
-      self.curl.setopt(pycurl.HTTPGET, True)
-    else:
+    elif jsonRequest:
       try:
-        self.curl.setopt(pycurl.POSTFIELDS, json.dumps(request))
+        self.curl.setopt(pycurl.POSTFIELDS, json.dumps(jsonRequest))
       except Exception as e:
-        raise VcycleError('JSON encoding of "' + str(request) + '" fails (' + str(e) + ')')
+        raise VcycleError('JSON encoding of "' + str(jsonRequest) + '" fails (' + str(e) + ')')
+    elif formRequest:
+    
+      if isinstance(formRequest, dict):
+        # if formRequest is a dictionary then encode it
+        try:
+          self.curl.setopt(pycurl.POSTFIELDS, urllib.urlencode(formRequest))
+        except Exception as e:
+          raise VcycleError('Form encoding of "' + str(formRequest) + '" fails (' + str(e) + ')')
+      else:
+        # otherwise assume formRequest is already formatted
+        try:
+          self.curl.setopt(pycurl.POSTFIELDS, formRequest)
+        except Exception as e:
+          raise VcycleError('Form encoding of "' + str(formRequest) + '" fails (' + str(e) + ')')
+
+    else :
+      # No body, just GET and headers
+      self.curl.setopt(pycurl.HTTPGET, True)
 
     outputBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
@@ -737,9 +785,11 @@ class BaseSpace(object):
     # Set up the list of headers to send in the request    
     allHeaders = []
     
-    if request:
+    if jsonRequest:
       allHeaders.append('Content-Type: application/json')
       allHeaders.append('Accept: application/json')
+    elif formRequest:
+      allHeaders.append('Content-Type: application/x-www-form-urlencoded')
 
     if headers:
       allHeaders.extend(headers)
@@ -809,9 +859,22 @@ class BaseSpace(object):
     if method and method.upper() == 'DELETE':
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
-    try:
-      return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
-    except:
+    if 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'application/json':
+      try:
+        return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+      except:
+        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+
+    elif 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'text/xml':
+      try:
+        return { 'headers'  : outputHeaders, 
+                 'response' : xmltodict.parse(outputBuffer.getvalue()),
+#                 'response' : xmltodict.parse(outputBuffer.getvalue(), postprocessor = self._xmlToDictPostprocessor),
+                 'status'   : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+      except:
+        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+
+    else:
       return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
   def publishGlueStatus(self, glueVersion):

@@ -9,7 +9,7 @@ Source: vcycle.tgz
 URL: http://www.gridpp.ac.uk/vac/
 Vendor: GridPP
 Packager: Andrew McNab <Andrew.McNab@cern.ch>
-Requires: httpd,mod_ssl,python-pycurl,m2crypto,python-requests,openssl
+Requires: httpd,mod_ssl,python-pycurl,m2crypto,python-requests,openssl,python-xmltodict
 
 %description
 VM lifecycle manager daemon for OpenStack etc
@@ -20,6 +20,13 @@ Requires: vcycle
 
 %description azure
 Azure plugin for Vcycle
+
+%package occi
+Summary: OCCI plugin for Vcycle
+Requires: vcycle
+
+%description occi
+OCCI plugin for Vcycle
 
 %package dbce
 Summary: DBCE plugin for Vcycle
@@ -57,7 +64,7 @@ fi
 /usr/lib64/python2.6/site-packages/vcycle/shared.py*
 /usr/lib64/python2.6/site-packages/vcycle/vacutils.py*
 /usr/lib64/python2.6/site-packages/vcycle/openstack_api.py*
-/usr/lib64/python2.6/site-packages/vcycle/occi_api.py*
+/usr/lib64/python2.6/site-packages/vcycle/ec2_api.py*
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
@@ -70,6 +77,9 @@ pip install azure-servicemanagement-legacy
 
 %files azure
 /usr/lib64/python2.6/site-packages/vcycle/azure_api.py* 
+
+%files occi
+/usr/lib64/python2.6/site-packages/vcycle/occi_api.py* 
 
 %files dbce
 /usr/lib64/python2.6/site-packages/vcycle/dbce_api.py*
