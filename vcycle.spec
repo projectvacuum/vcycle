@@ -9,7 +9,7 @@ Source: vcycle.tgz
 URL: http://www.gridpp.ac.uk/vac/
 Vendor: GridPP
 Packager: Andrew McNab <Andrew.McNab@cern.ch>
-Requires: httpd,mod_ssl,python-pycurl,m2crypto,python-requests,openssl,python-xmltodict
+Requires: httpd,mod_ssl,python-pycurl,m2crypto,python-requests,openssl
 
 %description
 VM lifecycle manager daemon for OpenStack etc

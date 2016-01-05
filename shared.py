@@ -51,8 +51,9 @@ import base64
 import StringIO
 import tempfile
 import calendar
-import xmltodict
+import collections
 import ConfigParser
+import xml.etree.cElementTree
 
 import vcycle.vacutils
 
@@ -230,6 +231,17 @@ class Machine:
                             logStoppedTimeStr + ':' +                            
                             logHeartbeatTimeStr
                            )
+
+  def getFileContents(self, fileName):
+    # Get the contents of a file for this machine
+    try:
+      return open('/var/lib/vcycle/machines/' + self.name + '/' + fileName, 'r').read().strip()
+    except:
+      return None
+
+  def setFileContents(self, fileName, contents):
+    # Set the contents of a file for the given machine
+    open('/var/lib/vcycle/machines/' + self.name + '/' + fileName, 'w').write(contents)
 
   def writeApel(self):
 
@@ -714,20 +726,72 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def connect(self):
-     # Null method in case this API doesn't need a connect step
-     pass
+  def findMachinesByFile(self, fileName, contents):
+    # Return a list of machine names that have a fileName exactly containing contents
+    
+    machineNames = []
+    
+    for machineName in os.listdir('/var/lib/vcycle/machines'):
+    
+      try:      
+        fileContents = open('/var/lib/vcycle/machines/' + machineName + '/' + fileName, 'r').read()
+      except:
+        continue
+        
+      if fileContents == contents:
+        machineNames.append(machineName)
+        
+    return machineNames
 
-  def _xmlToDictPostprocessor(self, path, key, value):
-    # xmltodict postprocessor to remove whitespace
+  def getFileContents(self, machineName, fileName):
+    # Get the contents of a file for the given machine
     try:
-      value = value.strip()
-      if not value:
-        return None
+      return open('/var/lib/vcycle/machines/' + machineName + '/' + fileName, 'r').read().strip()
     except:
-      pass
+      return None
 
-    return key, value
+  def setFileContents(self, machineName, fileName, contents):
+    # Set the contents of a file for the given machine
+    open('/var/lib/vcycle/machines/' + machineName + '/' + fileName, 'w').write(contents)
+
+  def connect(self):
+    # Null method in case this API doesn't need a connect step
+    pass
+
+  def _xmlToDictRecursor(self, xmlTree):
+
+    tag      = xmlTree.tag.split('}')[1]
+    retDict  = { tag: {} }
+    children = list(xmlTree)
+
+    if children:
+      childrenLists = collections.defaultdict(list)
+
+      for recursorDict in map(self._xmlToDictRecursor, children):
+        for key, value in recursorDict.iteritems():
+          childrenLists[key].append(value)
+ 
+      childrenDict = {}
+      for key, value in childrenLists.iteritems():
+         # Value is always a list, so ask for value[0] even if single child
+         childrenDict[key] = value
+            
+      retDict = { tag: childrenDict }
+        
+    if xmlTree.attrib:
+      retDict[tag].update(('@' + key, value) for key, value in xmlTree.attrib.iteritems())
+
+    if xmlTree.text and xmlTree.text.strip():
+      retDict[tag]['#text'] = xmlTree.text.strip()
+
+    return retDict
+
+  def _xmlToDict(self, xmlString):
+    # Convert XML string to dictionary
+    # - Each tag below root has a list of dictionaries as its value even if length 1 (or 0!)
+    # - Text contained within the tag itself appears as key #text
+    # - Attributes of the tag appear as key @attributename
+    return self._xmlToDictRecursor(xml.etree.cElementTree.XML(xmlString))
 
   def httpRequest(self, 
                   url, 			# HTTP(S) URL to contact
@@ -867,11 +931,12 @@ class BaseSpace(object):
 
     elif 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'text/xml':
       try:
+        print outputBuffer.getvalue()
         return { 'headers'  : outputHeaders, 
-                 'response' : xmltodict.parse(outputBuffer.getvalue()),
-#                 'response' : xmltodict.parse(outputBuffer.getvalue(), postprocessor = self._xmlToDictPostprocessor),
+                 'response' : self._xmlToDict(outputBuffer.getvalue()),
                  'status'   : self.curl.getinfo(pycurl.RESPONSE_CODE) }
-      except:
+      except Exception as e:
+        print 'Exception',str(e)
         return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
     else:

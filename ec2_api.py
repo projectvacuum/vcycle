@@ -162,75 +162,93 @@ class Ec2Space(vcycle.BaseSpace):
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-#    print str(result)
+    for item in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
 
-    for key,value in result['response']['DescribeInstancesResponse']['reservationSet'].iteritems():
+      oneServer = item['instancesSet'][0]['item'][0]
+      self.totalMachines += 1
       
-      print '======',key,str(value),'=+=+=+=+='
-      print str(value[0])
+      print '>+>+>+>',str(oneServer),'<+<+<+<+'
       
-#      oneServer = value['ownerId']
-#      print '++++++',str(oneServer)
+      instanceId      = oneServer['instanceId'][0]['#text']
+      instanceState   = oneServer['instanceState'][0]['name'][0]['#text']
+      machineName     = None
+      machinetypeName = None
 
-      continue
-    
-#      print '====',str(oneServer)
+      if 'tagSet' in oneServer and 'item' in oneServer['tagSet'][0]:  
+        for keyValue in oneServer['tagSet'][0]['item']:
+          key   = keyValue['key'  ][0]['#text']
+          value = keyValue['value'][0]['#text']
 
-      # Just in case other VMs are in this space
-      if oneServer['name'][:7] != 'vcycle-':
-        # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalMachines += 1
+          # save interesting tags (metadata)
+          if key == 'name':
+            machineName = value
+          elif key == 'machinetype':
+            machinetypeName = value
+
+      if machineName is None:
+        # if still None, then try to find by instanceId
+        foundMachineNames = self.findMachinesByFile('instance_id', instanceId)        
+
+        if len(foundMachineNames) == 1:
+          machineName = foundMachineNames[0]
+
+      if not machineName:
+        # something weird, not ours?
         continue
 
-      uuidStr = str(oneServer['id'])
-
-      # Try to get the IP address. Always use the zeroth member of the earliest network
       try:
-        ip = str(oneServer['addresses'][ min(oneServer['addresses']) ][0]['addr'])
+        fileInstanceId = self.getFileContents(machineName, 'instance_id')
+      except:
+        # something weird, not ours?
+        continue
+
+      if instanceId != fileInstanceId:
+        # something weird, not ours?
+        continue
+
+      # Try to get the IP address
+      try:
+        ip = str(oneServer['privateIpAddress'][0]['#text'])
       except:
         ip = '0.0.0.0'
 
-      createdTime  = calendar.timegm(time.strptime(str(oneServer['created']), "%Y-%m-%dT%H:%M:%SZ"))
-      updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
-
       try:
-        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
+        createdTime = int(self.getFileContents(machineName, 'created'))
+      except:
+        createdTime = None
+        
+      try:
+        updatedTime = int(self.getFileContents(machineName, 'updated'))
+      except:
+        updatedTime = None
+        
+      try:
+        startedTime = calendar.timegm(time.strptime(oneServer['launchTime'][0]['#text'], "%Y-%m-%dT%H:%M:%SZ"))
       except:
         startedTime = None
 
-      taskState  = str(oneServer['OS-EXT-STS:task_state'])
-      powerState = int(oneServer['OS-EXT-STS:power_state'])
-      status     = str(oneServer['status'])
+#what abouti deleting state???
 
-      try:
-        machinetypeName = str(oneServer['metadata']['machinetype'])
-      except:
-        machinetypeName = None
-      
-      if taskState == 'Deleting':
-        state = vcycle.MachineState.deleting
-      elif status == 'ACTIVE' and powerState == 1:
+      if instanceState == 'running':
         state = vcycle.MachineState.running
-      elif status == 'BUILD' or status == 'ACTIVE':
+      elif instanceState == 'pending':
         state = vcycle.MachineState.starting
-      elif status == 'SHUTOFF':
+      elif instanceState == 'stopping' or instanceState == 'stopped' or instanceState == 'terminated':
         state = vcycle.MachineState.shutdown
-      elif status == 'ERROR':
+      elif instanceState == 'error':
         state = vcycle.MachineState.failed
-      elif status == 'DELETED':
-        state = vcycle.MachineState.deleting
       else:
         state = vcycle.MachineState.unknown
 
-      self.machines[oneServer['name']] = vcycle.shared.Machine(name        = oneServer['name'],
-                                                               spaceName   = self.spaceName,
-                                                               state       = state,
-                                                               ip          = ip,
-                                                               createdTime = createdTime,
-                                                               startedTime = startedTime,
-                                                               updatedTime = updatedTime,
-                                                               uuidStr     = uuidStr,
-                                                               machinetypeName  = machinetypeName)
+      self.machines[oneServer['name']] = vcycle.shared.Machine(name            = machineName,
+                                                               spaceName       = self.spaceName,
+                                                               state           = state,
+                                                               ip              = ip,
+                                                               createdTime     = createdTime,
+                                                               startedTime     = startedTime,
+                                                               updatedTime     = updatedTime,
+                                                               uuidStr         = instanceId,
+                                                               machinetypeName = machinetypeName)
 
   def getFlavorID(self, machinetypeName):
     """Get the "flavor" ID"""
