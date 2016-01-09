@@ -154,8 +154,13 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     for oneServer in result['response']['servers']:
 
+      try:
+        machineName = str(oneServer['metadata']['name'])
+      except:
+        machineName = oneServer['name']
+
       # Just in case other VMs are in this space
-      if oneServer['name'][:7] != 'vcycle-':
+      if machineName[:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
         self.totalMachines += 1
         continue
@@ -200,15 +205,15 @@ class OpenstackSpace(vcycle.BaseSpace):
       else:
         state = vcycle.MachineState.unknown
 
-      self.machines[oneServer['name']] = vcycle.shared.Machine(name        = oneServer['name'],
-                                                               spaceName   = self.spaceName,
-                                                               state       = state,
-                                                               ip          = ip,
-                                                               createdTime = createdTime,
-                                                               startedTime = startedTime,
-                                                               updatedTime = updatedTime,
-                                                               uuidStr     = uuidStr,
-                                                               machinetypeName  = machinetypeName)
+      self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+                                                         spaceName   = self.spaceName,
+                                                         state       = state,
+                                                         ip          = ip,
+                                                         createdTime = createdTime,
+                                                         startedTime = startedTime,
+                                                         updatedTime = updatedTime,
+                                                         uuidStr     = uuidStr,
+                                                         machinetypeName  = machinetypeName)
 
   def getFlavorID(self, machinetypeName):
     """Get the "flavor" ID"""
@@ -500,6 +505,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                     'imageRef'  : self.getImageID(machinetypeName),
                     'flavorRef' : self.getFlavorID(machinetypeName),
                     'metadata'  : { 'cern-services'   : 'false',
+                                    'name'	      : machineName,
                                     'machinetype'     : machinetypeName,
                                     'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
@@ -518,7 +524,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.computeURL + '/servers',
-                             request,
+                             jsonRequest = request,
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
@@ -539,7 +545,6 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
-                    request = None,
                     method = 'DELETE',
                     headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:

@@ -84,6 +84,11 @@ class Ec2Space(vcycle.BaseSpace):
     except Exception as e:
       raise Ec2Error('url is required in EC2 [space ' + spaceName + '] (' + str(e) + ')')
 
+    if parser.has_option(spaceSectionName, 'version'):
+      self.version = parser.get(spaceSectionName, 'version').strip()
+    else:
+      self.version = '2010-08-31'
+
     if parser.has_option(spaceSectionName, 'region'):
       self.region = parser.get(spaceSectionName, 'region').strip()
     else:
@@ -120,11 +125,6 @@ class Ec2Space(vcycle.BaseSpace):
 
     # Add the headers in alphabetical order
 
-#    signedHeaderNames      += 'content-type'
-#    signedHeaderNameValues += 'content-type:application/x-www-form-urlencoded\n'
-    # httpRequest() adds Content-Type: application/x-www-form-urlencoded
-
-#    signedHeaderNames      += ';host'
     signedHeaderNames      += 'host'
     signedHeaderNameValues += 'host:' + host + '\n'
     headersList.append('Host: ' + host)
@@ -158,15 +158,21 @@ class Ec2Space(vcycle.BaseSpace):
     # or (b) creating a Machine object for the VM in self.spaces
   
     try:
-      result = self.ec2Request( formRequest = { 'Action' : 'DescribeInstances', 'Version' : '2010-08-31' }, verbose = True )
+      result = self.ec2Request( formRequest = { 'Action' : 'DescribeInstances', 'Version' : self.version }, verbose = True )
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    for item in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
+    print 'DescribeInstances result',result
 
-      oneServer = item['instancesSet'][0]['item'][0]
+# for item in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
+#      oneServer = item['instancesSet'][0]['item'][0]
+
+    for item1 in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
+     for oneServer in item1['instancesSet'][0]['item']:
+
       self.totalMachines += 1
-      
+
+      print
       print '>+>+>+>',str(oneServer),'<+<+<+<+'
       
       instanceId      = oneServer['instanceId'][0]['#text']
@@ -187,36 +193,35 @@ class Ec2Space(vcycle.BaseSpace):
 
       if machineName is None:
         # if still None, then try to find by instanceId
-        foundMachineNames = self.findMachinesByFile('instance_id', instanceId)        
+        foundMachineNames = self.findMachinesWithFile('instance_id:' + instanceId)
 
         if len(foundMachineNames) == 1:
           machineName = foundMachineNames[0]
-
-      if not machineName:
-        # something weird, not ours?
+          print 'Found ' + instanceId + ' as ' + machineName
+          
+      if not machineName or not machineName.startswith('vcycle-'):
+        # not one of ours
+        print 'Skipping since machineName is',machineName
         continue
 
+      if not machinetypeName:
+        machinetypeName = self.getFileContents(machineName, 'machinetype_name')
+        if not machinetypeName:
+          # something weird, not ours?
+          continue
+
       try:
-        fileInstanceId = self.getFileContents(machineName, 'instance_id')
+        createdTime = int(self.getFileContents(machineName, 'created'))
       except:
         # something weird, not ours?
         continue
-
-      if instanceId != fileInstanceId:
-        # something weird, not ours?
-        continue
-
+        
       # Try to get the IP address
       try:
         ip = str(oneServer['privateIpAddress'][0]['#text'])
       except:
         ip = '0.0.0.0'
 
-      try:
-        createdTime = int(self.getFileContents(machineName, 'created'))
-      except:
-        createdTime = None
-        
       try:
         updatedTime = int(self.getFileContents(machineName, 'updated'))
       except:
@@ -227,67 +232,35 @@ class Ec2Space(vcycle.BaseSpace):
       except:
         startedTime = None
 
-#what abouti deleting state???
-
       if instanceState == 'running':
         state = vcycle.MachineState.running
       elif instanceState == 'pending':
         state = vcycle.MachineState.starting
-      elif instanceState == 'stopping' or instanceState == 'stopped' or instanceState == 'terminated':
+      elif instanceState == 'stopping' or instanceState == 'stopped':
         state = vcycle.MachineState.shutdown
+      elif instanceState == 'shutting-down' or instanceState == 'terminated':
+        state = vcycle.MachineState.deleting
       elif instanceState == 'error':
         state = vcycle.MachineState.failed
       else:
         state = vcycle.MachineState.unknown
 
-      self.machines[oneServer['name']] = vcycle.shared.Machine(name            = machineName,
-                                                               spaceName       = self.spaceName,
-                                                               state           = state,
-                                                               ip              = ip,
-                                                               createdTime     = createdTime,
-                                                               startedTime     = startedTime,
-                                                               updatedTime     = updatedTime,
-                                                               uuidStr         = instanceId,
-                                                               machinetypeName = machinetypeName)
+      if state == vcycle.MachineState.running and ('tagSet' not in oneServer or 'item' not in oneServer['tagSet'][0]):
+        # Running but no tags yet, so try creating
+        try:
+          self.createTags(instanceId, machineName, machinetypeName)
+        except Exception as e:
+          vcycle.vacutils.logLine('Adding tags fails with ' + str(e))
 
-  def getFlavorID(self, machinetypeName):
-    """Get the "flavor" ID"""
-  
-    if hasattr(self.machinetypes[machinetypeName], '_flavorID'):
-      if self.machinetypes[machinetypeName]._flavorID:
-        return self.machinetypes[machinetypeName]._flavorID
-      else:
-        raise Ec2Error('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
-      
-    try:
-      result = self.httpRequest(self.computeURL + '/flavors/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-    
-    try:
-      for flavor in result['response']['flavors']:
-        if flavor['name'] == self.machinetypes[machinetypeName].flavor_name:
-
-          self.machinetypes[machinetypeName]._flavorID = flavor['id']
-
-          try:
-            # Record if available
-            self.machinetypes[machinetypeName].mb = int(flavor['ram'])
-          except:
-            pass
-            
-          try:
-            # Record if available
-            self.machinetypes[machinetypeName].cpus = int(flavor['vcpus'])
-          except:
-            pass
-            
-          return self.machinetypes[machinetypeName]._flavorID
-    except:
-      pass
-        
-    raise Ec2Error('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
+      self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
+                                                         spaceName       = self.spaceName,
+                                                         state           = state,
+                                                         ip              = ip,
+                                                         createdTime     = None,
+                                                         startedTime     = None,
+                                                         updatedTime     = updatedTime,
+                                                         uuidStr         = instanceId,
+                                                         machinetypeName = machinetypeName)
 
   def getImageID(self, machinetypeName):
     """Get the image ID"""
@@ -302,10 +275,10 @@ class Ec2Space(vcycle.BaseSpace):
 
     # Get the existing images for this tenancy
     try:
-      result = self.httpRequest(self.computeURL + '/images/detail',
+      result = self.httpRequest(self.url,
                              headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
     # Specific image, not managed by Vcycle, lookup ID
     if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
@@ -460,6 +433,7 @@ class Ec2Space(vcycle.BaseSpace):
   def getKeyPairName(self, machinetypeName):
     """Get the key pair name from root_public_key"""
 
+    # Look for the cached key pair
     if hasattr(self.machinetypes[machinetypeName], '_keyPairName'):
       if self.machinetypes[machinetypeName]._keyPairName:
         return self.machinetypes[machinetypeName]._keyPairName
@@ -486,21 +460,24 @@ class Ec2Space(vcycle.BaseSpace):
         raise Ec2Error('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
         
       if line[:8] == 'ssh-rsa ':
-        sshPublicKey =  line.split(' ')[1]
+        sshPublicKey = line.split(' ')[1]
+        sshFingerprint = vcycle.vacutils.makeSshFingerprint(line)
         break
 
     # Check if public key is there already
 
     try:
-      result = self.httpRequest(self.computeURL + '/os-keypairs',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.ec2Request( formRequest = { 'Action' : 'DescribeKeyPairs', 'Version' : self.version },
+                                verbose = True )
     except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise Ec2Error('getKeyPairName cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    for keypair in result['response']['keypairs']:
+    print 'DescribeKeyPairs result',result
+
+    for keypair in result['response']['DescribeKeyPairsResponse']['keySet'][0]['item']:
       try:
-        if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
-          self.machinetypes[machinetypeName]._keyPairName = str(keypair['keypair']['name'])
+        if sshFingerprint == keypair['keyFingerprint'][0]['#text']:
+          self.machinetypes[machinetypeName]._keyPairName = str(keypair['keyName'][0]['#text'])
           return self.machinetypes[machinetypeName]._keyPairName
       except:
         pass
@@ -510,14 +487,18 @@ class Ec2Space(vcycle.BaseSpace):
     keyName = str(time.time()).replace('.','-')
 
     try:
-      result = self.httpRequest(self.computeURL + '/os-keypairs',
-                               { 'keypair' : { 'name'       : keyName,
-                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
-                                             }
-                               },
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.ec2Request(
+                                formRequest = 
+                                  { 
+                                    'Action'            : 'ImportKeyPair',
+                                    'Version'           : self.version,
+                                    'KeyName'           : keyName,
+                                    'PublicKeyMaterial' : base64.b64encode('ssh-rsa ' + sshPublicKey + ' vcycle')
+                                  },
+                                verbose = True
+                              )
     except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
     vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
 
@@ -526,44 +507,53 @@ class Ec2Space(vcycle.BaseSpace):
 
   def createMachine(self, machineName, machinetypeName):
 
-    # OpenStack-specific machine creation steps
+    # EC2-specific machine creation steps
 
     try:
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
         joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-    
-      request = { 'server' : 
-                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-                    'name'      : machineName,
-                    'imageRef'  : self.getImageID(machinetypeName),
-                    'flavorRef' : self.getFlavorID(machinetypeName),
-                    'metadata'  : { 'cern-services'   : 'false',
-                                    'machinetype'     : machinetypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : joboutputsURL,
-                                    'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
-                    # but point them both to the joboutputs directory that we now provide
-                  }    
-                }
 
+      formRequest = { 'Action'       : 'RunInstances',
+                      'Version'      : self.version,
+                      'MinCount'     : '1',
+                      'MaxCount'     : '1',
+                      'UserData'     : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
+                      'ImageId'      : 'ami-00000381', # self.getImageID(machinetypeName),
+                      'InstanceType' : self.machinetypes[machinetypeName].flavor_name }
+      
       if self.machinetypes[machinetypeName].root_public_key:
-        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
+        formRequest['KeyName'] = self.getKeyPairName(machinetypeName)
 
     except Exception as e:
       raise Ec2Error('Failed to create new machine: ' + str(e))
 
-    try:
-      result = self.httpRequest(self.computeURL + '/servers',
-                             request,
-                             headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+    print 'formRequest',str(formRequest)
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    try:
+      result = self.ec2Request( formRequest = formRequest, verbose = True )
+    except Exception as e:
+      raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
+
+    print 'result',str(result)
+
+    try:
+      instanceId = result['response']['RunInstancesResponse']['instancesSet'][0]['item'][0]['instanceId'][0]['#text']
+    except:
+      instanceId = None
+    else:
+      self.setFileContents(machineName, 'instance_id:' + instanceId, machineName)
+      self.setFileContents(machineName, 'instance_id', instanceId)
+
+    try:
+      privateDnsName = result['response']['RunInstancesResponse']['instancesSet'][0]['item'][0]['privateDnsName'][0]['#text']
+    except:
+      privateDnsName = None
+    else:
+      self.setFileContents(machineName, 'private_dns_name', privateDnsName)
+
+    vcycle.vacutils.logLine('Created ' + machineName + ' ( ' + str(instanceId) + ' / ' + str(privateDnsName) + ' ) for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
@@ -572,15 +562,62 @@ class Ec2Space(vcycle.BaseSpace):
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
-                                                       uuidStr     = None,
+                                                       uuidStr     = instanceId,
                                                        machinetypeName  = machinetypeName)
+
+  def createTags(self, instanceId, machineName, machinetypeName):
+
+    print 'Start of createTags',instanceId,machineName,machinetypeName
+  
+    if self.machinetypes[machinetypeName].remote_joboutputs_url:
+      joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
+    else:
+      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
+
+    try:
+      print 'Trying ec2Request'
+      result = self.ec2Request( formRequest = { 
+                      'Action'       : 'CreateTags',
+                      'Version'      : self.version,
+                      'ResourceId.1' : instanceId,
+                      'Tag.1.Key'    : 'name',
+                      'Tag.1.Value'  : machineName,
+                      'Tag.2.Key'    : 'machinetype',
+                      'Tag.2.Value'  : machinetypeName,
+                      'Tag.3.Key'    : 'machinefeatures',
+                      'Tag.3.Value'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+                      'Tag.4.Key'    : 'jobfeatures',
+                      'Tag.4.Value'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
+                      'Tag.5.Key'    : 'machineoutputs',
+                      'Tag.5.Value'  : joboutputsURL,
+                      'Tag.6.Key'    : 'joboutputs',
+                      'Tag.6.Value'  : joboutputsURL
+                                              },
+                                verbose = True )
+
+      print 'result:',str(result)
+    except Exception as e:
+      raise Ec2Error('Adding tags to ' + machineName + ' (' + instanceId + ') fails with ' + str(e))
 
   def deleteOneMachine(self, machineName):
 
     try:
-      self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
-                    request = None,
-                    method = 'DELETE',
-                    headers = [ 'X-Auth-Token: ' + self.token ])
+      instanceId = self.getFileContents(machineName, 'instance_id')
+    except:
+      raise Ec2Error('Cannot find instance_id when trying to delete ' + machineName)
+
+    try:
+      result = self.ec2Request( formRequest = { 
+                      'Action'       : 'TerminateInstances',
+                      'Version'      : self.version,
+                      'InstanceId.1' : instanceId
+                                              },
+                                verbose = True )
     except Exception as e:
-      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+      raise Ec2Error('Cannot delete ' + machineName + ' (' + instanceId + ') via ' + self.url + ' (' + str(e) + ')')
+
+    if result['status'] == 200:
+      # For EC2, we want to log the instanceId as well as the machineName
+      vcycle.vacutils.logLine('Deleted ' + machineName + ' (' + instanceId + ')')
+    else:
+      vcycle.vacutils.logLine('Deletion of ' + machineName + ' (' + instanceId + ') fails with code ' + str(result['status']))

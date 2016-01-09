@@ -8,6 +8,7 @@
 - Force use of TLSv1 (pycurl.SSLVERSION_TLSv1)
 - Base64 encoding and password_base64 in OpenStack plugin
 - Publish status in GLUE 2.1 Cloud* as well as GLUE 2.0
+- EC2 API plugin
 ==================== Changes in Vcycle version 0.7.0 =====================
 - Use machineoutputs -> joboutputs internally and in options
 ==================== Changes in Vcycle version 0.6.0 =====================

@@ -12,28 +12,28 @@ Packager: Andrew McNab <Andrew.McNab@cern.ch>
 Requires: httpd,mod_ssl,python-pycurl,m2crypto,python-requests,openssl
 
 %description
-VM lifecycle manager daemon for OpenStack etc
+VM lifecycle manager daemon for OpenStack, EC2 etc
 
 %package azure
 Summary: Azure plugin for Vcycle
 Requires: vcycle
 
 %description azure
-Azure plugin for Vcycle
+Azure plugin for Vcycle, contributed by CERN/IT
 
 %package occi
 Summary: OCCI plugin for Vcycle
 Requires: vcycle
 
 %description occi
-OCCI plugin for Vcycle
+OCCI plugin for Vcycle, contributed by CERN/IT
 
 %package dbce
 Summary: DBCE plugin for Vcycle
 Requires: vcycle
 
 %description dbce
-DBCE plugin for Vcycle
+DBCE plugin for Vcycle, contributed by CERN/IT
 
 %prep
 

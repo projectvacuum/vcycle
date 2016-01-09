@@ -40,6 +40,7 @@ import os
 import re
 import sys
 import stat
+import glob
 import time
 import json
 import shutil
@@ -82,15 +83,43 @@ class Machine:
   def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName):
 
     # Store values from api-specific calling function
-    self.name         = name
-    self.spaceName    = spaceName
-    self.state        = state
-    self.ip           = ip
-    self.createdTime  = createdTime
-    self.startedTime  = startedTime
-    self.updatedTime  = updatedTime
-    self.uuidStr      = uuidStr
-    self.machinetypeName   = machinetypeName
+    self.name            = name
+    self.spaceName       = spaceName
+    self.state           = state
+    self.ip              = ip
+    self.updatedTime     = updatedTime
+    self.uuidStr         = uuidStr
+    self.machinetypeName = machinetypeName
+
+    if createdTime:
+      self.createdTime  = createdTime
+    else:
+      try:
+        # Try to recreate from created file
+        self.createdTime = int(open('/var/lib/vcycle/machines/' + name + '/created', 'r').readline())
+      except:
+        pass
+
+    if startedTime:
+      self.startedTime = startedTime
+    else:
+      try:
+        # Try to recreate from started file
+        self.startedTime = int(open('/var/lib/vcycle/machines/' + name + '/started', 'r').readline())
+      except:
+        if self.state == MachineState.running:
+          # If startedTime not recorded, then must just have started
+          self.startedTime = int(time.time())
+          self.updatedTime = self.createdTime
+        else:
+          self.startedTime = None
+          
+    if not self.updatedTime:
+      try:
+        # Try to recreate from updated file
+        self.updatedTime = int(open('/var/lib/vcycle/machines/' + name + '/updated', 'r').readline())
+      except:
+        pass
 
     if not machinetypeName:
       # Get machinetype name saved when we requested the machine
@@ -139,8 +168,9 @@ class Machine:
       return
     
     # Record when the machine started (rather than just being created)
-    if startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
+    if self.startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(self.startedTime), 0600, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
 
     try:
       self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
@@ -726,22 +756,17 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def findMachinesByFile(self, fileName, contents):
-    # Return a list of machine names that have a fileName exactly containing contents
+  def findMachinesWithFile(self, fileName):
+    # Return a list of machine names that have the given fileName
     
     machineNames = []
+    pathsList    = glob.glob('/var/lib/vcycle/machines/*/' + fileName)
     
-    for machineName in os.listdir('/var/lib/vcycle/machines'):
-    
-      try:      
-        fileContents = open('/var/lib/vcycle/machines/' + machineName + '/' + fileName, 'r').read()
-      except:
-        continue
-        
-      if fileContents == contents:
-        machineNames.append(machineName)
-        
-    return machineNames
+    if pathsList:
+      for onePath in pathsList:
+        machineNames.append(onePath.split('/')[5])
+
+    return machineNames      
 
   def getFileContents(self, machineName, fileName):
     # Get the contents of a file for the given machine
@@ -891,56 +916,60 @@ class BaseSpace(object):
       raise VcycleError('Failed to read ' + url + ' (' + str(e) + ')')
     
     headersBuffer.seek(0)
-    oneLine = headersBuffer.readline()
-    outputHeaders = { 'status' : [ oneLine[9:].strip() ] }
+    outputHeaders = { }
     
     while True:
     
       try:
-        oneLine = headersBuffer.readline()
+        oneLine = headersBuffer.readline().strip()
       except:
         break
       
-      if not oneLine.strip():
+      if not oneLine:
         break
-      
-      headerNameValue = oneLine.split(':',1)
 
-      # outputHeaders is a dictionary of lowercased header names
-      # but the values are always lists, with one or more values (if multiple headers with the same name)
-      if headerNameValue[0].lower() not in outputHeaders:
-        outputHeaders[ headerNameValue[0].lower() ] = []
+      if oneLine.startswith('HTTP/1.1 '):
+        # An HTTP return code, overwrite any previous code
+        outputHeaders['status'] = [ oneLine[9:] ]
+        
+        if oneLine == 'HTTP/1.1 100 Continue':
+          # Silently eat the blank line
+          oneLine = headersBuffer.readline().strip()
+ 
+      else:      
+        # Otherwise a Name: Value header
+        headerNameValue = oneLine.split(':',1)
 
-      outputHeaders[ headerNameValue[0].lower() ].append( headerNameValue[1].strip() )
+        # outputHeaders is a dictionary of lowercased header names
+        # but the values are always lists, with one or more values (if multiple headers with the same name)
+        if headerNameValue[0].lower() not in outputHeaders:
+          outputHeaders[ headerNameValue[0].lower() ] = []
 
-    # If not a 2xx code then raise an exception unless anyStatus option given
-    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      if anyStatus:
-        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
-      else:
-        raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
-
-    if method and method.upper() == 'DELETE':
-      return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+        outputHeaders[ headerNameValue[0].lower() ].append( headerNameValue[1].strip() )
 
     if 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'application/json':
       try:
-        return { 'headers' : outputHeaders, 'response' : json.loads(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+        response = json.loads(outputBuffer.getvalue())
       except:
-        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+        response = None
 
     elif 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'text/xml':
       try:
-        print outputBuffer.getvalue()
-        return { 'headers'  : outputHeaders, 
-                 'response' : self._xmlToDict(outputBuffer.getvalue()),
-                 'status'   : self.curl.getinfo(pycurl.RESPONSE_CODE) }
-      except Exception as e:
-        print 'Exception',str(e)
-        return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
-
+        response = self._xmlToDict(outputBuffer.getvalue())
+      except:
+        response = None
+        
     else:
-      return { 'headers' : outputHeaders, 'response' : None, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+      response = None
+
+    print 'outputBuffer:',outputBuffer.getvalue()
+    print 'outputHeaders:',outputHeaders
+
+    # If not a 2xx code then raise an exception unless anyStatus option given
+    if not anyStatus and self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
+    return { 'headers' : outputHeaders, 'response' : response, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
   def publishGlueStatus(self, glueVersion):
     """Write out a GLUE 2.0/2.1 JSON files describing this space's status"""
@@ -1213,6 +1242,8 @@ class BaseSpace(object):
                 stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP + 
                 stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
 
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/created', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 

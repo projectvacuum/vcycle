@@ -41,6 +41,7 @@ import re
 import sys
 import stat
 import time
+import glob
 import json
 import ctypes
 import string
@@ -604,12 +605,28 @@ def makeSyncRecord(dirPrefix, targetYearMonth, tmpDir):
                 'Year: ' + str(targetYear) + '\n'         \
                 '%%\n'
 
-   syncFileName = time.strftime(dirPrefix + '/apel-outgoing/%Y%m%d/%H%M%S', time.gmtime()) + str(time.time() % 1)[2:][:8]
+   gmtime = time.gmtime()
 
-   if vac.vacutils.createFile(syncFileName, syncRecord,
-                              stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, tmpDir):
+   try:
+     os.makedirs(time.strftime(dirPrefix + '/apel-outgoing/%Y%m%d', gmtime))
+   except:
+     pass
+
+   syncFileName = time.strftime(dirPrefix + '/apel-outgoing/%Y%m%d/%H%M%S', gmtime) + str(time.time() % 1)[2:][:8]
+
+   if createFile(syncFileName, syncRecord, stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, tmpDir):
       print 'Created ' + syncFileName
       return 0
 
    print 'Failed to create ' + syncFileName
    return 2
+
+
+def makeSshFingerprint(pubFileLine):
+   # Convert a line from an ssh id_rsa.pub (or id_dsa.pub) file to a fingerprint
+
+   try:
+     fingerprint = hashlib.md5(base64.b64decode(pubFileLine.strip().split()[1].encode('ascii'))).hexdigest()
+     return ':'.join(fingerprint[i:i+2] for i in range(0, len(fingerprint), 2))
+   except:
+     return None
