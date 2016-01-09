@@ -1,4 +1,4 @@
-.TH vcycle.conf 5 "Jan 2014" "vcycle.conf" "vcycle Manual"
+.TH vcycle.conf 5 "Jan 2016" "vcycle.conf" "vcycle Manual"
 .SH NAME
 .B vcycle.conf
 \- vcycle configuration file
@@ -56,7 +56,7 @@ firewall. Default 443.
 
 OpenStack spaces are enabled with
 .B api = openstack
-and the following options are then available.
+and the following options are then available. 
 
 .B url
 is the URL of the identity (KeyStone) endpoint for this OpenStack service.
@@ -77,11 +77,41 @@ jobfeatures, and joboutputs metadata keys with the URLs of the
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
+.SH EC2 SPACE SECTIONS
+
+As well as OpenStack, Vcycle natively supports the EC2 API. However, you
+should use the OpenStack API if available. Spaces accessed with the EC2 API 
+are enabled with
+.B api = ec2
+and the following options are then available.
+
+.B url
+is the URL of the endpoint of this EC2 service.
+
+.B access_key
+and
+.B secret_key
+are the credentials needed to access the service.
+
+.B version
+explicitly gives the API version to be passed to EC2. Default "2010-08-31".
+
+.B region
+explicitly gives the region to be passed to EC2. Default "us-east-1".
+
+.B service
+explicitly gives the service name to be passed to EC2. Default "openstack".
+
+When creating VMs in EC2 spaces, Vcycle will create machinefeatures,
+jobfeatures, and joboutputs metadata tags with the URLs of the 
+corresponding directories for the VM on the Vcycle machine's HTTP(S)
+server.
+
 .SH MACHINE / JOB FEATURES HTTP(S) SERVER
 
 Vcycle will create the machinefeatures and jobfeatures files according
 to the WLCG MJF protocol in machinefeatures and jobfeatures subdirectories
-of the VMs directory in /var/lib/vcycle/machines . Using the vcycle-httpd.conf
+of the VMs directory in /var/lib/vcycle/machines . Using the vcycle.httpd.inc
 Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
 files are publish via HTTP and HTTPS.
 
@@ -230,7 +260,7 @@ Block at the end of the image file, verifies the
 certificate using the CA files in /etc/grid-security/certificates, and
 compares the certificate DN to cernvm_signing_dn. If this option is
 given, all these verification steps must be satisified for the image
-to be used. As of 2015, CernVM images are signed with a DN matching
+to be used. As of 2016, CernVM images are signed with a DN matching
 the regular expression /CN=cvm-sign01\\.cern\\.ch$
 
 .B root_public_key
@@ -313,7 +343,7 @@ are the hostname of the machine on which the Vcycle daemon is running.
 .SH AUTHOR
 Andrew McNab <Andrew.McNab@cern.ch>
 
-vcycled is part of vcycle: http://www.gridpp.ac.uk/vcycle/
+vcycled is part of Vcycle: https://www.gridpp.ac.uk/vcycle/
 .SH "SEE ALSO"
 .BR vcycled(8),
 .BR vcycle-cgi(8)
