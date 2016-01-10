@@ -140,14 +140,11 @@ class Ec2Space(vcycle.BaseSpace):
 
     credentialScope = amzDateStamp + '/' + self.region + '/' + self.service + '/' + 'aws4_request'
     stringToSign    = 'AWS4-HMAC-SHA256\n' +  amzDate + '\n' +  credentialScope + '\n' +  hashlib.sha256(canonicalRequest).hexdigest()
-    print stringToSign
     signature       = hmac.new(self.ec2SignatureKey(amzDateStamp), (stringToSign).encode('utf-8'), hashlib.sha256).hexdigest()
 
     authorizationHeaderValue = 'AWS4-HMAC-SHA256 Credential=' + self.access_key + '/' + credentialScope + ', SignedHeaders=' + signedHeaderNames + ', Signature=' + signature
     headersList.append('Authorization: ' + authorizationHeaderValue)
 
-    print formRequestBody
- 
     return vcycle.BaseSpace.httpRequest(self, self.url, formRequest = formRequestBody, headers = headersList, verbose = verbose, method = 'POST', anyStatus = anyStatus)
 
   def scanMachines(self):
@@ -158,23 +155,15 @@ class Ec2Space(vcycle.BaseSpace):
     # or (b) creating a Machine object for the VM in self.spaces
   
     try:
-      result = self.ec2Request( formRequest = { 'Action' : 'DescribeInstances', 'Version' : self.version }, verbose = True )
+      result = self.ec2Request( formRequest = { 'Action' : 'DescribeInstances', 'Version' : self.version }, verbose = False )
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
-
-    print 'DescribeInstances result',result
-
-# for item in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
-#      oneServer = item['instancesSet'][0]['item'][0]
 
     for item1 in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
      for oneServer in item1['instancesSet'][0]['item']:
 
       self.totalMachines += 1
 
-      print
-      print '>+>+>+>',str(oneServer),'<+<+<+<+'
-      
       instanceId      = oneServer['instanceId'][0]['#text']
       instanceState   = oneServer['instanceState'][0]['name'][0]['#text']
       machineName     = None
@@ -197,11 +186,9 @@ class Ec2Space(vcycle.BaseSpace):
 
         if len(foundMachineNames) == 1:
           machineName = foundMachineNames[0]
-          print 'Found ' + instanceId + ' as ' + machineName
           
       if not machineName or not machineName.startswith('vcycle-'):
         # not one of ours
-        print 'Skipping since machineName is',machineName
         continue
 
       if not machinetypeName:
@@ -309,11 +296,9 @@ class Ec2Space(vcycle.BaseSpace):
 
     try:
       result = self.ec2Request( formRequest = { 'Action' : 'DescribeKeyPairs', 'Version' : self.version },
-                                verbose = True )
+                                verbose = False )
     except Exception as e:
       raise Ec2Error('getKeyPairName cannot connect to ' + self.url + ' (' + str(e) + ')')
-
-    print 'DescribeKeyPairs result',result
 
     for keypair in result['response']['DescribeKeyPairsResponse']['keySet'][0]['item']:
       try:
@@ -336,7 +321,7 @@ class Ec2Space(vcycle.BaseSpace):
                                     'KeyName'           : keyName,
                                     'PublicKeyMaterial' : base64.b64encode('ssh-rsa ' + sshPublicKey + ' vcycle')
                                   },
-                                verbose = True
+                                verbose = False
                               )
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
@@ -370,14 +355,10 @@ class Ec2Space(vcycle.BaseSpace):
     except Exception as e:
       raise Ec2Error('Failed to create new machine: ' + str(e))
 
-    print 'formRequest',str(formRequest)
-
     try:
-      result = self.ec2Request( formRequest = formRequest, verbose = True )
+      result = self.ec2Request( formRequest = formRequest, verbose = False )
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
-
-    print 'result',str(result)
 
     try:
       instanceId = result['response']['RunInstancesResponse']['instancesSet'][0]['item'][0]['instanceId'][0]['#text']
@@ -408,15 +389,12 @@ class Ec2Space(vcycle.BaseSpace):
 
   def createTags(self, instanceId, machineName, machinetypeName):
 
-    print 'Start of createTags',instanceId,machineName,machinetypeName
-  
     if self.machinetypes[machinetypeName].remote_joboutputs_url:
       joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
     else:
       joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
     try:
-      print 'Trying ec2Request'
       result = self.ec2Request( formRequest = { 
                       'Action'       : 'CreateTags',
                       'Version'      : self.version,
@@ -434,9 +412,8 @@ class Ec2Space(vcycle.BaseSpace):
                       'Tag.6.Key'    : 'joboutputs',
                       'Tag.6.Value'  : joboutputsURL
                                               },
-                                verbose = True )
+                                verbose = False )
 
-      print 'result:',str(result)
     except Exception as e:
       raise Ec2Error('Adding tags to ' + machineName + ' (' + instanceId + ') fails with ' + str(e))
 
@@ -453,7 +430,7 @@ class Ec2Space(vcycle.BaseSpace):
                       'Version'      : self.version,
                       'InstanceId.1' : instanceId
                                               },
-                                verbose = True )
+                                verbose = False )
     except Exception as e:
       raise Ec2Error('Cannot delete ' + machineName + ' (' + instanceId + ') via ' + self.url + ' (' + str(e) + ')')
 

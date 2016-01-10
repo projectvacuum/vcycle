@@ -962,9 +962,6 @@ class BaseSpace(object):
     else:
       response = None
 
-    print 'outputBuffer:',outputBuffer.getvalue()
-    print 'outputHeaders:',outputHeaders
-
     # If not a 2xx code then raise an exception unless anyStatus option given
     if not anyStatus and self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
       raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
