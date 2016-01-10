@@ -1,3 +1,4 @@
+==================== Changes in Vcycle version 0.9.0 =====================
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
