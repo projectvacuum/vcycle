@@ -44,7 +44,7 @@ accounting record files to /var/lib/vcycle/apel-outgoing and
 /var/lib/vcycle/apel-archive. Please use your official site name to avoid
 the risk of misnamed records getting into the central APEL database.
 If gocdb_sitename is not given, then records are only written to 
-apel-archive and the vcycle space name is used as a placeholder in the 
+apel-archive and the Vcycle space name is used as a placeholder in the 
 files.
 
 .B https_port 
@@ -161,7 +161,7 @@ and avoid overloading the matcher or task queue of the VO.
 
 .B fizzle_seconds
 is used in three places within the backoff procedure and in two
-other parts of vcycle:
+other parts of Vcycle:
 .br
 (1) First, if a VM finishes
 without producing a shutdown message code and has lasted less than 
@@ -169,7 +169,7 @@ fizzle_seconds, then it is treated as aborted.
 .br
 (2) Secondly, after the 
 backoff_seconds time has expired for a VM abort, once at least one VM has
-been started in this vcycle space, then no more new VMs can be started for 
+been started in this Vcycle space, then no more new VMs can be started for 
 another fizzle_seconds. 
 .br
 (3) Additionally, when writing the accounting log files, any VMs which 
@@ -188,9 +188,9 @@ prevents new machines from being created if the number of machines for
 this machinetype in any state exceeds the given limit.
 
 .B max_wallclock_seconds
-gives the maximum lifetime of a VM. vcycle will create 
+gives the maximum lifetime of a VM. Vcycle will create 
 $MACHINEFEATURES/shutdowntime inside the VM using this value to 
-communicate it to the VM. vcycle will destroy the VM if it is still
+communicate it to the VM. Vcycle will destroy the VM if it is still
 running after this amount of time. Default 86400.
 
 .B heartbeat_file
@@ -243,14 +243,19 @@ both are contained in the same file then the same value can be given
 to both options.
 
 .B root_image
-is the path to the image file from which the VM will boot. 
-This can also be a remote HTTP or HTTPS URL which vcycle 
+identifies the image file from which the VM will boot. If the cloud 
+service already has the desired image, then it can be referenced by 
+prefixing the service's native image ID with "image:". 
+.br
+For the OpenStack API, root_image can be 
+the path to the image file itself on the local filesystem. Alternatively,
+it can also be a remote HTTP or HTTPS URL which Vcycle 
 will cache in /var/lib/vcycle/imagecache. The remote server must supply a
-Last-Modified timestamp and vcycle will re-request the image each time a 
+Last-Modified timestamp and Vcycle will re-request the image each time a 
 VM starts using an If-Modified-Since request to minimise network load.
 Alternatively, the images may be files in the local filesystem. If 
 root_image ends in .iso , then the image will be declared as ISO format
-(a CD-ROM image), otherwise as a raw HDD image.
+(a CD-ROM image), otherwise as a raw HDD image. 
 
 .B cernvm_signing_dn
 is used to specify a regular expression to match the DN of an X.509
@@ -270,9 +275,9 @@ option to /root/.ssh/id_rsa.pub will give access from the factory machine.
 
 .B user_data
 is the path of a contextualization file provided by the VO and perhaps 
-modified by the site. If the path is a remote HTTP or HTTPS URL, vcycle
+modified by the site. If the path is a remote HTTP or HTTPS URL, Vcycle
 will fetch it over the network each time a VM is started. However the
-file is obtained, vcycle will apply a series of default and locally defined 
+file is obtained, Vcycle will apply a series of default and locally defined 
 ##user_data___## substitutions to it. See USER_DATA SUBSTITUTIONS below
 for a list of the default substitutions.
 
@@ -299,7 +304,7 @@ proxies. Default False.
 .SH USER_DATA SUBSTITUTIONS
 
 Before the user_data file is used in starting a VM, several pattern based
-substitutions are performed by vcycle. These patterns are in the form
+substitutions are performed by Vcycle. These patterns are in the form
 ##user_data___##. String values given to the option user_data_option_XXX
 replace patterns of the form ##user_data_option_XXX##. The contents of
 the files given to user_data_file_XXX options replace patterns of the
@@ -310,11 +315,11 @@ The pattern ##user_data_x509_proxy## is replaced by the proxy created if the
 user_data_proxy_cert and user_data_proxy_key options are given.
 
 In addition, the following substitutions are performed automatically by
-vcycle using data it holds internally:
+Vcycle using data it holds internally:
 
 .br
 .B ##user_data_space##
-is the vcycle space name.
+is the Vcycle space name.
 .br
 .B ##user_data_machinetype## 
 and 

@@ -265,170 +265,11 @@ class Ec2Space(vcycle.BaseSpace):
   def getImageID(self, machinetypeName):
     """Get the image ID"""
 
-    # If we already know the image ID, then just return it
-    if hasattr(self.machinetypes[machinetypeName], '_imageID'):
-      if self.machinetypes[machinetypeName]._imageID:
-        return self.machinetypes[machinetypeName]._imageID
-      else:
-        # If _imageID is None, then it's not available for this cycle
-        raise Ec2Error('Image "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' not available!')
-
-    # Get the existing images for this tenancy
-    try:
-      result = self.httpRequest(self.url,
-                             headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
-
     # Specific image, not managed by Vcycle, lookup ID
     if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
-      for image in result['response']['images']:
-         if self.machinetypes[machinetypeName].root_image[6:] == image['name']:
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
-
-      raise Ec2Error('Image "' + self.machinetypes[machinetypeName].root_image[6:] + '" for machinetype ' + machinetypeName + ' not available!')
-
-    # Always store/make the image name
-    if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
-       self.machinetypes[machinetypeName].root_image[:8] == 'https://' or \
-       self.machinetypes[machinetypeName].root_image[0] == '/':
-      imageName = self.machinetypes[machinetypeName].root_image
-    else:
-      imageName = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_image
-
-    # Find the local copy of the image file
-    if not hasattr(self.machinetypes[machinetypeName], '_imageFile'):
-
-      if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
-         self.machinetypes[machinetypeName].root_image[:8] == 'https://':
-
-        try:
-          imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
-                                         '/var/lib/vcycle/imagecache', 
-                                         '/var/lib/vcycle/tmp')
-
-          imageLastModified = int(os.stat(imageFile).st_mtime)
-        except Exception as e:
-          raise Ec2Error('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
-
-        self.machinetypes[machinetypeName]._imageFile = imageFile
- 
-      elif self.machinetypes[machinetypeName].root_image[0] == '/':
-        
-        try:
-          imageLastModified = int(os.stat(self.machinetypes[machinetypeName].root_image).st_mtime)
-        except Exception as e:
-          raise Ec2Error('Image file "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' does not exist!')
-
-        self.machinetypes[machinetypeName]._imageFile = self.machinetypes[machinetypeName].root_image
-
-      else: # root_image is not an absolute path, but imageName is
-        
-        try:
-          imageLastModified = int(os.stat(imageName).st_mtime)
-        except Exception as e:
-          raise Ec2Error('Image file "' + self.machinetypes[machinetypeName].root_image +
-                            '" does not exist in /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/ !')
-
-        self.machinetypes[machinetypeName]._imageFile = imageName
-
-    else:
-      imageLastModified = int(os.stat(self.machinetypes[machinetypeName]._imageFile).st_mtime)
-
-    # Go through the existing images looking for a name and time stamp match
-# We should delete old copies of the current image name if we find them here
-#    pprint.pprint(response)
-    for image in result['response']['images']:
-      try:
-         if image['name'] == imageName and \
-            image['status'] == 'ACTIVE' and \
-            image['metadata']['last_modified'] == str(imageLastModified):
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
-      except:
-        pass
-
-    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
-
-    if self.machinetypes[machinetypeName].cernvm_signing_dn:
-      cernvmDict = vac.vacutils.getCernvmImageData(self.machinetypes[machinetypeName]._imageFile)
-
-      if cernvmDict['verified'] == False:
-        raise Ec2Error('Failed to verify signature/cert for ' + self.machinetypes[machinetypeName].root_image)
-      elif re.search(self.machinetypes[machinetypeName].cernvm_signing_dn,  cernvmDict['dn']) is None:
-        raise Ec2Error('Signing DN ' + cernvmDict['dn'] + ' does not match cernvm_signing_dn = ' + self.machinetypes[machinetypeName].cernvm_signing_dn)
-      else:
-        vac.vacutils.logLine('Verified image signed by ' + cernvmDict['dn'])
-
-    # Try to upload the image
-    try:
-      self.machinetypes[machinetypeName]._imageID = self.uploadImage(self.machinetypes[machinetypeName]._imageFile, imageName, imageLastModified)
-      return self.machinetypes[machinetypeName]._imageID
-    except Exception as e:
-      raise Ec2Error('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
-
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
-
-    try:
-      f = open(imageFile, 'r')
-    except Exception as e:
-      raise Ec2Error('Failed to open image file ' + imageName + ' (' + str(e) + ')')
-
-    self.curl.setopt(pycurl.READFUNCTION,   f.read)
-    self.curl.setopt(pycurl.UPLOAD,         True)
-    self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
-    self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycle.shared.vcycleVersion)
-    self.curl.setopt(pycurl.TIMEOUT,        30)
-    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
-    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
-    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
-
-    self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'), 
-                        # ^^^ 'raw' for hdd; 'iso' for iso
-                       'Content-Type: application/octet-stream',
-                       'Accept: application/json',
-                       'Transfer-Encoding: chunked',
-                       'x-image-meta-container_format: bare',
-                       'x-image-meta-is_public: False',                       
-                       'x-image-meta-name: ' + imageName,
-                       'x-image-meta-property-architecture: x86_64',
-                       'x-image-meta-property-last-modified: ' + str(imageLastModified),
-                       'X-Auth-Token: ' + self.token
-                     ])
-
-    outputBuffer = StringIO.StringIO()
-    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+      return self.machinetypes[machinetypeName].root_image[6:]
     
-    if verbose:
-      self.curl.setopt(pycurl.VERBOSE, 2)
-    else:
-      self.curl.setopt(pycurl.VERBOSE, 0)
-
-    if os.path.isdir('/etc/grid-security/certificates'):
-      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
-
-    try:
-      self.curl.perform()
-    except Exception as e:
-      raise Ec2Error('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
-
-    # Any 2xx code is OK; otherwise raise an exception
-    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise Ec2Error('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
-
-    try:
-      response = json.loads(outputBuffer.getvalue())
-    except Exception as e:
-      raise Ec2Error('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
-    
-    try:
-      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
-      return str(response['image']['id'])
-    except:
-      raise Ec2Error('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
+    raise Ec2Error('Failed to get image ID as no image stored for machinetype ' + machinetypeName)
 
   def getKeyPairName(self, machinetypeName):
     """Get the key pair name from root_public_key"""
@@ -520,7 +361,7 @@ class Ec2Space(vcycle.BaseSpace):
                       'MinCount'     : '1',
                       'MaxCount'     : '1',
                       'UserData'     : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-                      'ImageId'      : 'ami-00000381', # self.getImageID(machinetypeName),
+                      'ImageId'      : self.getImageID(machinetypeName),
                       'InstanceType' : self.machinetypes[machinetypeName].flavor_name }
       
       if self.machinetypes[machinetypeName].root_public_key:
