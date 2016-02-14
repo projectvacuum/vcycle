@@ -298,7 +298,8 @@ class OpenstackSpace(vcycle.BaseSpace):
         try:
           imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
                                          '/var/lib/vcycle/imagecache', 
-                                         '/var/lib/vcycle/tmp')
+                                         '/var/lib/vcycle/tmp',
+                                         'Vcycle ' + vcycle.shared.vcycleVersion)
 
           imageLastModified = int(os.stat(imageFile).st_mtime)
         except Exception as e:
