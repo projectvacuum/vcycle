@@ -135,14 +135,16 @@ represents a particular CPU, memory, and disk geometry.
 
 .B hs06
 gives the total HEPSPEC06 power of each virtual machine created for this 
-flavor in this machinetype. This is used as the value $MACHINEFEATURES/hs06 
-supplied to the VM, when calculating target shares, and 
-when writing APEL accounting records. Defaults to 1.
+flavor in this machinetype. If set, this is used as the value 
+$MACHINEFEATURES/hs06 and $JOBFEATURES/hs06_job
+supplied to the VM. It is also used when calculating target shares and 
+when writing APEL accounting records, and for both of these a default of 1.0
+is used if not set explicitly.
 
 .B cpu_per_machine
 gives the number of processors of each virtual machine created for this flavor
-in this machinetype. This is used as the value of $MACHINEFEATURES/phys_cores
-and $MACHINEFEATURES/log_cores supplied to the VM. If the api plugin can
+in this machinetype. This is used as the value of $MACHINEFEATURES/total_cpu
+and $JOBFEATURES/allocated_cpu supplied to the VM. If the api plugin can
 positively determine the number from metadata about the flavor, it will be 
 used in preference to the value given here. Default 1.
 
