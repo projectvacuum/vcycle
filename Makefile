@@ -1,6 +1,6 @@
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-5. All rights reserved.
+#  Copyright (c) 2013-6. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -37,7 +37,7 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               openstack_api.py occi_api.py azure_api.py \
               dbce_api.py ec2_api.py example.vcycle.conf \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
-              vcycled.logrotate VERSION CHANGES \
+              vcycled.logrotate admin-guide.html VERSION CHANGES \
               vcycle.conf.5 vcycled.8
           
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
@@ -59,7 +59,7 @@ install: $(INSTALL_FILES)
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-archive \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-outgoing \
-	         $(RPM_BUILD_ROOT)/var/lib/vcycle/spaces \
+	         $(RPM_BUILD_ROOT)/var/lib/vcycle/spaces/vcycle01.example.com/example/files \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/www \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/joboutputs \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/machines \
@@ -74,6 +74,7 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
 	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
 	   example.vcycle.conf vcycle.conf.5 vcycled.8 \
+	   admin-guide.html \
 	   $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION)
 	cp VERSION \
 	   $(RPM_BUILD_ROOT)/var/lib/vcycle

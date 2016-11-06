@@ -331,7 +331,7 @@ class Machine:
             'EndTime: ' + str(self.stoppedTime) + '\n' +
             memoryField +
             'ServiceLevelType: HEPSPEC\n' +
-            'ServiceLevel: ' + str((self.hs06 if self.hs06 else 1.0) + '\n' +
+            'ServiceLevel: ' + str(self.hs06 if self.hs06 else 1.0) + '\n' +
             '%%\n')
 
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
@@ -1213,7 +1213,7 @@ class BaseSpace(object):
 
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs', 
-                               str(int(time.time()), 0644, '/var/lib/vcycle/tmp')
+                               str(int(time.time())), 0644, '/var/lib/vcycle/tmp')
 
     if self.machinetypes[machinetypeName].hs06:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job', 

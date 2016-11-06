@@ -1,7 +1,8 @@
-==================== Changes in Vcycle version 0.9.0 =====================
+==================== Changes in Vcycle version 01.00.00 =====================
 - Create 1024bit GSI proxies
 - Update MJF for HSF-TN-2016-02
-- Remove GLUE2.0/JSON status publishing 
+- Remove GLUE2.0/JSON status publishing
+- Include admin-guide.html and update example.vcycle.conf
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/

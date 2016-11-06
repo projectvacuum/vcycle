@@ -1,133 +1,139 @@
 <html>
 <head>
 <title>Vcycle admin guide</title>
-</head>
-<body>
+</head><body>
 
 <h1 align=center>Vcycle Admin Guide<!-- version --></h1>
 
-<!--
 <p align=center><b>Andrew McNab &lt;Andrew.McNab&nbsp;AT&nbsp;cern.ch&gt;</b>
 
-<h2 style="border-bottom: 1px solid">Quick start</h2>
+<p>
+Vcycle is a VM factory system which implements the Vacuum Platform described in 
+<a
+href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-04.pdf">HSF-TN-2016-04</a>,
+using a cloud service such as OpenStack to carry out its VM instantiation
+decisions.
+
+<h2>Contents</h2>
+
+<ul>
+<li><a href="#quickstart">Quick start</a>
+<li><a href="#stepbystep">Configuration step-by-step</a>
+<ul>
+<li><a href="#httpd">CernVM images</a>
+<li><a href="#cernvm">CernVM images</a>
+<li><a href="#installation">Installation of Vcycle: tar vs RPM</a>
+<li><a href="#settings">Configuration of the Vcycle spaces</a>
+<li><a href="#gocdbggus">GOCDB and GGUS</a>
+<li><a href="#machinetypes">Setting up machinetypes</a>
+</ul>
+<li><a href="#startingstopping">Starting and stopping vcycled</a>
+<li><a href="#apel">APEL accounting</a>
+<li><a href="#fizzlebackoff">Setting fizzle_seconds and backoff_seconds</a>
+</ul>
+
+<h2 style="border-bottom: 1px solid"><a name="quickstart">Quick start</a></h2>
 
 <p>
-By following this quick start recipe you can verify that your installation 
-will work with Vcycle and see it creating and destroying virtual machines. You
-will almost certainly want to start again from scratch by following the
-step-by-step part of the Admin Guide so don't invest a lot of time here.
-If you're already familiar with VMs, you could just skip straight there
-but it's safest to go through the quick start to make sure the requirements
-are all there.
+By following this quick start recipe you can verify that your cloud service
+will work with Vcycle and see it creating and destroying virtual machines.
 
 <p>
-To follow the quick start, you need an x86_64 Intel or AMD machine 
-with hardware virtualization (Intel VT-x or AMD-V) enabled in its BIOS; and
-the machine needs to be installed with a version of Scientific Linux 6, 
-with libvirt installed and enabled. In particular, the packages
-libvirt, libvirt-client, libvirt-python, qemu-kvm, and then
-run &quot;service libvirtd restart&quot; to make sure libvirtd daemon is
-running. 
+To follow the quick start, we assume you have access to an OpenStack
+service and a Scientific Linux 6 (or CentOS 6 or RHEL 6) machine to use as a
+VM factory on which
+to run Vcycle. This factory machine can itself be a VM, but don't choose a name
+which starts with &quot;vcycle-&quot; . You must be able to perform
+Nova VM management operations from the command line on this machine. This may
+require changes to the OpenStack and/or local firewall configuration. Make sure
+you can list VMs in the tenancy/project you plan to use, whether they are created
+with the Horizon web dashboard or from the command line too.
 
 <p>
-Install the Vcycle RPM and at the command line excecute:
-<pre>
-virsh list
-virsh create /usr/share/doc/Vcycle-*/testkvm.xml
-virsh list
-virsh destroy testkvm
-virsh list
-</pre>
-You should see no VMs listed as running to start with. After the create 
-command, the testkvm VM should be listed as running. Afer destroying it,
-an empty list of VMs should be returned. If all this doesn't happen, 
-then something is wrong with your installation or hardware virtualization 
-isn't enabled. Please check the libvirt documentation to try to identify
-where the problem is.
+Then install the vcycle RPM. This installs a copy of this guide and some
+example files in /usr/share/doc/vcycle-VERSION and the vcycle.conf man page
+in the usual place.
 
 <p>
-To start using Vcycle to manage VMs, it's necessary to have a standard NFS
-server installed and running. Vcycle uses NFS to share some directories from
-the factory machine to its virtual machines.
-It's not necessary to configure the NFS server, as Vcycle uses exportfs
-commands to create and destroy exports dynamically. If you have any iptables
-rules blocking NFS you should disable them before starting Vcycled.
-The factory machine must have a fully qualified domain name (FDQN) as
-its hostname. So factory1.example.com not just factory1. 
-The 169.254.0.0 network should not be configured on the factory machine
-before you start Vcycle. In particular, Zeroconf support should be disabled
-by adding NOZEROCONF=yes to /etc/sysconfig/network and restarting
-networking.
+Copy /usr/share/doc/vcycle-VERSION/example.vcycle.conf into /etc/vcycle.d
+the Vcycle configuration directory. You don't need to change the name, and
+it must end in &quot;.conf&quot; .
 
 <p>
-Next create the /etc/Vcycle.conf configuration file. Copy
-/var/lib/Vcycle/doc/example.Vcycle.conf to /etc/Vcycle.conf and read through its
-comments. There are 5 lines you need to check and probably change.
+Make sure that root on the VM factory machine has an RSA ssh keypair. Run
+the command ssh-keygen if /root/.ssh/id_rsa does not exist already. This
+key pair will be authorized to ssh into the VMs which is very useful for
+debugging. You may need to copy the keypair to another machine if the
+factory is not allowed ssh access to the OpenStack VMs. If this is
+completely barred, then production use of Vcycle is still possible as 
+this feature is just used for debugging.
+
+<p>
+Change the following values in the <b>[space vcycle01.example.com]</b>
+section of example.vcycle.conf:
 
 <dl>
+<dt><b>url</b>
+<dd>This is the KeyStone URL for your OpenStack service. This is given
+by the Identity field when looking at the API Access tab of Access
+&amp;Security in the Horizon web dashboard. 
 
-<dt><b>Vcycle_space =</b> in [settings]
-<dd>Set this to Vcycle01 in your site's domain. So if your site is .example.com
-then set it to Vcycle01.example.com . A Vcycle space is a group of factory
-machines that communicate with each other, and is equivalent to a subcluster
-or subsite. A space's name is a fully qualified domain name (FQDN), and can be 
-used as a virtual CE name where necessary in other systems.
+<dt><b>tenancy_name</b>
+<dd>Is the OpenStack tenancy or project name. Spaces are allowed and 
+quotes are not needed (or allowed).
 
-<dt><b>factories =</b> in [settings]
-<dd>Since we're creating a space that contains a single factory machine, 
-    set this to be the FQDN of the factory machine you're workng on.
+<dt><b>username</b>
+<dd>Is the username for API access.
 
-<dt><b>total_machines</b>
-<dd>Set this to the number of VMs to create and manage on this factory.
-    Vcycle will create hostnames for the VMs from the factory name. For
-    example, factory1.example.com will lead to factory1-00.example.com,
-    factory1-01.example.com, ...
-  
-<dt><b>root_public_key =</b> in [machinetype example]
-<dd>This setting is not strictly necessary but is very useful. By copying
-    an RSA key pair to /root/.ssh on the factory machine, or creating
-    one with ssh-keygen you will be able to ssh into the VM as root and
-    see how it is laid out and how it is running. If you don't
-    place a public key at the location given in this option, you need 
-    to comment the line out.
+<dt><b>password_base64</b>
+<dd>Is the corresponding password, encoded in Base64. You can do this
+with something like: echo -n 'PASSword' | base64
 
-<dt><b>user_data_option_cvmfs_proxy =</b> in [machinetype example]
-<dd>The value of this option is included in the user_data file given to the
-    VM. It must be set to the URL of an HTTP cache you have access to. If 
-    you are already using cvmfs for grid worker nodes, you can use the same
-    value.
+<dt><b>max_machines</b>
+<dd>If there are already VMs in the tenancy/project, then you should 
+increase this from 1 to one more than the number of existing VMs. Otherwise 
+leave it at 1 for now.
+</dl>
+
+<p>
+The next options are for the the section 
+<b>[machinetype vcycle01.example.com example]</b>
+
+<dl>
+<dt><b>flavor_name</b>
+<dd>The flavor of the VMs which will be created.
+
+<dt><b>user_data_option_cvmfs_proxy</b>
+<dd>It should be set to the URL of an HTTP cache you have access to. If
+you are already using cvmfs for grid worker nodes, you can use the same
+value. CernVM will mostly work without this option so you can leave it
+commented out for now. However, if you go into production without a cache
+set, <b>you will get random filesystem errors!</b>
 
 </dl>
 
 <p>
-The files needed for the example machinetype are fetched over HTTPS, as 
-indicated by the root_disk and user_data options which should not be
-changed. 
-
-<p> 
-Just do <b>service Vcycled restart</b>
-to make sure Vcycled is running and look in the log files.
+Now start vcycle with service vcycled start
 
 <p>
-When Vcycled starts it forks a factory process that watches the VMs and
-creates or destroys them as necessary; and a responder process that
-replies to queries from factories about what is running on this host.
-These two processes have separate log files as /var/log/Vcycled-factory
-and /var/log/Vcycled-responder . 
+You will see messages appear in /var/log/vcycled.log and you see a VM
+appear in your OpenStack tenancy once a message saying Vcycle has created
+a VM is logged. If you are able to ssh to VMs, then you should be able
+to ssh into the VM. 
 
 <p>
-In its log file, you should be able to see the factory
-daemon trying to decide what to do and then creating the example
-VM which runs for 5 minutes then shuts itself down. When deciding
-what to do, the factory queries its own responder via UDP and this
-should be visible in the responder's log file.
+If everything is working, you can see from the log file how a
+CernVM image is fetched from
+https://repo.gridpp.ac.uk/vacproject/example/cernvm3.iso and 
+uploaded to OpenStack, and a user_date template is fetched from
+https://repo.gridpp.ac.uk/vacproject/example/user_data and used
+to create the VM.
 
 <p>
-You should also be able to see the state of the VM using the
-command <b>Vcycle scan</b>, where Vcycle is a command line tool that the
-RPM installs in /usr/sbin.
+If you look in the subdirectories of /var/lib/vcycle/machines you
+will see files used to create the VM and record its state changes.
 
-<h2 style="border-bottom: 1px solid">Configuration step-by-step</h2>
+<h2 style="border-bottom: 1px solid"><a name="stepbystep">Configuration step-by-step</a></h2>
 
 <p>
 This part of the guide covers the same ground as the quick start
@@ -135,87 +141,140 @@ guide but in a lot more detail. It's intended to help you choose
 how best to configure your site.
 
 <p>
-The configuration file /etc/vcycle.conf uses the Python ConfigParser syntax, 
-which is similar to MS
-Windows INI files. The file is divided into sections, with each section
-name in square brackets. For example: [settings]. Each section contains
-a series of option=value pairs. Sections with the same name are merged
-and if options are duplicated, later values overwrite values given
-earlier. 
+The configuration files /etc/vcycle.conf and /etc/vcycle.d/*conf use
+the Python ConfigParser syntax, which is similar to MS
+Windows INI files. The files are divided into sections, with each section
+name in square brackets. For example: [space vcycle01.example.com]. Each 
+section contains
+a series of option=value pairs. Values can continue onto the next line
+by starting that line with some white space. Sections with the same name
+are merged and if options are duplicated, later values overwrite values 
+given earlier. 
 Any configuration file ending in .conf in the
-directory /etc/vcycle.d will also be read. These files are read in 
+directory /etc/vcycle.d is read. These files are read in 
 alphanumeric order, and then /etc/vcycle.conf is read if present.
 
 <p>
 Based on this ordering in /etc/vcycle.d/, options from space.conf 
 would override any given
 in site.conf, but themselves be overwritten by options from 
-subspace.conf .
-
-<h3>CernVM images</h3>
+vm.conf .
 
 <p>
-Vcycle currently requires the use of CernVM images with HEPiX 
-contexualization based on EC2/ISO (&quot;CD-ROM&quot;) images,
-and we recommend the use of CernVM 3 micro boot images.
+You may find it convenient to use multiple configuration files if
+you have a complicated setup. For instance: space01.conf,
+space01-machinetype01.conf, space01-machinetype02.conf,
+space02.conf, space02-machinetype01.conf each containing one
+[space ...] or [machinetype ... ...] section.
+
+<h3><a name="httpd">Apache httpd</a></h3>
+
+<p>
+Vcycle uses an Apache httpd running on the VM factory to publish
+Machine/Job Features values according to 
+<a href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-02.pdf">HSF-TN-2016-02</a>
+and to receive $JOBOUTPUTS files according to
+<a href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-04.pdf">HSF-TN-2016-04</a>
+which is essential for VMs using the heartbeat and shutdown_message
+mechanisms.
+
+<p>
+You can meet this requirement by installing the standard httpd RPM
+from SL6 (or CentOS 6 or RHEL 6) and copying two files from
+/usr/share/doc/vcycle-VERSION:
+<ul>
+<li>vcycle.httpd.conf to /etc/httpd/conf/httpd.conf
+<li>vcycle.httpd.inc to /etc/httpd/includes/vcycle.httpd.inc
+</ul>
+and then (re)start httpd. You must ensure that firewall rules
+allow access to TCP port 443 on the VM factory from the VMs.
+
+<p>
+If this port access is not possible, then you should replace 
+443 in both configuration files with a suitable value, and
+set the https_port option in the [space ...] sections. This
+will cause the $MACHINEFEATURES, $JOBFEATURES, and $JOBOUTPUTS
+URLs to include this port number. See the vcycle.conf man page
+for more details. 
+
+<h3><a name="cernvm">CernVM images</a></h3>
+
+<p>
+Any ISO or HDD image which is compatible with your OpenStack
+service shoudl also work with Vcycle. However, Vcycle works
+best with images which look for a user_data contextualization
+file, and CernVM boot images are particularly convenient due to
+their very small size.
 
 <p>
 If you need to download an image, they can be found on   
 the <a href="http://cernvm.cern.ch/portal/downloads">CernVM 
-downloads page</a>. <b>You must get the 
-generic .iso image file and not the .hdd file listed for KVM.</b> 
+downloads page</a>. 
 
 <p>
 However, most experiments will supply you with their own
 URL from which Vcycle can automatically fetch their current
-designated image version, which Vcycle caches in /var/lib/vcycle/imagecache 
-and the uploads to the IaaS service for you.
+designated image version using the user_data option of the [machinetype ... ...]
+section, which Vcycle caches in /var/lib/vcycle/imagecache .
 
-<h3>Installation of Vcycle: tar vs RPM</h3>
+<h3><a name="installation">Installation of Vcycle: tar vs RPM</a></h3>
 
 <p>
 RPM is the recommended installation procedure, and RPMs are available
-from the <a href="https://repo.gridpp.ac.uk/vacproject/vcycle/">Downloads
-directory</a> on the Vcycle website. 
+from the <a href="https://repo.gridpp.ac.uk/vacproject/vcycle/">Vcycle
+downloads area</a>.
 
 <p>
-It is also possible to install Vcycle from a tar file, using the install Makefile
-target. 
+It is also possible to install Vcycle from a tar file, using the install 
+Makefile target. 
 
-<h3>Configuration of Vcycle spaces</h3>
+<h3><a name="settings">Configuration of the Vcycle space</a></h3>
 
 <p>
-Each [space ...] section declaration must include the Vcycle space name, 
-which is also used as the virtual CE name. 
+Each [space ...] section must include a space name, which is also used
+as the virtual CE name. The section name is of the format [space
+vcycle01.example.com] .
 
-<h3>GOCDB and GGUS</h3>
+<p>
+The space must have a value for the option api which defines how to
+talk to the service (such as api = openstack), and then other API specific
+options. For OpenStack, these are url, tenancy_name, username, and 
+password_base64. 
+
+<p>
+See the vcycle.conf man page for more details.
+
+<h3><a name="gocdbggus">GOCDB and GGUS</a></h3>
 
 <p>
 Vcycle is designed to work within the WLCG/EGI grid model of sites composed
 of one or more CEs. Each Vcycle space name corresponds to one CE within a site,
-and can co-exist with conventional CREAM or ARC CEs.
+and can co-exist with conventional CREAM or ARC CEs. If you are at a
+site registered in the <a href="http://goc.egi.eu/">GOCDB</a>, you
+should add your space name(s) to your site in GOCDB as services. There 
+is a registered service type (uk.ac.gridpp.vcycle) for Vcycle spaces. 
 
 <p>
 Problems encountered during the operation of Vcycle in production may 
 appear as tickets in <a href="https://ggus.eu/">GGUS</a>. The 
-<a href="https://wiki.egi.eu/wiki/GGUS:Vcycle_FAQ">Vac/Vcycle Support Unit</a>
+<a href="https://wiki.egi.eu/wiki/GGUS:Vac_FAQ">Vac/Vcycle Support Unit</a>
 appears under &quot;Second Level - Software&quot; on the GGUS
 &quot;Assign ticket to support unit&quot; menu.
 
 <p>
 Vcycle writes APEL accounting records as described below. The GOCDB site
-name given by gocdb_sitename in the [space ...] section is included in these
-records. To avoid the risk of polluting the central APEL database with 
-incorrect site names, please use your real GOCDB sitename for this 
-option. 
+name given by gocdb_sitename in the [space ...] section is included in these 
+records. To avoid the risk of polluting the central APEL database with incorrect
+site names, please use your real GOCDB sitename for this option. 
 
-<h3>Setting up machinetypes</h3>
+<h3><a name="machinetypes">Setting up machinetypes</a></h3>
 
 <p>
 One [machinetype ... ...] section must exist for each machinetype in the system, with
-the name of the machinetype given in the section name, such as [machinetype example].
+the name of the space and machinetype given in the section name, such as [machinetype
+vcycle01.example.com example] .
 A machinetype name must only consist of lowercase letters, numbers,
-and hyphens. The Vcycle.conf(5) man page lists the options
+and hyphens. The vcycle.conf man page lists the options
 that can be given for each machinetype.
 
 <p>
@@ -223,141 +282,111 @@ The target_share option for the machinetype gives
 the desired share of the total VMs available in this space for that
 machinetype. The shares do not need to add up to 1.0, and if a share is not given
 for a machinetype, then it is set to 0. The creation of new VMs can be completely
-disabled by setting all shares to 0. Vcycle factories consult these shares
-when deciding which machinetype to start as VMs become available.
+disabled by setting all shares to 0. Vcycle consults these shares
+when deciding which machinetype to start as VM slots become available.
 
 <p>
 For ease of management, the target_shares options can be grouped 
-together in a separate file in /etc/Vcycle.d apart from the main [machinetype ...]
+together in a separate file in /etc/vcycle.d apart from the main [machinetype
+... ...]
 sections, which is convenient if shares
-are generated automatically or frequently edited by hand and pushed
-out to the factory machines. For example:
+are generated automatically or frequently edited by hand. For example:
 <pre>
-[machinetype example1]
+[machinetype vcycle01.example.com example1]
 target_share = 5.0
-[machinetype example2]
+[machinetype vcycle01.example.com example2]
 target_share = 6.0
-[machinetype example3]
+[machinetype vcycle01.example.com example3]
 target_share = 7.0
 </pre>
 
 <p>
 The experiment or VO responsible for each machinetype should supply 
-step by step intructions on how to set up the rest of the [machinetype ...]
-section and how to create the files to be placed in its subdirectory
-of /var/lib/Vcycle/machinetypes (likely to be a hostcert.pem and hostkey.pem
-pair to give to the VM.)
+step by step intructions on how to set up the rest of the [machinetype ...
+...]
+section and how to create any hostcert.pem and hostkey.pem
+pair to give to the VM.
 
-<h2 style="border-bottom: 1px solid">Starting and stopping Vcycled</h2>
+<h2 style="border-bottom: 1px solid"><a name="startingstopping">Starting and stopping
+vcycled</a></h2>
 
 <p>
-The Vcycle daemon, vcycled, is started and stopped by /etc/rc.d/init.d/vcycled 
+The Vcycle daemon, vcycled, is started and stopped by
+/etc/rc.d/init.d/vcycled 
 on conjunction with the usual service and chkconfig commands. As the 
 configuration files are reread at the start of each cycle (by default, 
-one per minute) <b>it is not necessary to restart Vcycled after changing the 
+one per minute) <b>it is not necessary to restart vacd after changing the 
 configuration</b>.
 
 <p>
-Furthermore, as Vcycled rereads the current state of the VMs from status
-files and the hypervisor at the start of each cycle, Vcycled can be 
+Furthermore, as vcycled rereads the current state of the VMs from status
+files and the cloud service at the start of each cycle, vcycled can be 
 restarted without disrupting running VMs or losing information about
 their state. 
-In most cases it will even be possible to upgrade Vcycled from one patch
+In most cases it will even be possible to upgrade vcycled from one patch
 level to another within the same minor release without having to
-drain the factory of running VMs. If problems arise during upgrades,
+drain the site of running VMs. If problems arise during upgrades,
 the most likely outcome is that Vcycle will fail to create new VMs until 
 the configuration is fixed, but the existing VMs will continue to run.
 (&quot;We want Vcycle failures to look like planned draining.&quot;) 
-Furthermore, since Vcycle factory machines are autonomous, it is 
-straightforward to upgrade one factory in a production Vcycle space
-to check the consequences.
 
-<h2 style="border-bottom: 1px solid">Using the Vcycle command</h2>
-
-<p>
-The Vcycle(1) man page explains how the Vcycle command can be used to
-scan the current Vcycle space and display the VMs running, along with
-statistics about their CPU load and wall clock time.
-
-<h2 style="border-bottom: 1px solid">Setting up Nagios</h2>
-
-<p>
-The check-Vcycled script installed in /usr/sbin can be used with
-Nagios to monitor the state of the Vcycled on a factory node. 
-
-<p>
-It can be run from the local Nagios nrpe daemon with a line like this
-in its configuration file:
-
-<pre>
-command[check-Vcycled]=/usr/sbin/check-Vcycled 600
-</pre>
-
-which raises an alarm if the Vcycled heartbeat wasn't updated in the
-last 600 seconds.
-
-<h2 style="border-bottom: 1px solid">APEL accounting</h2>
+<h2 style="border-bottom: 1px solid"><a name="apel">APEL accounting</a></h2>
 
 <p>
 When Vcycle detects that a VM has run for at least fizzle_seconds and
 now finished, it writes a copy of the APEL
-accounting message to subdirectories of /var/lib/Vcycle/apel-archive .
-If you have set gocdb_sitename in [settings], then the file is also
-written to /var/lib/Vcycle/apel-outgoing . 
+accounting message to subdirectories of /var/lib/vcycle/apel-archive .
+If you have set gocdb_sitename in [space ...], then the file is also
+written to /var/lib/vcycle/apel-outgoing . 
 
 
 <p>
 Vcycle uses the UUID of the VM as the local job 
-ID, the factory hostname as the local user ID, and the machinetype name as the
+ID, the VM factory hostname as the local user ID, and the machinetype name as the
 batch queue name. A unique user DN is constructed from the components 
-of the Vcycle space name. For example, Vcycle01.example.com becomes
-/DC=com/DC=example/DC=Vcycle01 . If the accounting_fqan option is present in
-the [machinetype ...] section, then for VMs of that type the value of that option 
+of the Vcycle space name. For example, vac01.example.com becomes
+/DC=com/DC=example/DC=vac01 . If the accounting_fqan option is present in
+the [machinetype ... ...] section, then for VMs of that type the value of that option 
 is included as the user FQAN, which indicates the VO associated with the VM.
 The GOCDB sitename field is either the value you
-gave explicitly or the Vcycle site name as a placeholder. 
+gave explicitly or the Vcycle space name as a placeholder. 
 
 <p>
 These accounting messages are designed to be published to the central
 APEL service using the
 standard APEL ssmsend command, which can be run on each factory machine
 from cron. Please see the <a href="https://wiki.egi.eu/wiki/APEL">APEL 
-SSM client documentation for details</a>. One you have agreed use of APEL
-with the APEL team, had your certificate authorized, and done any requested
-tests, it should be sufficient that: you install the apel-ssm RPM on each 
-machine, install a host certificate (Vcycle-apel-cert.pem) and key 
-(Vcycle-apel-key.pem) authorized to talk to APEL in /etc/grid-security, make
-sure gocdb_sitename is set, and arrange to run the ssmsend command from cron. 
+SSM client documentation for details</a>. To submit records you should agree 
+use of APEL with the APEL team, have your certificate authorized, set up the 
+correct APEL entries in GOCDB, and do any requested tests.
+
+<h2 style="border-bottom: 1px solid"><a name="fizzlebackoff">Setting fizzle_seconds and backoff_seconds</a></h2>
 
 <p>
-The ssmsend command can safely be run multiple times per day as it does
-not connect to APEL if there are no new messages, and deletes messages 
-once they are sent. It can be run hourly and made to 
-use Vcycle-ssmsend-prod.cfg installed by the Vcycle RPM, by
-placing the file Vcycle-ssmsend-cron in /etc/cron.d:
-<pre> 
-22 * * * * root /usr/bin/ssmsend -c /etc/apel/Vcycle-ssmsend-prod.cfg >>/var/log/Vcycle-ssmsend-cron.log 2>&amp;1
-</pre>
+For each machinetype you can set values of fizzle_seconds and backoff_seconds
+to make the most efficient use of your resources when deciding to start
+VMs.
 
 <p>
-If you use the Vcycle-ssmsend-prod.cfg file for production, please change the 
-value of the bdii option to a local or regional top bdii to avoid loading 
-the default service included in the file.
+You may be able to optimize the value of fizzle_seconds by looking for VMs
+which fail to find work and seeing how long they ran for. However, for most 
+VM architectures and VM factories a value of
+600 seconds will work perfectly well and you do not need to spend a lot
+of effort arriving at an ideal number.
 
 <p>
-If you forget to
-give gocdb_sitename at some point, you can make copies of the records in
-/var/lib/Vcycle/apel-archive with the &quot;Site:&quot; fields corrected
-to your GOCDB sitename and put them in /var/lib/Vcycle/apel-outgoing for
-publishing by ssmsend.
+The value of backoff_seconds is a matter for your site policy about how
+quickly to recover from periods when each experiment has no work available.
+If you know a particular experiment usually has plenty of work, then you
+could set a low value of 600 seconds, so that Vcycle will try creating one
+VM every 10 minutes or so to see if work is available again after a short
+idle period. Alternatively, 
+if you know that an experiment usually has no work for you, then you could
+set much larger values of many hours between creating VMs. In either
+case, once Vcycle identifies that VMs for the experiment are indeed passing
+fizzle_seconds and finding work to do, then the backoff_seconds option is
+ignored and VMs are created as VM slots become free in line with the 
+machinetype's target_share.
 
-<h2 style="border-bottom: 1px solid">Puppet</h2>
-
-<p>
-A simple Puppet module for Vcycle exists as the file init.pp which is installed
-in the /var/lib/Vcycle/doc directory. There are extensive comments at the start
-of the file which outline how to use it.
--->
-<!-- Backoff tuning using  Minimum VVV fizzle_seconds=NNN ?  log lines -->
 </body>
 </html>

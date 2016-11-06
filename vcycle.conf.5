@@ -71,9 +71,13 @@ is a user with access to the tenancy.
 is the base64 encoded password for the user. Vcycle will decode the 
 value to obtain the true password. This encoding is to avoid revealing 
 memorable passwords when casually viewing or editing configuration files.
+You can encode the real password with something like:
+.br
+.ce
+echo -n 'PASSword' | base64
 
-When creating VMs in OpenStack spaces, Vcycle will create machinefeatures,
-jobfeatures, and joboutputs metadata keys with the URLs of the 
+When creating VMs in OpenStack spaces, Vcycle will create "machinefeatures",
+"jobfeatures", and "joboutputs" metadata keys with the URLs of the 
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
@@ -102,15 +106,16 @@ explicitly gives the region to be passed to EC2. Default "us-east-1".
 .B service
 explicitly gives the service name to be passed to EC2. Default "openstack".
 
-When creating VMs in EC2 spaces, Vcycle will create machinefeatures,
-jobfeatures, and joboutputs metadata tags with the URLs of the 
+When creating VMs in EC2 spaces, Vcycle will create "machinefeatures",
+"jobfeatures", and "joboutputs" metadata tags with the URLs of the 
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
 .SH MACHINE / JOB FEATURES HTTP(S) SERVER
 
 Vcycle will create the machinefeatures and jobfeatures files according
-to the WLCG MJF protocol in machinefeatures and jobfeatures subdirectories
+to the WLCG MJF protocol described in HSF-TN-2016-02 in machinefeatures and
+jobfeatures subdirectories
 of the VMs directory in /var/lib/vcycle/machines . Using the vcycle.httpd.inc
 Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
 files are publish via HTTP and HTTPS.
