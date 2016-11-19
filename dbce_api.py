@@ -48,11 +48,11 @@ class DbceError(Exception):
 
 class DbceSpace(vcycle.BaseSpace):
 
-  def __init__(self, api, spaceName, parser, spaceSectionName):
+  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
   # Initialize data structures from configuration files
 
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, spaceName, parser, spaceSectionName)
+    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName)
 
     # OpenStack-specific initialization
     try:

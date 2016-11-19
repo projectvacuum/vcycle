@@ -715,9 +715,10 @@ class Machinetype:
   
 class BaseSpace(object):
 
-  def __init__(self, api, spaceName, parser, spaceSectionName):
-    self.api       = api
-    self.spaceName = spaceName
+  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+    self.api        = api
+    self.apiVersion = apiVersion
+    self.spaceName  = spaceName
 
     try:
       self.max_machines = int(parser.get(spaceSectionName, 'max_machines'))
@@ -1295,10 +1296,15 @@ def readConf():
       except:
         raise VcycleError('api missing from [space ' + spaceName + ']')
 
+      try:
+        apiVersion = parser.get(spaceSectionName, 'api_version')
+      except:
+        apiVersion = None
+
       for subClass in BaseSpace.__subclasses__():
         if subClass.__name__ == api.capitalize() + 'Space':
           try:
-            spaces[spaceName] = subClass(api, spaceName, parser, spaceSectionName)
+            spaces[spaceName] = subClass(api, apiVersion, spaceName, parser, spaceSectionName)
           except Exception as e:
             raise VcycleError('Failed to initialise space ' + spaceName + ' (' + str(e) + ')')
           else:

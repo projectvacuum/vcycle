@@ -117,7 +117,9 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
        raise NameError('Failed to read ' + userDataPath + ' (' + str(e) + ')')
 
      c.close()
-     userDataContents = buffer.getvalue()
+
+     # We only do this substitution if it was an HTTP(S) URL
+     userDataContents = buffer.getvalue().replace('##user_data_url##', userDataPath)
 
    # ... or from filesystem
    else:
@@ -133,7 +135,7 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
      except:
        raise NameError('Failed to read ' + userDataFile)
 
-   # Default substitutions
+   # Default substitutions (plus ##user_data_url## possibly done already)
    userDataContents = userDataContents.replace('##user_data_space##',            spaceName)
    userDataContents = userDataContents.replace('##user_data_machinetype##',      machinetypeName)
    userDataContents = userDataContents.replace('##user_data_machine_hostname##', hostName)
@@ -177,7 +179,7 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
                               makeX509Proxy(certPath, keyPath, shutdownTime, isLegacyProxy=True))
        else:
          userDataContents = userDataContents.replace('##user_data_option_x509_proxy##',
-                              makeX509Proxy(certPath, keyPath, shutdownTime, isLegacyProxy=False))
+                              makeX509Proxy(certPath, keyPath, shutdownTime, isLegacyProxy=False, cn=machinetypeName))
      except Exception as e:
        raise NameError('Faled to make proxy (' + str(e) + ')')
 
@@ -213,7 +215,7 @@ def emptyCallback1(p1):
 def emptyCallback2(p1, p2):
    return
 
-def makeX509Proxy(certPath, keyPath, expirationTime, isLegacyProxy=False):
+def makeX509Proxy(certPath, keyPath, expirationTime, isLegacyProxy=False, cn=None):
    # Return a PEM-encoded limited proxy as a string in either Globus Legacy 
    # or RFC 3820 format. Checks that the existing cert/proxy expires after
    # the given expirationTime, but no other checks are done.
@@ -267,13 +269,23 @@ def makeX509Proxy(certPath, keyPath, expirationTime, isLegacyProxy=False):
    newSubject = oldCerts[0].get_subject()
 
    if isLegacyProxy:
+     # Globus legacy proxy
      newSubject.add_entry_by_txt(field = "CN",
                                  type  = 0x1001,
                                  entry = 'limited proxy',
                                  len   = -1, 
                                  loc   = -1, 
                                  set   = 0)
+   elif cn:
+     # RFC proxy, probably with machinetypeName as proxy CN
+     newSubject.add_entry_by_txt(field = "CN",
+                                 type  = 0x1001,
+                                 entry = cn,
+                                 len   = -1, 
+                                 loc   = -1, 
+                                 set   = 0)
    else:
+     # RFC proxy, with Unix time as CN
      newSubject.add_entry_by_txt(field = "CN",
                                  type  = 0x1001,
                                  entry = str(int(time.time() * 100)),
@@ -618,7 +630,7 @@ def makeSyncRecord(dirPrefix, targetYearMonth, tmpDir):
    except:
      pass
 
-   syncFileName = time.strftime(dirPrefix + '/apel-outgoing/%Y%m%d/%H%M%S', gmtime) + str(time.time() % 1)[2:][:8]
+   syncFileName = time.strftime(dirPrefix + '/apel-outgoing/%Y%m%d/%H%M%S', gmtime) + (str(time.time() % 1) + '00000000')[2:10]
 
    if createFile(syncFileName, syncRecord, stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, tmpDir):
       print 'Created ' + syncFileName
