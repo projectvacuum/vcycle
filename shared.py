@@ -671,16 +671,15 @@ class Machinetype:
         else:
           self.options[oneOption] = oneValue
 
-    if parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') and \
-                not parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
-      raise VcycleError('user_data_proxy_cert given but user_data_proxy_key missing (they can point to the same file if necessary)')
-    elif not parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') and \
-                  parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
-      raise VcycleError('user_data_proxy_key given but user_data_proxy_cert missing (they can point to the same file if necessary)')
-    elif parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') and \
-                  parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
-      self.user_data_proxy_cert = parser.get(machinetypeSectionName, 'user_data_proxy_cert')
-      self.user_data_proxy_key  = parser.get(machinetypeSectionName, 'user_data_proxy_key')
+    if parser.has_option(sectionName, 'user_data_proxy_cert') or \
+       parser.has_option(sectionName, 'user_data_proxy_key') :
+      print 'user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!'
+          
+    if parser.has_option(sectionName, 'user_data_proxy') and \
+       parser.get(sectionName,'user_data_proxy').strip().lower() == 'true':
+      machinetype['user_data_proxy'] = True
+    else:
+      machinetype['user_data_proxy'] = False
              
     if parser.has_option(machinetypeSectionName, 'legacy_proxy') and \
        parser.get(machinetypeSectionName, 'legacy_proxy').strip().lower() == 'true':
@@ -1145,7 +1144,7 @@ class BaseSpace(object):
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files',
+                                                        machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName,
                                                         options            = self.machinetypes[machinetypeName].options,
                                                         versionString      = 'Vcycle ' + vcycleVersion,
                                                         spaceName          = self.spaceName,

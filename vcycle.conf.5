@@ -234,6 +234,19 @@ can write. The value of $JOBOUTPUTS will be the VM
 name chosen by Vcycle appended as a directory name to the URL given
 by this option.
 
+.B legacy_proxy
+can be set to True to generate Globus legacy proxies rather than RFC 3820
+proxies. Default False.
+
+.B user_data_proxy
+set to true causes the files x509cert.pem and x509key.pem in the 
+machinetype's subdirectory of /var/lib/vcycle/spaces/SPACE/machinetypes to 
+be used to make a limited X.509 proxy. The two files can be
+identical if desired, and the X.509 certificate and RSA private key
+will be extracted from the files as appropriate. (Note that this location
+is one level about the files subdirectory in which the following options
+look by default.)
+
 For the remaining options, if the file name begins with '/', then it
 will be used as an absolute path; otherwise the path will be interpreted
 relative to the machinetype's subdirectory of /var/lib/vcycle/spaces/SPACE/machinetypes/MACHINETYPE/files
@@ -296,17 +309,6 @@ file before the VM is started. user_data_option_XXX takes the string to
 be substituted. user_data_file_XXX takes the relative or absolute path to
 a file whose contents will be substituted for the pattern in the 
 user_data file.
-
-.B user_data_proxy_cert
-and
-.B user_data_proxy_key
-are the locations of files containing X.509 certificate(s) and an RSA 
-private key, all in PEM format, which will be used to make a limited 
-X.509 proxy. The same file can be given for both options if desired.
-
-.B legacy_proxy
-can be set to True to generate Globus legacy proxies rather than RFC 3820
-proxies. Default False.
 
 .SH USER_DATA SUBSTITUTIONS
 

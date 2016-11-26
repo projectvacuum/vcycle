@@ -4,6 +4,9 @@
 - Remove GLUE2.0/JSON status publishing
 - Include admin-guide.html and update example.vcycle.conf
 - Update vacutils with ##user_data_url## set to remote user_data URL
+- Vacutils supports Vacuum Pipes.
+- user_data_proxy_cert/_key replaced by user_data_proxy True/False with
+  fixed x509cert.pem/x509key.pem file names.
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/

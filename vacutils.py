@@ -91,6 +91,75 @@ def secondsToHHMMSS(seconds):
    mm, ss = divmod(ss, 60)
    return '%02d:%02d:%02d' % (hh, mm, ss)
 
+def readPipe(pipeFile, pipeURL, updatePipes = False):
+
+   # Default value in case not given in file
+   cacheSeconds = 3600
+
+   try:
+     pipeDict = json.load(open(pipeFile, 'r'))
+   except:
+     logLine('Unable to read vacuum pipe file ' + pipeFile)
+     pipeDict = { 'cache_seconds' : cacheSeconds }
+     
+     try:
+       f = open(pipeFile, 'w')
+     except:
+       raise NameError('Unable to write vacuum pipe file ' + pipeFile)
+     else:
+       json.dump(pipeDict, f)
+       f.close()
+
+   else:
+     try:
+       cacheSeconds = int(pipeDict['cache_seconds'])
+     except:
+       pipeDict['cache_seconds'] = cacheSeconds
+
+   # Check if cache seconds has expired
+   if updatePipes and \
+      int(os.stat(pipeFile).st_mtime) < time.time() - cacheSeconds and \
+      ((pipeURL[0:7] == 'http://') or (pipeURL[0:8] == 'https://')):
+     buffer = StringIO.StringIO()
+     c = pycurl.Curl()
+     c.setopt(c.URL, pipeURL)
+     c.setopt(c.WRITEFUNCTION, buffer.write)
+     c.setopt(c.USERAGENT, versionString)
+     c.setopt(c.TIMEOUT, 30)
+     c.setopt(c.FOLLOWLOCATION, True)
+     c.setopt(c.SSL_VERIFYPEER, 1)
+     c.setopt(c.SSL_VERIFYHOST, 2)
+               
+     if os.path.isdir('/etc/grid-security/certificates'):
+       c.setopt(c.CAPATH, '/etc/grid-security/certificates')
+     else:
+       logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+
+     try:
+       c.perform()
+     except Exception as e:
+       raise NameError('Failed to read ' + pipeURL + ' (' + str(e) + ')')
+
+     c.close()
+
+     try:
+       pipeDict = json.loads(buffer.getvalue())
+     except:
+       raise NameError('Failed to load vacuum pipe file from ' + pipeURL)
+     else:
+       try:
+         f = open(pipeFile, 'w')
+       except:
+         logLine('Unable to write vacuum pipe file ' + pipeFile)
+         return pipeDict
+       else:
+         json.dump(pipeDict, f)
+         f.close()
+
+     createFile(pipeFile, json.dumps(pipeDict), stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH)
+
+   return pipeDict
+
 def createUserData(shutdownTime, machinetypePath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr, 
                    machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None):
    
@@ -126,7 +195,7 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
      if userDataPath[0] == '/':
        userDataFile = userDataPath
      else:
-       userDataFile = machinetypePath + '/' + userDataPath
+       userDataFile = machinetypePath + '/files/' + userDataPath
 
      try:
        u = open(userDataFile, 'r')
@@ -161,17 +230,9 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
      userDataContents = userDataContents.replace('##user_data_uuid##', uuidStr)
 
    # Insert a proxy created from user_data_proxy_cert / user_data_proxy_key
-   if 'user_data_proxy_cert' in options and 'user_data_proxy_key' in options:
-
-     if options['user_data_proxy_cert'][0] == '/':
-       certPath = options['user_data_proxy_cert']
-     else:
-       certPath = machinetypePath + '/' + options['user_data_proxy_cert']
-
-     if options['user_data_proxy_key'][0] == '/':
-       keyPath = options['user_data_proxy_key']
-     else:
-       keyPath = machinetypePath + '/' + options['user_data_proxy_key']
+   if 'user_data_proxy' in options and options['user_data_proxy'] == True:
+     certPath = machinetypePath + '/x509cert.pem'
+     keyPath  = machinetypePath + '/x509key.pem'
 
      try:
        if ('legacy_proxy' in options) and options['legacy_proxy']:
@@ -192,7 +253,7 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
            if oneValue[0] == '/':
              f = open(oneValue, 'r')
            else:
-             f = open(machinetypePath + '/' + oneValue, 'r')
+             f = open(machinetypePath + '/files/' + oneValue, 'r')
 
            # deprecated: replace ##user_data_file_xxxx## with value                           
            userDataContents = userDataContents.replace('##' + oneOption + '##', f.read())
@@ -277,7 +338,7 @@ def makeX509Proxy(certPath, keyPath, expirationTime, isLegacyProxy=False, cn=Non
                                  loc   = -1, 
                                  set   = 0)
    elif cn:
-     # RFC proxy, probably with machinetypeName as proxy CN
+     # RFC proxy, probably with machinetypeName as proxy CN
      newSubject.add_entry_by_txt(field = "CN",
                                  type  = 0x1001,
                                  entry = cn,
