@@ -1141,6 +1141,11 @@ class BaseSpace(object):
     else:
       joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
+    if self.root_image.startswith('http://') or self.root_image.startswith('https://'):
+      rootImageURL = self.root_image
+    else:
+      rootImageURL = None
+
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
@@ -1150,6 +1155,7 @@ class BaseSpace(object):
                                                         spaceName          = self.spaceName,
                                                         machinetypeName    = machinetypeName,
                                                         userDataPath       = self.machinetypes[machinetypeName].user_data,
+                                                        rootImageURL       = rootImageURL,
                                                         hostName           = machineName + '.' + self.spaceName,
                                                         uuidStr            = None,
                                                         machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',

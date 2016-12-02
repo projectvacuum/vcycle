@@ -7,6 +7,7 @@
 - Vacutils supports Vacuum Pipes.
 - user_data_proxy_cert/_key replaced by user_data_proxy True/False with
   fixed x509cert.pem/x509key.pem file names.
+- user_data and root image URLs in user_data templates
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
