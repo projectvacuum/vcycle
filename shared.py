@@ -662,6 +662,7 @@ class Machinetype:
     except Exception as e:
       raise VcycleError('Failed to parse target_share in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
+    # self.options will be passed to vacutils.createUserData()
     self.options = {}
     
     for (oneOption, oneValue) in parser.items(machinetypeSectionName):
@@ -671,21 +672,21 @@ class Machinetype:
         else:
           self.options[oneOption] = oneValue
 
-    if parser.has_option(sectionName, 'user_data_proxy_cert') or \
-       parser.has_option(sectionName, 'user_data_proxy_key') :
+    if parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') or \
+       parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
       print 'user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!'
           
-    if parser.has_option(sectionName, 'user_data_proxy') and \
-       parser.get(sectionName,'user_data_proxy').strip().lower() == 'true':
-      machinetype['user_data_proxy'] = True
+    if parser.has_option(machinetypeSectionName, 'user_data_proxy') and \
+       parser.get(machinetypeSectionName,'user_data_proxy').strip().lower() == 'true':
+      self.options['user_data_proxy'] = True
     else:
-      machinetype['user_data_proxy'] = False
+      self.options['user_data_proxy'] = False
              
     if parser.has_option(machinetypeSectionName, 'legacy_proxy') and \
        parser.get(machinetypeSectionName, 'legacy_proxy').strip().lower() == 'true':
-      self.legacy_proxy = True
+      self.options['legacy_proxy'] = True
     else:
-      self.legacy_proxy = False
+      self.options['legacy_proxy'] = False
 
     # Just for this instance, so Total for this machinetype in one space
     self.totalMachines    = 0
@@ -1141,8 +1142,8 @@ class BaseSpace(object):
     else:
       joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
-    if self.root_image.startswith('http://') or self.root_image.startswith('https://'):
-      rootImageURL = self.root_image
+    if self.machinetypes[machinetypeName].root_image.startswith('http://') or self.machinetypes[machinetypeName].root_image.startswith('https://'):
+      rootImageURL = self.machinetypes[machinetypeName].root_image
     else:
       rootImageURL = None
 
