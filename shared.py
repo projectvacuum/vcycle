@@ -62,6 +62,7 @@ class VcycleError(Exception):
   pass
 
 vcycleVersion       = None
+vacQueryVersion     = '01.02' # Has to match shared.py in Vac
 spaces              = None
 maxWallclockSeconds = 0
 
@@ -132,7 +133,12 @@ class Machine:
         f.close()
         
     try:
-      self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/machinefeatures/hs06', 'r').read().strip())
+      self.cpus = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
+    except:
+      self.cpus = 1
+
+    try:
+      self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/hs06_job', 'r').read().strip())
       hs06Weight = self.hs06
     except:
       self.hs06 = None
@@ -151,15 +157,22 @@ class Machine:
       try:
         spaces[self.spaceName].runningMachines += 1
         spaces[self.spaceName].machinetypes[self.machinetypeName].runningMachines += 1
+
+        spaces[self.spaceName].runningProcessors += self.cpus
+        spaces[self.spaceName].machinetypes[self.machinetypeName].runningProcessors += self.cpus
+
+        if self.hs06:
+          spaces[self.spacename].runningHS06 += self.hs06
+          spaces[self.spaceName].machinetypes[self.machinetypeName].runningHS06 += self.hs06
       except:
         pass
 
-    try:        
+    try:
       if self.state == MachineState.starting or \
          (self.state == MachineState.running and \
           ((int(time.time()) - startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds)):
         spaces[self.spaceName].machinetypes[self.machinetypeName].notPassedFizzle += 1
-    except:      
+    except:
       pass
 
     if os.path.isdir('/var/lib/vcycle/machines/' + name):
@@ -310,7 +323,7 @@ class Machine:
     if spaces[self.spaceName].gocdb_sitename:
       tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
     else:
-      tmpGocdbSitename = self.spaceName
+      tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
 
     mesg = ('APEL-individual-job-message: v0.3\n' + 
             'Site: ' + tmpGocdbSitename + '\n' +
@@ -689,10 +702,12 @@ class Machinetype:
       self.options['legacy_proxy'] = False
 
     # Just for this instance, so Total for this machinetype in one space
-    self.totalMachines    = 0
-    self.runningMachines  = 0
-    self.weightedMachines = 0.0
-    self.notPassedFizzle  = 0
+    self.totalMachines     = 0
+    self.runningMachines   = 0
+    self.runningProcessors = 0
+    self.runningHS06 = 0.0
+    self.weightedMachines  = 0.0
+    self.notPassedFizzle   = 0
 
   def setLastAbortTime(self, abortTime):
 
@@ -753,8 +768,10 @@ class BaseSpace(object):
     self.token = None
 
     # totalMachines includes ones Vcycle doesn't manage
-    self.totalMachines   = 0
-    self.runningMachines = 0
+    self.totalMachines     = 0
+    self.runningMachines   = 0
+    self.runningProcessors = 0
+    self.runningHS06       = 0.0
     
     # all the Vcycle-created VMs in this space
     self.machines = {}
@@ -1026,6 +1043,108 @@ class BaseSpace(object):
         vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName)
 
+  def makeFactoryMessage(cookie = '0'):
+    factoryHeartbeatTime = int(time.time())
+
+    try:
+      mjfHeartbeatTime = int(os.stat('/var/log/httpd/https-vcycle.log').st_ctime)
+      metadataHeartbeatTime = mjfHeartbeatTime
+    except:
+      mjfHeartbeatTime = 0
+      metadataHeartbeatTime = 0
+
+    try:
+      bootTime = int(time.time() - float(open('/proc/uptime','r').readline().split()[0]))
+    except:
+      bootTime = 0
+
+    daemonDiskStatFS  = os.statvfs('/var/lib/vcycle')
+    rootDiskStatFS = os.statvfs('/tmp')
+
+    memory = vac.vacutils.memInfo()
+
+    try:
+      osIssue = open('/etc/issue.vac','r').readline().strip()
+    except:
+      try:
+        osIssue = open('/etc/issue','r').readline().strip()
+      except:
+        osIssue = os.uname()[2]
+
+    if spaces[self.spaceName].gocdb_sitename:
+      tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
+    else:
+      tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
+
+    messageDict = {
+                'message_type'             : 'factory_status',
+                'daemon_version'           : 'Vcycle ' + vcycleVersion + ' vcycled',
+                'vacquery_version'         : 'VacQuery ' + vacQueryVersion,
+                'cookie'                   : cookie,
+                'space'                    : self.spaceName,
+                'site'                     : tmpGocdbSitename,
+                'factory'                  : os.uname()[1],
+                'time_sent'                : int(time.time()),
+
+                'running_processors'       : self.runningProcessors,
+                'running_machines'         : self.runningMachines,
+                'running_hs06'             : self.runningHS06,
+
+                'max_processors'           : self.runningProcessors,
+                'max_machines'             : self.runningMachines,
+                'max_hs06'                 : self.runningHS06,
+
+                'root_disk_avail_kb'       : (rootDiskStatFS.f_bavail * rootDiskStatFS.f_frsize) / 1024,
+                'root_disk_avail_inodes'   : rootDiskStatFS.f_favail,
+
+                'daemon_disk_avail_kb'      : (daemonDiskStatFS.f_bavail *  daemonDiskStatFS.f_frsize) / 1024,
+                'daemon_disk_avail_inodes'  : daemonDiskStatFS.f_favail,
+
+                'load_average'             : vac.vacutils.loadAvg(2),
+                'kernel_version'           : os.uname()[2],
+                'os_issue'                 : osIssue,
+                'boot_time'                : bootTime,
+                'factory_heartbeat_time'   : factoryHeartbeatTime,
+                'mjf_heartbeat_time'       : mjfHeartbeatTime,
+                'metadata_heartbeat_time'  : metadataHeartbeatTime,
+                'swap_used_kb'             : memory['SwapTotal'] - memory['SwapFree'],
+                'swap_free_kb'             : memory['SwapFree'],
+                'mem_used_kb'              : memory['MemTotal'] - memory['MemFree'],
+                'mem_total_kb'             : memory['MemTotal']
+                  }
+
+    return json.dumps(messageDict)
+
+  def makeMachinetypeMessages():
+    vcycle.vacutils.logLine('machinetype ' + machinetypeName + 
+                              ' has ' + str(machinetype.runningMachines) + 
+                              ' running vcycle VMs out of ' + str(machinetype.totalMachines) +
+                              ' found in any state. ' + str(machinetype.notPassedFizzle) +
+                              ' not passed fizzle_seconds(' + str(machinetype.fizzle_seconds) +
+                              ').')
+
+    return json.dumps(messageDict)
+
+  def sendVacMon(self):
+
+    if not self.vacmons:
+      return
+
+    factoryMessage      = self.makeFactoryMessage()
+#    machinetypeMessages = self.makeMachinetypeMessages()
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    for vacmonHostPort in self.vacmons:
+      (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
+
+      sock.sendto(factoryMessage, (vacmonHost,int(vacmonPort)))
+
+#      for machinetypeMessage in machinetypeMessages:
+#        sock.sendto(machinetypeMessage, (vacmonHost,int(vacmonPort)))
+
+    sock.close()
+
   def makeMachines(self):
 
     vcycle.vacutils.logLine('Space ' + self.spaceName + 
@@ -1243,6 +1362,11 @@ class BaseSpace(object):
       return
       
     try:
+      self.sendVacMon()
+    except Exception as e:
+      vcycle.vacutils.logLine('Sending VacMon messages fails: ' + str(e))
+
+    try:
       self.deleteMachines()
     except Exception as e:
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
@@ -1252,7 +1376,7 @@ class BaseSpace(object):
       self.makeMachines()
     except Exception as e:
       vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
-      
+
 def readConf():
 
   global vcycleVersion, spaces
@@ -1323,6 +1447,18 @@ def readConf():
         spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename').strip()
       else:
         spaces[spaceName].gocdb_sitename = None
+
+      if parser.has_option(spaceSectionName, 'vacmon_hostport'):
+        try:
+          spaces[spaceName].vacmons = parser.get(spaceSectionName,'vacmon_hostport').lower().split()
+        except:
+          raise VcycleError('Failed to parse vacmon_hostport for space ' + spaceName)
+      
+        for v in spaces[spaceName].vacmons:
+          if re.search('^[a-z0-9.-]+:[0-9]+$', v) is None:
+            raise VcycleError('Failed to parse vacmon_hostport: must be host.domain:port')
+      else:
+        spaces[spaceName].vacmons = []
 
       if parser.has_option(spaceSectionName, 'https_port'):
         spaces[spaceName].https_port = int(parser.get(spaceSectionName,'https_port').strip())

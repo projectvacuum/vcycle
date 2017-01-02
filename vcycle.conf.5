@@ -47,6 +47,12 @@ If gocdb_sitename is not given, then records are only written to
 apel-archive and the Vcycle space name is used as a placeholder in the 
 files.
 
+.B vacmon_hostport
+If set, this option gives a space-separated list of HOST:PORT to send 
+VacQuery UDP messages to. This can be used to monitor the ongoing status
+of the Vcycle factory and its VMs via site or central VacMon services. 
+The central GridPP VacMon service is vacmon.gridpp.ac.uk:8884
+
 .B https_port 
 gives the port number used to contact the Vcycle HTTPS server from
 within the VMs. This only needs to be changed if there is an intervening
