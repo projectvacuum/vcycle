@@ -43,6 +43,7 @@ import stat
 import glob
 import time
 import json
+import socket
 import shutil
 import string
 import pycurl
@@ -241,7 +242,9 @@ class Machine:
             vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.machinetypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
         
+          # Machine finished messages for APEL and VacMon
           self.writeApel()
+          self.sendMachineMessage()
       else:
         self.stoppedTime = None
 
@@ -373,14 +376,88 @@ class Machine:
         vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
         return
 
+  def sendMachineMessage(self, cookie = '0'):
+    if not spaces[self.spaceName].vacmons:
+      return
+
+    timeNow = int(time.time())
+
+    if spaces[self.spaceName].gocdb_sitename:
+      tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
+    else:
+      tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
+
+    if self.stoppedTime:
+      cpuSeconds = self.stoppedTime - self.startedTime
+    elif self.state == MachineState.running:
+      cpuSeconds = timeNow - self.startedTime
+    else:
+      cpuSeconds = 0
+
+    messageDict = {
+                'message_type'          : 'machine_status',
+                'daemon_version'        : 'Vcycle ' + vcycleVersion + ' vcycled',
+                'vacquery_version'      : 'VacQuery ' + vacQueryVersion,
+                'cookie'                : cookie,
+                'space'                 : self.spaceName,
+                'site'                  : tmpGocdbSitename,
+                'factory'               : os.uname()[1],
+                'num_machines'          : 1,
+                'time_sent'             : timeNow,
+
+                'machine'               : self.name,
+                'state'                 : self.state,
+                'uuid'                  : self.uuidStr,
+                'created_time'          : self.createdTime,
+                'started_time'          : self.startedTime,
+                'heartbeat_time'        : self.heartbeatTime,
+                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].cpus
+                'cpu_seconds'           : cpuSeconds,
+                'cpu_percentage'        : 100.0,
+                'hs06'                  : self.hs06,
+                'machinetype'           : self.machinetypeName
+                   }
+
+    try:
+      messageDict['fqan'] = spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan
+    except:
+      pass
+
+    try:
+      messageDict['shutdown_message'] = self.shutdownMessage
+    except:
+      pass
+
+    try:
+      messageDict['shutdown_time'] = self.shutdownMessageTime
+    except:
+      pass
+
+    messageJSON = json.dumps(messageDict)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    for vacmonHostPort in spaces[self.spaceName].vacmons:
+      (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
+
+      vcycle.vacutils.logLine('Sending VacMon machine finished message to %s:%s' % (vacmonHost, vacmonPort))
+
+      sock.sendto(messageJSON, (vacmonHost,int(vacmonPort)))
+
+    sock.close()
+
   def setShutdownMessage(self):
+
+     self.shutdownMessage     = None
+     self.shutdownMessageTime = None
 
      # Easy if a local file rather than remote
      if not spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url: 
        try:
          self.shutdownMessage = open('/var/lib/vcycle/machines/' + self.name + '/joboutputs/shutdown_message', 'r').read().strip()
+         self.shutdownMessageTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/joboutputs/shutdown_message').st_ctime)
        except:
-         self.shutdownMessage = None
+         pass
 
        return
 
@@ -1043,7 +1120,7 @@ class BaseSpace(object):
         vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName)
 
-  def makeFactoryMessage(cookie = '0'):
+  def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
 
     try:
@@ -1061,7 +1138,7 @@ class BaseSpace(object):
     daemonDiskStatFS  = os.statvfs('/var/lib/vcycle')
     rootDiskStatFS = os.statvfs('/tmp')
 
-    memory = vac.vacutils.memInfo()
+    memory = vcycle.vacutils.memInfo()
 
     try:
       osIssue = open('/etc/issue.vac','r').readline().strip()
@@ -1090,8 +1167,8 @@ class BaseSpace(object):
                 'running_machines'         : self.runningMachines,
                 'running_hs06'             : self.runningHS06,
 
-                'max_processors'           : self.runningProcessors,
-                'max_machines'             : self.runningMachines,
+                'max_processors'           : self.max_machines,
+                'max_machines'             : self.max_machines,
                 'max_hs06'                 : self.runningHS06,
 
                 'root_disk_avail_kb'       : (rootDiskStatFS.f_bavail * rootDiskStatFS.f_frsize) / 1024,
@@ -1100,7 +1177,7 @@ class BaseSpace(object):
                 'daemon_disk_avail_kb'      : (daemonDiskStatFS.f_bavail *  daemonDiskStatFS.f_frsize) / 1024,
                 'daemon_disk_avail_inodes'  : daemonDiskStatFS.f_favail,
 
-                'load_average'             : vac.vacutils.loadAvg(2),
+                'load_average'             : vcycle.vacutils.loadAvg(2),
                 'kernel_version'           : os.uname()[2],
                 'os_issue'                 : osIssue,
                 'boot_time'                : bootTime,
@@ -1115,15 +1192,42 @@ class BaseSpace(object):
 
     return json.dumps(messageDict)
 
-  def makeMachinetypeMessages():
-    vcycle.vacutils.logLine('machinetype ' + machinetypeName + 
-                              ' has ' + str(machinetype.runningMachines) + 
-                              ' running vcycle VMs out of ' + str(machinetype.totalMachines) +
-                              ' found in any state. ' + str(machinetype.notPassedFizzle) +
-                              ' not passed fizzle_seconds(' + str(machinetype.fizzle_seconds) +
-                              ').')
+  def makeMachinetypeMessages(self, cookie = '0'):
+    messages = []
+    timeNow = int(time.time())
+    numMachinetypes = len(spaces[self.spaceName].machinetypes)
+  
+    if spaces[self.spaceName].gocdb_sitename:
+      tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
+    else:
+      tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
 
-    return json.dumps(messageDict)
+    for machinetypeName in spaces[self.spaceName].machinetypes:
+      messageDict = {
+                'message_type'          : 'machinetype_status',
+                'daemon_version'        : 'Vcycle ' + vcycleVersion + ' vcycled',
+                'vacquery_version'      : 'VacQuery ' + vacQueryVersion,
+                'cookie'                : cookie,
+                'space'                 : self.spaceName,
+                'site'                  : tmpGocdbSitename,
+                'factory'               : os.uname()[1],
+                'num_machinetypes'      : numMachinetypes,
+                'time_sent'             : timeNow,
+
+                'machinetype'           : machinetypeName,
+                'running_hs06'          : spaces[self.spaceName].machinetypes[machinetypeName].runningHS06,
+                'running_machines'      : spaces[self.spaceName].machinetypes[machinetypeName].runningMachines,
+                'running_processors'    : spaces[self.spaceName].machinetypes[machinetypeName].runningProcessors
+                     }
+
+      try:
+        messageDict['fqan'] = spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan
+      except:
+        pass
+
+      messages.append(json.dumps(messageDict))
+
+    return messages
 
   def sendVacMon(self):
 
@@ -1131,17 +1235,19 @@ class BaseSpace(object):
       return
 
     factoryMessage      = self.makeFactoryMessage()
-#    machinetypeMessages = self.makeMachinetypeMessages()
+    machinetypeMessages = self.makeMachinetypeMessages()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     for vacmonHostPort in self.vacmons:
       (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
 
+      vcycle.vacutils.logLine('Sending VacMon messages to %s:%s' % (vacmonHost, vacmonPort))
+
       sock.sendto(factoryMessage, (vacmonHost,int(vacmonPort)))
 
-#      for machinetypeMessage in machinetypeMessages:
-#        sock.sendto(machinetypeMessage, (vacmonHost,int(vacmonPort)))
+      for machinetypeMessage in machinetypeMessages:
+        sock.sendto(machinetypeMessage, (vacmonHost,int(vacmonPort)))
 
     sock.close()
 

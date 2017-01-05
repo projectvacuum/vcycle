@@ -5,7 +5,7 @@
 ## UNMODIFIED VERSIONS ARE COPIED TO THE Vcycle REPO AS NEEDED  ##
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-4. All rights reserved.
+#  Copyright (c) 2013-7. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -91,7 +91,23 @@ def secondsToHHMMSS(seconds):
    mm, ss = divmod(ss, 60)
    return '%02d:%02d:%02d' % (hh, mm, ss)
 
-def readPipe(pipeFile, pipeURL, updatePipes = False):
+def secondsToString(timeStamp):
+
+   if timeStamp is None or timeStamp == 0:
+     return ' - '
+  
+   seconds = int(time.time() - timeStamp)
+
+   if seconds < 120:
+     return str(seconds) + 's'
+   elif seconds < 7200:
+     return '%dm' % (seconds / 60)
+   elif seconds < 172800:
+     return '%dh' % (seconds / 3600)
+   else:
+     return '%dd' % (seconds / 86400)
+
+def readPipe(pipeFile, pipeURL, versionString, updatePipes = False):
 
    # Default value in case not given in file
    cacheSeconds = 3600
@@ -109,6 +125,8 @@ def readPipe(pipeFile, pipeURL, updatePipes = False):
      else:
        json.dump(pipeDict, f)
        f.close()
+       # still force an attempt to fetch remote file
+       cacheSeconds = 0
 
    else:
      try:
@@ -135,6 +153,8 @@ def readPipe(pipeFile, pipeURL, updatePipes = False):
      else:
        logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
 
+     logLine('Fetching ' + pipeURL)
+
      try:
        c.perform()
      except Exception as e:
@@ -155,6 +175,7 @@ def readPipe(pipeFile, pipeURL, updatePipes = False):
        else:
          json.dump(pipeDict, f)
          f.close()
+         logLine('Saved ' + pipeURL + ' as ' + pipeFile)
 
      createFile(pipeFile, json.dumps(pipeDict), stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH)
 
@@ -711,4 +732,55 @@ def makeSshFingerprint(pubFileLine):
      fingerprint = hashlib.md5(base64.b64decode(pubFileLine.strip().split()[1].encode('ascii'))).hexdigest()
      return ':'.join(fingerprint[i:i+2] for i in range(0, len(fingerprint), 2))
    except:
+     return None
+
+def loadAvg(which = None):
+   # By default, use maximum load average
+   # which = 1, 2, or 3
+      
+   try:
+     load0,load1,load2 = open('/proc/loadavg').readline().split()[0:3]
+     loadList = [float(load0),float(load1),float(load2)]
+   except Exception as e:
+     print 'Failed to parse /proc/loadavg (' + str(e) + ')'
+     return None
+
+   if which is None:
+     return max(loadList)
+   else:
+     return loadList[which]
+
+def memInfo():
+   # Get some interesting quantities out of /proc/meminfo
+   result = {}
+   
+   try:
+     f = open('/proc/meminfo', 'r')
+   except:
+     print 'Failed to open /proc/meminfo'
+     return None
+
+   while True:
+     fields = f.readline().split()
+     
+     if len(fields) == 0:
+       break
+     
+     if fields[0] == 'SwapTotal:':
+       result['SwapTotal'] = int(fields[1])
+     elif fields[0] == 'SwapFree:':
+       result['SwapFree'] = int(fields[1])
+     elif fields[0] == 'MemTotal:':
+       result['MemTotal'] = int(fields[1])
+     elif fields[0] == 'MemFree:':
+       result['MemFree'] = int(fields[1])
+
+   f.close()
+
+   if 'SwapTotal' in result and \
+      'SwapFree'  in result and \
+      'MemTotal'  in result and \
+      'MemFree'   in result:
+     return result
+   else:
      return None
