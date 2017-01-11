@@ -105,21 +105,29 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception:
       self.password = ''
 
-  def connect(self):
-  # Connect to the OpenStack service
-  
+    if not self.apiVersion or self.apiVersion == '2' or self.apiVersion.startswith('2.'):
+      self.connect = self.connectV2
+    elif self.apiVersion == '3' or self.apiVersion.startswith('3.'):
+      self.connect = self.connectV3
+    else:
+      raise OpenstackError('api_version %s not recognised' % self.apiVersion)
+
+  def connectV2(self):
+  # Connect to the OpenStack service with Identity v2
+
     try:
       result = self.httpRequest(self.identityURL + '/tokens',
-                               { 'auth' : { 'tenantName'           : self.tenancy_name, 
-                                            'passwordCredentials' : { 'username' : self.username, 
-                                                                      'password' : self.password 
-                                                                    }
-                                          }
-                               } )
+                                jsonRequest = { 'auth' : { 'tenantName'           : self.tenancy_name, 
+                                                'passwordCredentials' : { 'username' : self.username, 
+                                                                       'password' : self.password 
+                                                                     }
+                                              }
+                                } )
     except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.identityURL + ' (' + str(e) + ')')
- 
-    self.token      = str(result['response']['access']['token']['id'])
+      raise OpenstackError('Cannot connect to ' + self.identityURL + ' with v2 API (' + str(e) + ')')
+
+    self.token = str(result['response']['access']['token']['id'])
+
     self.computeURL = None
     self.imageURL   = None
     
@@ -128,6 +136,61 @@ class OpenstackSpace(vcycle.BaseSpace):
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
+        
+    if not self.computeURL:
+      raise OpenstackError('No compute service URL found from ' + self.identityURL)
+
+    if not self.imageURL:
+      raise OpenstackError('No image service URL found from ' + self.identityURL)
+
+    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
+    vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
+    vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+
+  def connectV3(self):
+  # Connect to the OpenStack service with Identity v3
+
+    try:
+      # No trailing slash of identityURL! (matches URL on Horizon Dashboard API page)
+      result = self.httpRequest(self.identityURL + '/auth/tokens',
+                                jsonRequest = { "auth": { "identity": { "methods" : [ "password"],
+                                                                        "password": {
+                                                                                      "user": {
+                                                                                                "name"    : self.username,
+                                                                                                "domain"  : { "name": "default" },
+                                                                                                "password": self.password
+                                                                                              }
+                                                                                    }
+                                                                      },
+                                                "scope": { "project": { "domain"  : { "name": "default" }, "name": self.tenancy_name } }
+                                              }
+                                  }
+                               )
+    except Exception as e:
+        raise OpenstackError('Cannot connect to ' + self.identityURL + ' with v' + self.apiVersion + ' API (' + str(e) + ')')
+
+    try:
+      self.token = result['headers']['x-subject-token'][0]
+    except Exception as e:
+      raise OpenstackError('Cannot read X-Subject-Token: from ' + self.identityURL + ' response with v' + self.apiVersion + ' API (' + str(e) + ')')
+
+    import pprint
+    pprint.pprint(result['response'])
+
+    self.computeURL = None
+    self.imageURL   = None
+
+    # This might be a bit naive? We just keep the LAST one we see.
+    for service in result['response']['token']['catalog']:
+      if service['type'] == 'compute':
+        for endpoint in service['endpoints']:      
+          if endpoint['interface'] == 'public':
+            self.computeURL = str(endpoint['url'])
+      
+      elif service['type'] == 'image':
+        for endpoint in service['endpoints']:
+          if endpoint['interface'] == 'public':
+            self.imageURL = str(endpoint['url'])
         
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
@@ -148,7 +211,7 @@ class OpenstackSpace(vcycle.BaseSpace):
   
     try:
       result = self.httpRequest(self.computeURL + '/servers/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -226,7 +289,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       
     try:
       result = self.httpRequest(self.computeURL + '/flavors/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
@@ -268,7 +331,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     # Get the existing images for this tenancy
     try:
       result = self.httpRequest(self.computeURL + '/images/detail',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -459,7 +522,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.computeURL + '/os-keypairs',
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -477,11 +540,11 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.computeURL + '/os-keypairs',
-                               { 'keypair' : { 'name'       : keyName,
-                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
-                                             }
-                               },
-                               headers = [ 'X-Auth-Token: ' + self.token ])
+                                jsonRequest = { 'keypair' : { 'name'       : keyName,
+                                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
+                                                            }
+                                              },
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -525,8 +588,8 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.computeURL + '/servers',
-                             jsonRequest = request,
-                             headers = [ 'X-Auth-Token: ' + self.token ])
+                                jsonRequest = request,
+                                headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
@@ -546,7 +609,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
-                    method = 'DELETE',
-                    headers = [ 'X-Auth-Token: ' + self.token ])
+                       method = 'DELETE',
+                       headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')

@@ -242,7 +242,7 @@ class Machine:
             vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.machinetypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
         
-          # Machine finished messages for APEL and VacMon
+          # Machine finished messages for APEL and VacMon
           self.writeApel()
           self.sendMachineMessage()
       else:
@@ -411,7 +411,7 @@ class Machine:
                 'created_time'          : self.createdTime,
                 'started_time'          : self.startedTime,
                 'heartbeat_time'        : self.heartbeatTime,
-                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].cpus
+                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].cpus,
                 'cpu_seconds'           : cpuSeconds,
                 'cpu_percentage'        : 100.0,
                 'hs06'                  : self.hs06,
