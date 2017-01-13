@@ -66,9 +66,24 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     # OpenStack-specific initialization
     try:
-      self.tenancy_name = parser.get(spaceSectionName, 'tenancy_name')
+      self.project_name = parser.get(spaceSectionName, 'tenancy_name')
+    except:
+      try:
+        self.project_name = parser.get(spaceSectionName, 'project_name')
+      except Exception as e:
+        raise OpenstackError('project_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+    else:
+      vcycle.vacutils.logLine('tenancy_name in [space ' + self.spaceName + '] is deprecated - please use project_name')
+
+    try:
+      self.domain_name = parser.get(spaceSectionName, 'domain_name')
     except Exception as e:
-      raise OpenstackError('tenancy_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+      self.domain_name = 'default'
+
+    try:
+      self.network_uuid = parser.get(spaceSectionName, 'network_uuid')
+    except Exception as e:
+      self.network_uuid = None
 
     try:
       self.identityURL = parser.get(spaceSectionName, 'url')
@@ -117,12 +132,11 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.identityURL + '/tokens',
-                                jsonRequest = { 'auth' : { 'tenantName'           : self.tenancy_name, 
-                                                'passwordCredentials' : { 'username' : self.username, 
-                                                                       'password' : self.password 
-                                                                     }
+                                jsonRequest = { 'auth' : { 'tenantName' : self.project_name, 
+                                                           'passwordCredentials' : { 'username' : self.username, 'password' : self.password }
+                                                         }
                                               }
-                                } )
+                               )
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.identityURL + ' with v2 API (' + str(e) + ')')
 
@@ -157,12 +171,12 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                                         "password": {
                                                                                       "user": {
                                                                                                 "name"    : self.username,
-                                                                                                "domain"  : { "name": "default" },
+                                                                                                "domain"  : { "name": self.domain_name },
                                                                                                 "password": self.password
                                                                                               }
                                                                                     }
                                                                       },
-                                                "scope": { "project": { "domain"  : { "name": "default" }, "name": self.tenancy_name } }
+                                                "scope": { "project": { "domain"  : { "name": self.domain_name }, "name": self.project_name } }
                                               }
                                   }
                                )
@@ -174,14 +188,12 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot read X-Subject-Token: from ' + self.identityURL + ' response with v' + self.apiVersion + ' API (' + str(e) + ')')
 
-    import pprint
-    pprint.pprint(result['response'])
-
     self.computeURL = None
     self.imageURL   = None
 
     # This might be a bit naive? We just keep the LAST one we see.
     for service in result['response']['token']['catalog']:
+
       if service['type'] == 'compute':
         for endpoint in service['endpoints']:      
           if endpoint['interface'] == 'public':
@@ -394,7 +406,6 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     # Go through the existing images looking for a name and time stamp match
 # We should delete old copies of the current image name if we find them here
-#    pprint.pprint(response)
     for image in result['response']['images']:
       try:
          if image['name'] == imageName and \
@@ -579,6 +590,9 @@ class OpenstackSpace(vcycle.BaseSpace):
                     # but point them both to the joboutputs directory that we now provide
                   }    
                 }
+
+      if self.network_uuid:
+        request['server']['networks'] = [{"uuid": self.network_uuid}]
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)

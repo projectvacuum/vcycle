@@ -926,7 +926,7 @@ class BaseSpace(object):
                   anyStatus = False	# accept any HTTP status without exception, not just 2xx
                  ):
 
-    # Returns dictionary:  { 'headers' : HEADERS, 'response' : DICTIONARY, 'status' : CURL RESPONSE CODE }
+    # Returns dictionary:  { 'headers' : HEADERS, 'response' : DICTIONARY, 'raw' : string, 'status' : CURL RESPONSE CODE }
 
     self.curl.unsetopt(pycurl.CUSTOMREQUEST)
     self.curl.setopt(pycurl.URL, str(url))
@@ -1061,9 +1061,14 @@ class BaseSpace(object):
 
     # If not a 2xx code then raise an exception unless anyStatus option given
     if not anyStatus and self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      try:
+        vcycle.vacutils.logLine('Query raw response: ' + str(outputBuffer.getvalue()))
+      except:
+        pass
+        
       raise VcycleError('Query of ' + url + ' returns HTTP code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
-    return { 'headers' : outputHeaders, 'response' : response, 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
+    return { 'headers' : outputHeaders, 'response' : response, 'raw' : str(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
   def _deleteOneMachine(self, machineName):
   

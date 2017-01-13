@@ -23,7 +23,7 @@ alphanumeric order by name, and then /etc/vcycle.conf is read if present.
 
 .SH [SPACE ...] SECTIONS
 
-One [space ...] section must exist for each tenancy, project, or account in which
+One [space ...] section must exist for each project, tenancy, or account in which
 VMs will be created, with the Vcycle space name for the space given in the section
 name, such as [space project1.example.com]. The Vcycle admin has a free choice
 of what names to give each space, but the name must only consist of lowercase 
@@ -67,11 +67,18 @@ and the following options are then available.
 .B url
 is the URL of the identity (KeyStone) endpoint for this OpenStack service.
 
-.B tenancy_name
-is the tenancy or project name.
+.B project_name
+is the project or tenancy name.
+
+.B domain_name
+is the domain name containing the project or 'default' by default.
+
+.B network_uuid
+gives the UUID of a network to use. By default no network is requested
+and OpenStack uses the default network for the project.
 
 .B username
-is a user with access to the tenancy.
+is a user with access to the project.
 
 .B password_base64
 is the base64 encoded password for the user. Vcycle will decode the 

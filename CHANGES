@@ -10,6 +10,8 @@
 - user_data and root image URLs in user_data templates
 - Send VacMon factory_status and machinetype_status messages every cycle,
   and machine_status when each machine finishes
+- Identity V3 support in OpenStack plugin, tenancy_name -> project_name,
+  and add domain_name option.
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
