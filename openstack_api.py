@@ -218,7 +218,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     """Query OpenStack compute service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
-    # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
+    # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
   
     try:
@@ -237,7 +237,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       # Just in case other VMs are in this space
       if machineName[:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalMachines += 1
+        self.totalProcessors += 1 # FIXME: GET THE EXACT NUMBER FROM oneServer
         continue
 
       uuidStr = str(oneServer['id'])

@@ -151,7 +151,7 @@ class Ec2Space(vcycle.BaseSpace):
     """Query EC2 service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
-    # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
+    # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
   
     try:
@@ -162,7 +162,7 @@ class Ec2Space(vcycle.BaseSpace):
     for item1 in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
      for oneServer in item1['instancesSet'][0]['item']:
 
-      self.totalMachines += 1
+      self.totalProcessors += 1 # FIXME: GET THE REAL NUMBER NOT JUST 1
 
       instanceId      = oneServer['instanceId'][0]['#text']
       instanceState   = oneServer['instanceState'][0]['name'][0]['#text']

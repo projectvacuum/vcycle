@@ -114,7 +114,7 @@ class AzureSpace(vcycle.BaseSpace):
         """Query Azure compute service for details of machines in this space"""
 
         # For each machine found in the space, this method is responsible for
-        # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
+        # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
         # or (b) creating a Machine object for the VM in self.spaces
 
         try:
@@ -135,7 +135,7 @@ class AzureSpace(vcycle.BaseSpace):
             if len(info.deployments) == 0 : continue
             if not result.service_name.startswith('vcycle-'):
                 # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-                self.totalMachines += 1
+                self.totalProcessors += 1 # FIXME: GET THE REAL NUMBER, NOT JUST 1
                 continue
 
             uuidStr = str(result.service_name)

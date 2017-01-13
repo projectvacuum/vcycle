@@ -12,6 +12,8 @@
   and machine_status when each machine finishes
 - Identity V3 support in OpenStack plugin, tenancy_name -> project_name,
   and add domain_name option.
+- max_machines -> max_processors in spaces and machinetypes; 
+  hs06 -> hs06_per_processor; cpu_per_machine -> processors_per_machine 
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/

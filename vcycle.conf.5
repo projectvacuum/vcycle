@@ -34,8 +34,8 @@ a virtual CE elsewhere in the system.
 is required and specifies the lowercase name of the API to use when contacting
 the IaaS service associted with this space. 
 
-.B max_machines
-prevents new machines from being created if the number of machines for
+.B max_processors
+prevents new machines from being created if the number of processors for
 this space in any state exceeds the given limit.
 
 .B gocdb_sitename
@@ -151,15 +151,15 @@ be managed separately.
 gives the name of a flavor previously defined in the IaaS system which 
 represents a particular CPU, memory, and disk geometry.
 
-.B hs06
-gives the total HEPSPEC06 power of each virtual machine created for this 
-flavor in this machinetype. If set, this is used as the value 
+.B hs06_per_processor
+gives the HEPSPEC06 power of each processor in the virtual machines created 
+for this flavor in this machinetype. If set, this is used to calculate the value 
 $MACHINEFEATURES/hs06 and $JOBFEATURES/hs06_job
 supplied to the VM. It is also used when calculating target shares and 
 when writing APEL accounting records, and for both of these a default of 1.0
 is used if not set explicitly.
 
-.B cpu_per_machine
+.B processors_per_machine
 gives the number of processors of each virtual machine created for this flavor
 in this machinetype. This is used as the value of $MACHINEFEATURES/total_cpu
 and $JOBFEATURES/allocated_cpu supplied to the VM. If the api plugin can
@@ -203,8 +203,8 @@ has passed.
 is used to specify a FQAN to include when writing APEL accounting 
 records, to associate usage with particular experiments.
 
-.B max_machines
-prevents new machines from being created if the number of machines for
+.B max_processors
+prevents new machines from being created if the number of processors for
 this machinetype in any state exceeds the given limit.
 
 .B max_wallclock_seconds

@@ -133,7 +133,7 @@ class OcciSpace(vcycle.BaseSpace):
             # Just in case other VMs are in this space
             if machineName[:7] != 'vcycle-':
                 # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-                self.totalMachines += 1
+                self.totalProcessors += 1 # FIXME: GET THE REAL NUMBER NOT JUST 1
                 continue
 
             # With OCCI will have to use our file datestamps to get transition times

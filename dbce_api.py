@@ -90,7 +90,7 @@ class DbceSpace(vcycle.BaseSpace):
     """Query DBCE compute service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for
-    # either (a) ignorning non-Vcycle VMs but updating self.totalMachines
+    # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
     try:
@@ -104,7 +104,7 @@ class DbceSpace(vcycle.BaseSpace):
       # Just in case other VMs are in this space
       if oneServer['name'][:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalMachines += 1
+        self.totalProcessors += 1 # FIXME: GET THE REAL NUMBER NOT JUST 1
         continue
 
       # checks if the machine belongs to the space name
