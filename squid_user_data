@@ -1,0 +1,145 @@
+From nobody Wed Nov 18 09:59:29 2015
+Comments:
+ #
+ # Runs on Squid for CernVM-FS on CentOS 6 in a VM.
+ # Start a VM with a suitable image and this as the user-data file.
+ #
+ # Andrew.McNab@cern.ch January 2017
+ #
+Content-Type: multipart/mixed; boundary="===============3141592653589793238=="
+MIME-Version: 1.0
+
+--===============3141592653589793238==
+MIME-Version: 1.0
+Content-Type: text/cloud-config; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment; filename="cloud-config-file"
+
+# cloud-config
+
+write_files:
+  - owner: root:root
+    path: /etc/squid/squid.conf.template
+    permissions: '0755'
+    content: |
+        maximum_object_size 1048576 KB
+        
+        #
+        # Recommended minimum configuration:
+        #
+        acl manager proto cache_object
+        acl localhost src 127.0.0.1/32
+        acl to_localhost dst 127.0.0.0/8 0.0.0.0/32 
+
+        # Example rule allowing access from your local networks.
+        # Adapt to list your (internal) IP networks from where browsing
+        # should be allowed
+        acl localnet src ##LOCALNET##
+        #acl localnet src 10.0.0.0/8	# RFC1918 possible internal network
+        #acl localnet src 172.16.0.0/12	# RFC1918 possible internal network
+        #acl localnet src 192.168.0.0/16	# RFC1918 possible internal network
+        #acl localnet src fc00::/7       # RFC 4193 local private network range
+        #acl localnet src fe80::/10      # RFC 4291 link-local (directly plugged) machines
+        
+        icp_port 3130
+        icp_access allow localnet
+        icp_access deny all
+        
+        acl SSL_ports port 443
+        acl Safe_ports port 80		# http
+        acl Safe_ports port 21		# ftp
+        acl Safe_ports port 443		# https
+        acl Safe_ports port 70		# gopher
+        acl Safe_ports port 210		# wais
+        acl Safe_ports port 1025-65535	# unregistered ports
+        acl Safe_ports port 280		# http-mgmt
+        acl Safe_ports port 488		# gss-http
+        acl Safe_ports port 591		# filemaker
+        acl Safe_ports port 777		# multiling http
+        acl CONNECT method CONNECT
+        
+        #
+        # Recommended minimum Access Permission configuration:
+        #
+        # Only allow cachemgr access from localhost
+        http_access allow manager localhost
+        http_access deny manager
+        
+        # Deny requests to certain unsafe ports
+        http_access deny !Safe_ports
+        
+        # Deny CONNECT to other than secure SSL ports
+        http_access deny CONNECT !SSL_ports
+        
+        # We strongly recommend the following be uncommented to protect innocent
+        # web applications running on the proxy server who think the only
+        # one who can access services on "localhost" is a local user
+        #http_access deny to_localhost
+        
+        #
+        # INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
+        #
+        
+        # Example rule allowing access from your local networks.
+        # Adapt localnet in the ACL section to list your (internal) IP networks
+        # from where browsing should be allowed
+        http_access allow localnet
+        http_access allow localhost
+        
+        # And finally deny all other access to this proxy
+        http_access deny all
+        
+        # Squid normally listens to port 3128
+        http_port ##HTTP_PORT##
+        
+        # We recommend you to use at least the following line.
+        hierarchy_stoplist cgi-bin ?
+        
+        # Uncomment and adjust the following to add a disk cache directory.
+        cache_dir ufs /var/spool/squid 5000 16 256
+        
+        # Leave coredumps in the first cache dir
+        coredump_dir /var/spool/squid
+        
+        # Add any of your own refresh_pattern entries above these.
+        refresh_pattern ^ftp:		1440	20%	10080
+        refresh_pattern ^gopher:	1440	0%	1440
+        refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+        refresh_pattern /repodata/	0	0%	0
+        refresh_pattern .		0	20%	4320
+        
+--===============3141592653589793238==
+MIME-Version: 1.0
+Content-Type: text/x-shellscript; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment; filename="user_data_script"
+
+#!/bin/bash
+
+(
+  yum -y install squid
+
+  ipaddr=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*inet addr://' | cut -d' ' -f1`
+  ipmask=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*Mask://'`
+
+  ipaddr1=`echo $ipaddr | cut -f1 -d.`
+  ipaddr2=`echo $ipaddr | cut -f2 -d.`
+  ipaddr3=`echo $ipaddr | cut -f3 -d.`
+  ipaddr4=`echo $ipaddr | cut -f4 -d.`
+
+  ipmask1=`echo $ipmask | cut -f1 -d.`
+  ipmask2=`echo $ipmask | cut -f2 -d.`
+  ipmask3=`echo $ipmask | cut -f3 -d.`
+  ipmask4=`echo $ipmask | cut -f4 -d.`
+
+  ipnet=$(($ipaddr1 & $ipmask1)).$(($ipaddr2 & $ipmask2)).$(($ipaddr3 & $ipmask3)).$(($ipaddr4 & $ipmask4))
+
+  sed -e 's/##HTTP_PORT##/3128/' \
+      -e "s^##LOCALNET##^$ipnet/$ipmask^" \
+      /etc/squid/squid.conf.template > /etc/squid/squid.conf
+
+  chkconfig squid on
+  service squid restart
+
+) >/var/log/user_data_script.log 2>&1 &
+--===============3141592653589793238==--
