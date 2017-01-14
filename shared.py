@@ -164,9 +164,14 @@ class Machine:
         spaces[self.spaceName].runningProcessors += self.cpus
         spaces[self.spaceName].machinetypes[self.machinetypeName].runningProcessors += self.cpus
 
-        if self.hs06:
-          spaces[self.spacename].runningHS06 += self.hs06
-          spaces[self.spaceName].machinetypes[self.machinetypeName].runningHS06 += self.hs06
+        if self.hs06 is not None:
+          # We check runningHS06 first in case hs06_per_processor removed from machinetype in config
+          if spaces[self.spacename].runningHS06 is not None:
+            spaces[self.spacename].runningHS06 += self.hs06
+
+          if spaces[self.spaceName].machinetypes[self.machinetypeName].runningHS06 is not None:
+            spaces[self.spaceName].machinetypes[self.machinetypeName].runningHS06 += self.hs06
+
       except:
         pass
 
@@ -416,10 +421,12 @@ class Machine:
                 'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].cpus,
                 'cpu_seconds'           : cpuSeconds,
                 'cpu_percentage'        : 100.0,
-                'hs06'                  : self.hs06,
                 'machinetype'           : self.machinetypeName
                    }
 
+    if self.hs06:
+      messageDict['hs06'] = self.hs06
+    
     try:
       messageDict['fqan'] = spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan
     except:
@@ -753,13 +760,18 @@ class Machinetype:
         self.hs06 = float(parser.get(machinetypeSectionName, 'hs06'))
       except Exception as e:
         VcycleError('Failed to parse hs06 in [' + machinetypeSectionName + '] (' + str(e) + ')')
+      else:
+        self.runningHS06 = 0.0
     elif parser.has_option(machinetypeSectionName, 'hs06_per_processor'):
       try:
         self.hs06 = self.cpus * float(parser.get(machinetypeSectionName, 'hs06_per_processor'))
       except Exception as e:
         VcycleError('Failed to parse hs06_per_processor in [' + machinetypeSectionName + '] (' + str(e) + ')')
+      else:
+        self.runningHS06 = 0.0
     else:
-      self.hs06 = None
+      self.hs06        = None
+      self.runningHS06 = None
 
     try:
       self.user_data = parser.get(machinetypeSectionName, 'user_data')
@@ -805,7 +817,6 @@ class Machinetype:
     self.totalProcessors   = 0
     self.runningMachines   = 0
     self.runningProcessors = 0
-    self.runningHS06       = 0.0
     self.weightedMachines  = 0.0
     self.notPassedFizzle   = 0
 
@@ -848,6 +859,13 @@ class BaseSpace(object):
       except Exception as e:
         raise VcycleError('max_processors is required in [space ' + spaceName + '] (' + str(e) + ')')
 
+    # totalProcessors includes ones Vcycle doesn't manage
+    self.totalMachines     = 0
+    self.totalProcessors   = 0
+    self.runningMachines   = 0
+    self.runningProcessors = 0
+    self.runningHS06       = None
+    
     self.machinetypes = {}
 
     for machinetypeSectionName in parser.sections():
@@ -867,21 +885,16 @@ class BaseSpace(object):
       except Exception as e:
         raise VcycleError('Failed to initialize [machinetype ' + spaceName + ' ' + machinetypeName + '] (' + str(e) + ')')
 
+      if self.runningHS06 is None and self.machinetypes[machinetypeName].hs06 is not None:
+        self.runningHS06 = 0.0
+
     if len(self.machinetypes) < 1:
       raise VcycleError('No machinetypes defined for space ' + spaceName + ' - each space must have at least one machinetype!')
 
     # Start new curl session for this instance
-    self.curl = pycurl.Curl()
-    
+    self.curl  = pycurl.Curl()
     self.token = None
 
-    # totalProcessors includes ones Vcycle doesn't manage
-    self.totalMachines     = 0
-    self.totalProcessors   = 0
-    self.runningMachines   = 0
-    self.runningProcessors = 0
-    self.runningHS06       = 0.0
-    
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
@@ -1202,11 +1215,9 @@ class BaseSpace(object):
 
                 'running_processors'       : self.runningProcessors,
                 'running_machines'         : self.runningMachines,
-                'running_hs06'             : self.runningHS06,
 
                 'max_processors'           : self.max_processors,
                 'max_machines'             : self.max_processors,
-                'max_hs06'                 : self.runningHS06,
 
                 'root_disk_avail_kb'       : (rootDiskStatFS.f_bavail * rootDiskStatFS.f_frsize) / 1024,
                 'root_disk_avail_inodes'   : rootDiskStatFS.f_favail,
@@ -1226,6 +1237,10 @@ class BaseSpace(object):
                 'mem_used_kb'              : memory['MemTotal'] - memory['MemFree'],
                 'mem_total_kb'             : memory['MemTotal']
                   }
+
+    if self.runningHS06 is not None:
+      messageDict['max_hs06']     = self.runningHS06
+      messageDict['running_hs06'] = self.runningHS06
 
     return json.dumps(messageDict)
 
@@ -1252,7 +1267,6 @@ class BaseSpace(object):
                 'time_sent'             : timeNow,
 
                 'machinetype'           : machinetypeName,
-                'running_hs06'          : spaces[self.spaceName].machinetypes[machinetypeName].runningHS06,
                 'running_machines'      : spaces[self.spaceName].machinetypes[machinetypeName].runningMachines,
                 'running_processors'    : spaces[self.spaceName].machinetypes[machinetypeName].runningProcessors
                      }
@@ -1261,6 +1275,9 @@ class BaseSpace(object):
         messageDict['fqan'] = spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan
       except:
         pass
+
+      if spaces[self.spaceName].machinetypes[machinetypeName].runningHS06 is not None:
+        messageDict['running_hs06'] = spaces[self.spaceName].machinetypes[machinetypeName].runningHS06
 
       messages.append(json.dumps(messageDict))
 
