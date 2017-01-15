@@ -630,7 +630,7 @@ class Machinetype:
       raise VcycleError('root_image is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
     try:
-      self.cernvm_signing_dn = parser.get(machinetypeSectionName, 'cernvm_signing_dn').strip()
+      self.cernvm_signing_dn = parser.get(machinetypeSectionName, 'cernvm_signing_dn')
     except:
       self.cernvm_signing_dn = None
 
@@ -702,11 +702,11 @@ class Machinetype:
       raise VcycleError('Failed to parse heartbeat_seconds in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
-               parser.get(machinetypeSectionName, 'log_machineoutputs').strip().lower() == 'true':
+               parser.get(machinetypeSectionName, 'log_machineoutputs').lower() == 'true':
       self.log_joboutputs = True
       print 'log_machineoutputs is deprecated. Please use log_joboutputs'
     elif parser.has_option(machinetypeSectionName, 'log_joboutputs') and \
-               parser.get(machinetypeSectionName, 'log_joboutputs').strip().lower() == 'true':
+               parser.get(machinetypeSectionName, 'log_joboutputs').lower() == 'true':
       self.log_joboutputs = True
     else:
       self.log_joboutputs = False
@@ -742,7 +742,7 @@ class Machinetype:
       self.remote_joboutputs_key  = None
 
     if parser.has_option(machinetypeSectionName, 'accounting_fqan'):
-      self.accounting_fqan = parser.get(machinetypeSectionName, 'accounting_fqan').strip()
+      self.accounting_fqan = parser.get(machinetypeSectionName, 'accounting_fqan')
 
     try:
       self.cpus = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
@@ -801,13 +801,13 @@ class Machinetype:
       print 'user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!'
           
     if parser.has_option(machinetypeSectionName, 'user_data_proxy') and \
-       parser.get(machinetypeSectionName,'user_data_proxy').strip().lower() == 'true':
+       parser.get(machinetypeSectionName,'user_data_proxy').lower() == 'true':
       self.options['user_data_proxy'] = True
     else:
       self.options['user_data_proxy'] = False
              
     if parser.has_option(machinetypeSectionName, 'legacy_proxy') and \
-       parser.get(machinetypeSectionName, 'legacy_proxy').strip().lower() == 'true':
+       parser.get(machinetypeSectionName, 'legacy_proxy').lower() == 'true':
       self.options['legacy_proxy'] = True
     else:
       self.options['legacy_proxy'] = False
@@ -1586,10 +1586,16 @@ def readConf():
       except:
         raise VcycleError('api missing from [space ' + spaceName + ']')
 
+      if string.translate(api, None, '0123456789abcdefghijklmnopqrstuvwxyz_') != '':
+        raise VcycleError('Name of api in [space ' + spaceName + '] can only contain a-z 0-9 or _')
+
       try:
-        apiVersion = parser.get(spaceSectionName, 'api_version')
+        apiVersion = parser.get(spaceSectionName, 'api_version').lower()
       except:
         apiVersion = None
+      else:
+        if string.translate(apiVersion, None, '0123456789abcdefghijklmnopqrstuvwxyz._-') != '':
+          raise VcycleError('Name of api_version in [space ' + spaceName + '] can only contain a-z 0-9 - . or _')
 
       for subClass in BaseSpace.__subclasses__():
         if subClass.__name__ == api.capitalize() + 'Space':
@@ -1604,7 +1610,7 @@ def readConf():
         raise VcycleError(api + ' is not a supported API for managing spaces')
 
       if parser.has_option(spaceSectionName, 'gocdb_sitename'):
-        spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename').strip()
+        spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename')
       else:
         spaces[spaceName].gocdb_sitename = None
 

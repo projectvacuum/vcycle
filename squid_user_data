@@ -23,7 +23,8 @@ write_files:
     permissions: '0755'
     content: |
         maximum_object_size 1048576 KB
-        
+        visible_hostname ##HOSTNAME##
+
         #
         # Recommended minimum configuration:
         #
@@ -96,6 +97,7 @@ write_files:
         hierarchy_stoplist cgi-bin ?
         
         # Uncomment and adjust the following to add a disk cache directory.
+        # The first number after the directory path is the total size in MB
         cache_dir ufs /var/spool/squid 5000 16 256
         
         # Leave coredumps in the first cache dir
@@ -117,7 +119,7 @@ Content-Disposition: attachment; filename="user_data_script"
 #!/bin/bash
 
 (
-  yum -y install squid
+  yum -y install squid nano
 
   ipaddr=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*inet addr://' | cut -d' ' -f1`
   ipmask=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*Mask://'`
@@ -135,6 +137,7 @@ Content-Disposition: attachment; filename="user_data_script"
   ipnet=$(($ipaddr1 & $ipmask1)).$(($ipaddr2 & $ipmask2)).$(($ipaddr3 & $ipmask3)).$(($ipaddr4 & $ipmask4))
 
   sed -e 's/##HTTP_PORT##/3128/' \
+      -e "s/##HOSTNAME##/`hostname`/" \
       -e "s^##LOCALNET##^$ipnet/$ipmask^" \
       /etc/squid/squid.conf.template > /etc/squid/squid.conf
 

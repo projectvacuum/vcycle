@@ -32,7 +32,13 @@ a virtual CE elsewhere in the system.
 
 .B api
 is required and specifies the lowercase name of the API to use when contacting
-the IaaS service associted with this space. 
+the IaaS service associted with this space. API names can consist of letters,
+numbers, and underscores.
+
+.B api_version
+is optional and requests a particular version of the API understood by its 
+plugin. API versions can consist of lowercase letters, numbers, hyphens, 
+periods, and underscores.
 
 .B max_processors
 prevents new machines from being created if the number of processors for
