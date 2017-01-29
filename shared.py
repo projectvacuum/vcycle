@@ -1582,7 +1582,7 @@ def readConf():
         raise VcycleError('Name of space section [space ' + spaceName + '] can only contain a-z 0-9 - or .')
       
       try:
-        api = parser.get(spaceSectionName, 'api').lower()
+        api = parser.get(spaceSectionName, 'api')
       except:
         raise VcycleError('api missing from [space ' + spaceName + ']')
 
@@ -1590,7 +1590,7 @@ def readConf():
         raise VcycleError('Name of api in [space ' + spaceName + '] can only contain a-z 0-9 or _')
 
       try:
-        apiVersion = parser.get(spaceSectionName, 'api_version').lower()
+        apiVersion = parser.get(spaceSectionName, 'api_version')
       except:
         apiVersion = None
       else:
