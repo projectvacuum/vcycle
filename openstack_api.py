@@ -120,14 +120,53 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception:
       self.password = ''
 
-    if not self.apiVersion or self.apiVersion == '2' or self.apiVersion.startswith('2.'):
-      self.connect = self.connectV2
-    elif self.apiVersion == '3' or self.apiVersion.startswith('3.'):
-      self.connect = self.connectV3
-    else:
+    if self.apiVersion and self.apiVersion != '2' and not self.apiVersion.startswith('2.') and self.apiVersion != '3' and not self.apiVersion.startswith('3.'):
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
-  def connectV2(self):
+  def connect(self):
+  # Wrapper around the connect methods and some common post-connection updates
+  
+    if not self.apiVersion or self.apiVersion == '2' or self.apiVersion.startswith('2.'):
+      self._connectV2()
+    elif self.apiVersion == '3' or self.apiVersion.startswith('3.'):
+      self._connectV3()
+    else:
+      # This rechecks the checking done in the constructor called by readConf()
+      raise OpenstackError('api_version %s not recognised' % self.apiVersion)
+
+    # Build dictionary of flavor details using API
+    self._getFlavors()
+
+    # Try to get the limit on the number of processors in this project
+    processorsLimit =  self._getProcessorsLimit()
+
+    # Try to use it for this space
+    if self.max_processors is None:
+      vcycle.vacutils.logLine('No limit on processors set in Vcycle configuration')
+      if processorsLimit is not None:
+        vcycle.vacutils.logLine('Processors limit set to %d from OpenStack' % processorsLimit)
+        self.max_processors = processorsLimit
+    else:
+      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
+      
+    # Try to update processors_per_machine and rss_bytes_per_processor from flavor definitions
+    for machinetypeName in self.machinetypes:
+      try:
+        flavorID = self.getFlavorID(self.machinetypes[machinetypeName].flavor_name)
+      except:
+        continue
+
+      try:
+        self.machinetypes[machinetypeName].processors_per_machine = self.flavors[flavorID]['processors']
+      except:
+        pass
+
+      try:      
+        self.machinetypes[machinetypeName].rss_bytes_per_processor = (self.flavors[flavorID]['mb'] * 1048576) / self.machinetypes[machinetypeName].processors
+      except:
+        pass
+
+  def _connectV2(self):
   # Connect to the OpenStack service with Identity v2
 
     try:
@@ -161,7 +200,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
 
-  def connectV3(self):
+  def _connectV3(self):
   # Connect to the OpenStack service with Identity v3
 
     try:
@@ -213,14 +252,52 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    
+  def _getFlavors(self):
+    """Query OpenStack to get details of flavors defined for this project"""
 
+    self.flavors = {}
+    
+    try:
+      result = self.httpRequest(self.computeURL + '/flavors/detail',
+                                headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      
+    for oneFlavor in result['response']['flavors']:
+     
+#      print str(oneFlavor)
+      
+      flavor = {}
+      flavor['mb']          = oneFlavor['ram']
+      flavor['flavor_name'] = oneFlavor['name']
+      flavor['processors']  = oneFlavor['vcpus']
+
+      self.flavors[oneFlavor['id']] = flavor
+
+#    print str(self.flavors)
+
+  def _getProcessorsLimit(self):
+    """Query OpenStack to get processor limit for this project"""
+    
+    try:
+      result = self.httpRequest(self.computeURL + '/limits',
+                                headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      
+    try:
+      return int(result['response']['limits']['absolute']['maxTotalCores'])
+    except:
+      return None 
+     
   def scanMachines(self):
     """Query OpenStack compute service for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
-  
+
     try:
       result = self.httpRequest(self.computeURL + '/servers/detail',
                                 headers = [ 'X-Auth-Token: ' + self.token ])
@@ -228,16 +305,27 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     for oneServer in result['response']['servers']:
-
+    
       try:
         machineName = str(oneServer['metadata']['name'])
       except:
         machineName = oneServer['name']
-
+        
+      try:
+        flavorID = oneServer['flavor']['id']
+      except:
+        flavorID   = None
+        processors = 1
+      else:
+        try:
+          processors = self.flavors[flavorID]['processors']
+        except:
+          processors = 1
+       
       # Just in case other VMs are in this space
       if machineName[:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalProcessors += 1 # FIXME: GET THE EXACT NUMBER FROM oneServer
+        self.totalProcessors += processors
         continue
 
       uuidStr = str(oneServer['id'])
@@ -290,44 +378,14 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                          uuidStr     = uuidStr,
                                                          machinetypeName  = machinetypeName)
 
-  def getFlavorID(self, machinetypeName):
+  def getFlavorID(self, flavorName):
     """Get the "flavor" ID"""
-  
-    if hasattr(self.machinetypes[machinetypeName], '_flavorID'):
-      if self.machinetypes[machinetypeName]._flavorID:
-        return self.machinetypes[machinetypeName]._flavorID
-      else:
-        raise OpenstackError('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
-      
-    try:
-      result = self.httpRequest(self.computeURL + '/flavors/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
     
-    try:
-      for flavor in result['response']['flavors']:
-        if flavor['name'] == self.machinetypes[machinetypeName].flavor_name:
+    for flavorID in self.flavors:
+      if self.flavors[flavorID]['flavor_name'] == flavorName:
+        return flavorID
 
-          self.machinetypes[machinetypeName]._flavorID = flavor['id']
-
-          try:
-            # Record if available
-            self.machinetypes[machinetypeName].mb = int(flavor['ram'])
-          except:
-            pass
-            
-          try:
-            # Record if available
-            self.machinetypes[machinetypeName].cpus = int(flavor['vcpus'])
-          except:
-            pass
-            
-          return self.machinetypes[machinetypeName]._flavorID
-    except:
-      pass
-        
-    raise OpenstackError('Flavor "' + self.machinetypes[machinetypeName].flavor_name + '" for machinetype ' + machinetypeName + ' not available!')
+    raise OpenstackError('Flavor "' + flavorName + '" not available!')
 
   def getImageID(self, machinetypeName):
     """Get the image ID"""
@@ -578,7 +636,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(machinetypeName),
-                    'flavorRef' : self.getFlavorID(machinetypeName),
+                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
                     'metadata'  : { 'cern-services'   : 'false',
                                     'name'	      : machineName,
                                     'machinetype'     : machinetypeName,

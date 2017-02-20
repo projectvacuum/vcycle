@@ -134,22 +134,22 @@ class Machine:
         f.close()
         
     try:
-      self.cpus = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
+      self.processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
     except:
-      self.cpus = 1
+      self.processors = 1
 
     try:
       self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/hs06_job', 'r').read().strip())
       hs06Weight = self.hs06
     except:
       self.hs06 = None
-      hs06Weight = float(self.cpus)
+      hs06Weight = float(self.processors)
 
     try:
       spaces[self.spaceName].totalMachines += 1
-      spaces[self.spaceName].totalProcessors += self.cpus
+      spaces[self.spaceName].totalProcessors += self.processors
       spaces[self.spaceName].machinetypes[self.machinetypeName].totalMachines += 1
-      spaces[self.spaceName].machinetypes[self.machinetypeName].totalProcessors += self.cpus
+      spaces[self.spaceName].machinetypes[self.machinetypeName].totalProcessors += self.processors
 
       if spaces[self.spaceName].machinetypes[self.machinetypeName].target_share > 0.0:
          spaces[self.spaceName].machinetypes[self.machinetypeName].weightedMachines += (hs06Weight / spaces[self.spaceName].machinetypes[self.machinetypeName].target_share)
@@ -161,8 +161,8 @@ class Machine:
         spaces[self.spaceName].runningMachines += 1
         spaces[self.spaceName].machinetypes[self.machinetypeName].runningMachines += 1
 
-        spaces[self.spaceName].runningProcessors += self.cpus
-        spaces[self.spaceName].machinetypes[self.machinetypeName].runningProcessors += self.cpus
+        spaces[self.spaceName].runningProcessors += self.processors
+        spaces[self.spaceName].machinetypes[self.machinetypeName].runningProcessors += self.processors
 
         if self.hs06 is not None:
           # We check runningHS06 first in case hs06_per_processor removed from machinetype in config
@@ -317,18 +317,20 @@ class Machine:
       userFQANField = 'FQAN: ' + spaces[self.spaceName].machinetypes[self.machinetypeName].accounting_fqan + '\n'
     else:
       userFQANField = ''
-      
-    if hasattr(spaces[self.spaceName].machinetypes[self.machinetypeName], 'mb'):
-      memoryField = 'MemoryReal: ' + str(spaces[self.spaceName].machinetypes[self.machinetypeName].mb * 1024) + '\n' \
-                    'MemoryVirtual: ' + str(spaces[self.spaceName].machinetypes[self.machinetypeName].mb * 1024) + '\n'
-    else:
-      memoryField = ''
 
-    # Always true now?
-    if hasattr(spaces[self.spaceName].machinetypes[self.machinetypeName], 'cpus'):
-      cpusField = 'Processors: ' + str(spaces[self.spaceName].machinetypes[self.machinetypeName].cpus) + '\n'
+    try:
+      kb = int(self.getFileContents('jobfeatures/max_rss_bytes')) / 1024
+    except:
+      memoryField = ''
     else:
-      cpusField = ''
+      memoryField = 'MemoryReal: '    + str(kb) + '\nMemoryVirtual: ' + str(kb) + '\n'
+
+    try:
+      processors = int(self.getFileContents('jobfeatures/allocated_cpu'))
+    except:
+      processorsField = ''
+    else:
+      processorField = 'Processors: ' + str(processors) + '\n'
 
     if spaces[self.spaceName].gocdb_sitename:
       tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
@@ -346,7 +348,7 @@ class Machine:
             'WallDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
             # Can we do better for CpuDuration???
             'CpuDuration: ' + str(self.stoppedTime - self.startedTime) + '\n' +
-            cpusField +
+            processorsField +
             'NodeCount: 1\n' +
             'InfrastructureDescription: APEL-VCYCLE\n' +
             'InfrastructureType: grid\n' +
@@ -418,7 +420,7 @@ class Machine:
                 'created_time'          : self.createdTime,
                 'started_time'          : self.startedTime,
                 'heartbeat_time'        : self.heartbeatTime,
-                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].cpus,
+                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].processors,
                 'cpu_seconds'           : cpuSeconds,
                 'cpu_percentage'        : 100.0,
                 'machinetype'           : self.machinetypeName
@@ -745,32 +747,31 @@ class Machinetype:
       self.accounting_fqan = parser.get(machinetypeSectionName, 'accounting_fqan')
 
     try:
-      self.cpus = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
+      self.processors = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
     except:
       try:
-        self.cpus = int(parser.get(machinetypeSectionName, 'processors_per_machine'))
+        self.processors = int(parser.get(machinetypeSectionName, 'processors_per_machine'))
       except:
-        self.cpus = 1
+        # If not set explicitly, defaults to 1. Plugin may be able to determine from API
+        self.processors = 1
     else:
       vcycle.vacutils.logLine('cpu_per_machine is deprecated - please use processors_per_machine')
 
-    if parser.has_option(machinetypeSectionName, 'hs06'):
-      vcycle.vacutils.logLine('hs06 is deprecated - please use hs06_per_processor')
+    try:
+      self.rss_bytes_per_processor = 1048576 * int(parser.get(machinetypeSectionName, 'mb_per_processor'))
+    except:
+      # If not set explicitly, defaults to 2048 MB per processor
+      self.rss_bytes_per_processor = 2147483648
+
+    if parser.has_option(machinetypeSectionName, 'hs06_per_processor'):
       try:
-        self.hs06 = float(parser.get(machinetypeSectionName, 'hs06'))
-      except Exception as e:
-        VcycleError('Failed to parse hs06 in [' + machinetypeSectionName + '] (' + str(e) + ')')
-      else:
-        self.runningHS06 = 0.0
-    elif parser.has_option(machinetypeSectionName, 'hs06_per_processor'):
-      try:
-        self.hs06 = self.cpus * float(parser.get(machinetypeSectionName, 'hs06_per_processor'))
+        self.hs06_per_processor = float(parser.get(machinetypeSectionName, 'hs06_per_processor'))
       except Exception as e:
         VcycleError('Failed to parse hs06_per_processor in [' + machinetypeSectionName + '] (' + str(e) + ')')
       else:
         self.runningHS06 = 0.0
     else:
-      self.hs06        = None
+      self.hs06_per_processor = None
       self.runningHS06 = None
 
     try:
@@ -846,6 +847,14 @@ class BaseSpace(object):
     self.apiVersion = apiVersion
     self.spaceName  = spaceName
 
+    self.max_processors    = None
+    self.totalMachines     = 0
+    # totalProcessors includes ones Vcycle doesn't manage
+    self.totalProcessors   = 0
+    self.runningMachines   = 0
+    self.runningProcessors = 0
+    self.runningHS06       = None
+    
     if parser.has_option(spaceSectionName, 'max_machines'):
       try:
         self.max_processors = int(parser.get(spaceSectionName, 'max_machines'))
@@ -853,19 +862,12 @@ class BaseSpace(object):
         raise VcycleError('Failed to parse max_machines in [' + spaceSectionName + '] (' + str(e) + ')')
       else:
         vcycle.vacutils.logLine('max_machines is deprecated - please use max_processors')
-    else:
+    elif parser.has_option(spaceSectionName, 'max_processors'):
       try:
         self.max_processors = int(parser.get(spaceSectionName, 'max_processors'))
       except Exception as e:
-        raise VcycleError('max_processors is required in [space ' + spaceName + '] (' + str(e) + ')')
+        raise VcycleError('Failed to parse max_processors in [space ' + spaceName + '] (' + str(e) + ')')
 
-    # totalProcessors includes ones Vcycle doesn't manage
-    self.totalMachines     = 0
-    self.totalProcessors   = 0
-    self.runningMachines   = 0
-    self.runningProcessors = 0
-    self.runningHS06       = None
-    
     self.machinetypes = {}
 
     for machinetypeSectionName in parser.sections():
@@ -885,7 +887,7 @@ class BaseSpace(object):
       except Exception as e:
         raise VcycleError('Failed to initialize [machinetype ' + spaceName + ' ' + machinetypeName + '] (' + str(e) + ')')
 
-      if self.runningHS06 is None and self.machinetypes[machinetypeName].hs06 is not None:
+      if self.runningHS06 is None and self.machinetypes[machinetypeName].hs06_per_processor is not None:
         self.runningHS06 = 0.0
 
     if len(self.machinetypes) < 1:
@@ -1309,8 +1311,14 @@ class BaseSpace(object):
 
     vcycle.vacutils.logLine('Space ' + self.spaceName + 
                             ' has ' + str(self.runningProcessors) + 
-                            ' processors allocated to running Vcycle VMs out of ' + str(self.totalProcessors) +
-                            ' found in any state for any machinetype or none')
+                            ' processor(s) found allocated to running Vcycle VMs out of ' + str(self.totalProcessors) +
+                            ' found in any state for any machinetype or none.')
+                          
+    if self.max_processors is None:
+      vcycle.vacutils.logLine('The limit for the number of processors which may be allocated is not known to Vcycle.')
+    else:
+      vcycle.vacutils.logLine('Vcycle knows the limit on the number of processors is %d, either from its configuration or from the infrastructure.' % self.max_processors)
+      
   
     for machinetypeName,machinetype in self.machinetypes.iteritems():
       vcycle.vacutils.logLine('machinetype ' + machinetypeName + 
@@ -1325,7 +1333,7 @@ class BaseSpace(object):
 
     # Keep making passes through the machinetypes until limits exhausted
     while True:
-      if self.totalProcessors >= self.max_processors:
+      if self.max_processors is not None and self.totalProcessors >= self.max_processors:
         vcycle.vacutils.logLine('Reached limit (%d) on number of processors to allocate for space %s' % (self.max_processors, self.spaceName))
         return
 
@@ -1344,7 +1352,7 @@ class BaseSpace(object):
         if self.machinetypes[machinetypeName].target_share <= 0.0:
           continue
 
-        if self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].max_processors:
+        if self.machinetypes[machinetypeName].max_processors is not None and self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].max_processors:
           vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].totalProcessors) + ') on number of processors to allocate for machinetype ' + machinetypeName)
           continue
 
@@ -1376,7 +1384,7 @@ class BaseSpace(object):
         vcycle.vacutils.logLine('Free capacity found for ' + bestMachinetypeName + ' within ' + self.spaceName + ' ... creating')
 
         # This tracks creation attempts, whether successful or not
-        creationsThisCycle += self.machinetypes[machinetypeName].cpus
+        creationsThisCycle += self.machinetypes[machinetypeName].processors
         self.machinetypes[machinetypeName].notPassedFizzle += 1
 
         try:
@@ -1465,17 +1473,18 @@ class BaseSpace(object):
                                "1", 0644, '/var/lib/vcycle/tmp')
                                
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/total_cpu', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+                               str(self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # phys_cores and log_cores keys are deprecated
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+                               str(self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+                               str(self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
-    if self.machinetypes[machinetypeName].hs06:
+    if self.machinetypes[machinetypeName].hs06_per_processor:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
-                                 str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+                                 str(self.machinetypes[machinetypeName].hs06_per_processor * 
+                                     self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
@@ -1490,22 +1499,31 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',  
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
+    # Calculate MB for this VM ("job")
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/max_rss_bytes', 
+                               str(self.machinetypes[machinetypeName].rss_bytes_per_processor * 
+                                   self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
+
     # All the cpus are allocated to this one VM ("job")
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_cpu', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')                               
+                               str(self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
     # allocated_CPU key name is deprecated
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU', 
-                               str(self.machinetypes[machinetypeName].cpus), 0644, '/var/lib/vcycle/tmp')
+                               str(self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs', 
                                str(int(time.time())), 0644, '/var/lib/vcycle/tmp')
 
-    if self.machinetypes[machinetypeName].hs06:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job', 
-                                 str(self.machinetypes[machinetypeName].hs06), 0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
+                               machineName, 0644, '/var/lib/vcycle/tmp')
 
-    # We do not know max_swap_bytes, scratch_limit_bytes, or a job_id so ignore them
+    if self.machinetypes[machinetypeName].hs06_per_processor:
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job', 
+                                 str(self.machinetypes[machinetypeName].hs06_per_processor *
+                                     self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
+
+    # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
 
   def oneCycle(self):
   

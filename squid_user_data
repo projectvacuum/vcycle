@@ -22,7 +22,8 @@ write_files:
     path: /etc/squid/squid.conf.template
     permissions: '0755'
     content: |
-        maximum_object_size 1048576 KB
+        maximum_object_size 1024 MB
+        cache_mem 1024 MB
         visible_hostname ##HOSTNAME##
 
         #
@@ -122,6 +123,9 @@ Content-Disposition: attachment; filename="user_data_script"
 #!/bin/bash
 
 (
+  # Needed for YANDEX.ru  Not sure about other sites?
+  #ethtool -K eth0 gso off gro off tso off
+
   yum -y install squid nano
 
   ipaddr=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*inet addr://' | cut -d' ' -f1`
