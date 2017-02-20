@@ -82,7 +82,7 @@ class MachineState:
    
 class Machine:
 
-  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName):
+  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName, zone = None):
 
     # Store values from api-specific calling function
     self.name            = name
@@ -92,6 +92,7 @@ class Machine:
     self.updatedTime     = updatedTime
     self.uuidStr         = uuidStr
     self.machinetypeName = machinetypeName
+    self.zone            = zone
 
     if createdTime:
       self.createdTime  = createdTime
@@ -277,6 +278,7 @@ class Machine:
 
     vcycle.vacutils.logLine('= ' + name + ' in ' + 
                             str(self.spaceName) + ':' +
+                            (self.zone if self.zone else '') + ':' +
                             str(self.machinetypeName) + ' ' + 
                             self.ip + ' ' + 
                             self.state + ' ' + 
@@ -1298,7 +1300,7 @@ class BaseSpace(object):
     for vacmonHostPort in self.vacmons:
       (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
 
-      vcycle.vacutils.logLine('Sending VacMon messages to %s:%s' % (vacmonHost, vacmonPort))
+      vcycle.vacutils.logLine('Sending VacMon status messages to %s:%s' % (vacmonHost, vacmonPort))
 
       sock.sendto(factoryMessage, (vacmonHost,int(vacmonPort)))
 

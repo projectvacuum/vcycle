@@ -86,6 +86,11 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.network_uuid = None
 
     try:
+      self.zones = parser.get(spaceSectionName, 'zones').split()
+    except Exception as e:
+      self.zones = None
+
+    try:
       self.identityURL = parser.get(spaceSectionName, 'url')
     except Exception as e:
       raise OpenstackError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
@@ -310,7 +315,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         machineName = str(oneServer['metadata']['name'])
       except:
         machineName = oneServer['name']
-        
+
       try:
         flavorID = oneServer['flavor']['id']
       except:
@@ -352,7 +357,12 @@ class OpenstackSpace(vcycle.BaseSpace):
         machinetypeName = str(oneServer['metadata']['machinetype'])
       except:
         machinetypeName = None
-      
+
+      try:
+        zone = str(oneServer['OS-EXT-AZ:availability_zone'])
+      except:
+        zone = None
+
       if taskState == 'Deleting':
         state = vcycle.MachineState.deleting
       elif status == 'ACTIVE' and powerState == 1:
@@ -368,15 +378,16 @@ class OpenstackSpace(vcycle.BaseSpace):
       else:
         state = vcycle.MachineState.unknown
 
-      self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
-                                                         spaceName   = self.spaceName,
-                                                         state       = state,
-                                                         ip          = ip,
-                                                         createdTime = createdTime,
-                                                         startedTime = startedTime,
-                                                         updatedTime = updatedTime,
-                                                         uuidStr     = uuidStr,
-                                                         machinetypeName  = machinetypeName)
+      self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+                                                         spaceName        = self.spaceName,
+                                                         state            = state,
+                                                         ip               = ip,
+                                                         createdTime      = createdTime,
+                                                         startedTime      = startedTime,
+                                                         updatedTime      = updatedTime,
+                                                         uuidStr          = uuidStr,
+                                                         machinetypeName  = machinetypeName,
+                                                         zone             = zone)
 
   def getFlavorID(self, flavorName):
     """Get the "flavor" ID"""
@@ -651,12 +662,17 @@ class OpenstackSpace(vcycle.BaseSpace):
 
       if self.network_uuid:
         request['server']['networks'] = [{"uuid": self.network_uuid}]
+        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
+
+      if self.zones:
+        request['server']['availability_zone'] = random.choice(self.zones)
+        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, request['server']['availability_zone'], self.spaceName))
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)
 
     except Exception as e:
-      raise OpenstackError('Failed to create new machine: ' + str(e))
+      raise OpenstackError('Failed to create new machine %s: %s' % (machineName, str(e)))
 
     try:
       result = self.httpRequest(self.computeURL + '/servers',
