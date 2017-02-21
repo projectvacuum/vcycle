@@ -55,6 +55,9 @@ import hashlib
 
 import vcycle.vacutils
 
+def _emptyCallback1(p1, p2):
+  return
+
 class GoogleError(Exception):
   pass
 
@@ -107,13 +110,10 @@ class GoogleSpace(vcycle.BaseSpace):
     except Exception as e:
       self.private_key = None
 
-  def _emptyCallback1(p1, p2):
-     return
-
   def _getAccessToken(self):
     # https://developers.google.com/identity/protocols/OAuth2ServiceAccount#authorizingrequests
 
-    scope = 'https://www.googleapis.com/auth/devstorage.read_write',
+    scope = 'https://www.googleapis.com/auth/compute'
     tokenURL = 'https://accounts.google.com/o/oauth2/token'
 
     # Create encoded JWT header
@@ -137,8 +137,6 @@ class GoogleSpace(vcycle.BaseSpace):
     signatureBase64 = base64.urlsafe_b64encode(privateKey.sign(sha256HeaderClaimset, 'sha256'))
 
     # HTTP POST to get the access_token
-    postData = 
-
     try:
       result = self.httpRequest(tokenURL, 
                                 formRequest = { 'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -146,6 +144,9 @@ class GoogleSpace(vcycle.BaseSpace):
                                )
     except Exception as e:
       raise GoogleError('Cannot connect to ' + tokenURL + ' to get OAUTH access_token (' + str(e) + ')')
+
+
+    print str(result)
     
     try:
       accessToken = result['response']['access_token']

@@ -1093,7 +1093,7 @@ class BaseSpace(object):
 
         outputHeaders[ headerNameValue[0].lower() ].append( headerNameValue[1].strip() )
 
-    if 'content-type' in outputHeaders and outputHeaders['content-type'][0] == 'application/json':
+    if 'content-type' in outputHeaders and outputHeaders['content-type'][0].startswith('application/json'):
       try:
         response = json.loads(outputBuffer.getvalue())
       except:
