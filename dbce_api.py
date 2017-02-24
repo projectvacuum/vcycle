@@ -158,7 +158,7 @@ class DbceSpace(vcycle.BaseSpace):
                                                  uuidStr          = uuidStr,
                                                  machinetypeName  = machinetypeName)
 
-  def createMachine(self, machineName, machinetypeName):
+  def createMachine(self, machineName, machinetypeName, zone = None):
 
     # DBCE-specific machine creation steps
 

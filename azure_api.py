@@ -172,7 +172,7 @@ class AzureSpace(vcycle.BaseSpace):
                                                                 machinetypeName  = machinetypeName)
 
 
-    def createMachine(self, machineName, machinetypeName):
+    def createMachine(self, machineName, machinetypeName, zone = None):
         try:
             self.__create_service(name=machineName, location=self.location)
             fingerprint, path = self.__add_certificate_to_service(name=machineName, pfx=self.pfx)

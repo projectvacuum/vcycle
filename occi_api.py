@@ -163,7 +163,7 @@ class OcciSpace(vcycle.BaseSpace):
                                                  uuidStr=uuidStr,
                                                  machinetypeName=None)
 
-    def createMachine(self, machineName, machinetypeName):
+    def createMachine(self, machineName, machinetypeName, zone = None):
 
         # OCCI-specific machine creation steps
         #    'metadata'  : { 'cern-services'   : 'false',

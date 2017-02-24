@@ -331,7 +331,7 @@ class Ec2Space(vcycle.BaseSpace):
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
 
-  def createMachine(self, machineName, machinetypeName):
+  def createMachine(self, machineName, machinetypeName, zone = None):
 
     # EC2-specific machine creation steps
 
