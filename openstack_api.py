@@ -633,7 +633,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
 
-  def createMachine(self, machineName, machinetypeName):
+  def createMachine(self, machineName, machinetypeName, zone = None):
 
     # OpenStack-specific machine creation steps
 
@@ -664,9 +664,9 @@ class OpenstackSpace(vcycle.BaseSpace):
         request['server']['networks'] = [{"uuid": self.network_uuid}]
         vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
 
-      if self.zones:
-        request['server']['availability_zone'] = random.choice(self.zones)
-        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, request['server']['availability_zone'], self.spaceName))
+      if zone:
+        request['server']['availability_zone'] = zone
+        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, zone, self.spaceName))
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)

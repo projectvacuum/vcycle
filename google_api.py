@@ -76,9 +76,9 @@ class GoogleSpace(vcycle.BaseSpace):
       self.max_processors = 1
     
     try:
-      self.project_name = parser.get(spaceSectionName, 'project_name')
+      self.project_id = parser.get(spaceSectionName, 'project_id')
     except Exception as e:
-      raise GoogleError('project_name is required in Google [space ' + spaceName + '] (' + str(e) + ')')
+      raise GoogleError('project_id is required in Google [space ' + spaceName + '] (' + str(e) + ')')
 
 #    try:
 #      self.domain_name = parser.get(spaceSectionName, 'domain_name')
@@ -93,7 +93,7 @@ class GoogleSpace(vcycle.BaseSpace):
     try:
       self.zones = parser.get(spaceSectionName, 'zones').split()
     except Exception as e:
-      self.zones = None
+      raise GoogleError('The zones option is required in Google [space ' + spaceName + '] (' + str(e) + ')')
 
 #    try:
 #      self.identityURL = parser.get(spaceSectionName, 'url')
@@ -144,12 +144,9 @@ class GoogleSpace(vcycle.BaseSpace):
                                )
     except Exception as e:
       raise GoogleError('Cannot connect to ' + tokenURL + ' to get OAUTH access_token (' + str(e) + ')')
-
-
-    print str(result)
     
     try:
-      accessToken = result['response']['access_token']
+      accessToken = str(result['response']['access_token'])
     except Exception as e:
       raise GoogleError('Failed to get OAUTH access_token from ' + tokenURL + ' (' + str(e) + ')')
     
@@ -197,6 +194,12 @@ class GoogleSpace(vcycle.BaseSpace):
     self.accessToken = self._getAccessToken()
     vcycle.vacutils.logLine('Connected to Google compute cloud service for space ' + self.spaceName)
     
+    for machinetypeName in self.machinetypes:
+      try:
+        self.machinetypes[machinetypeName].processors_per_machine = 1
+      except:
+        pass
+
   def _getFlavors(self):
     """Query Google to get details of flavors defined for this project"""
 
@@ -243,90 +246,87 @@ class GoogleSpace(vcycle.BaseSpace):
     # or (b) creating a Machine object for the VM in self.spaces
 
     try:
-      result = self.httpRequest(self.computeURL + '/servers/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
+      result = self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/aggregated/instances' % self.project_id,
+                                headers = [ 'Authorization: Bearer ' + self.accessToken ])
     except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    for oneServer in result['response']['servers']:
+      raise GoogleError('Cannot get instances list (' + str(e) + ')')
+      
+    for oneZone in result['response']['items']:
     
-      try:
-        machineName = str(oneServer['metadata']['name'])
-      except:
-        machineName = oneServer['name']
-
-      try:
-        flavorID = oneServer['flavor']['id']
-      except:
-        flavorID   = None
-        processors = 1
-      else:
-        try:
-          processors = self.flavors[flavorID]['processors']
-        except:
-          processors = 1
-       
-      # Just in case other VMs are in this space
-      if machineName[:7] != 'vcycle-':
-        # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalProcessors += processors
+      if 'instances' not in result['response']['items'][oneZone]:
         continue
 
-      uuidStr = str(oneServer['id'])
-
-      # Try to get the IP address. Always use the zeroth member of the earliest network
-      try:
-        ip = str(oneServer['addresses'][ min(oneServer['addresses']) ][0]['addr'])
-      except:
-        ip = '0.0.0.0'
-
-      createdTime  = calendar.timegm(time.strptime(str(oneServer['created']), "%Y-%m-%dT%H:%M:%SZ"))
-      updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
-
-      try:
-        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
-      except:
-        startedTime = None
-
-      taskState  = str(oneServer['OS-EXT-STS:task_state'])
-      powerState = int(oneServer['OS-EXT-STS:power_state'])
-      status     = str(oneServer['status'])
-
-      try:
-        machinetypeName = str(oneServer['metadata']['machinetype'])
-      except:
-        machinetypeName = None
-
-      try:
-        zone = str(oneServer['OS-EXT-AZ:availability_zone'])
-      except:
-        zone = None
-
-      if taskState == 'Deleting':
-        state = vcycle.MachineState.deleting
-      elif status == 'ACTIVE' and powerState == 1:
-        state = vcycle.MachineState.running
-      elif status == 'BUILD' or status == 'ACTIVE':
-        state = vcycle.MachineState.starting
-      elif status == 'SHUTOFF':
-        state = vcycle.MachineState.shutdown
-      elif status == 'ERROR':
-        state = vcycle.MachineState.failed
-      elif status == 'DELETED':
-        state = vcycle.MachineState.deleting
+      if oneZone.startswith('zones'):
+        zone = oneZone[6:]
       else:
-        state = vcycle.MachineState.unknown
+        zone = oneZone
+    
+      for oneMachine in result['response']['items'][oneZone]['instances']:
+      
+        pprint.pprint(oneMachine)
+      
+        machineName = str(oneMachine['name'])
+#        flavorID = str(oneMachine['machineType'])
+        processors = 1
+       
+        # Just in case other VMs are in this space
+        if machineName[:7] != 'vcycle-':
+          # Still count VMs that we didn't create and won't manage, to avoid going above space limit
+          self.totalProcessors += processors
+          continue
 
-      self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
-                                                         spaceName        = self.spaceName,
-                                                         state            = state,
-                                                         ip               = ip,
-                                                         createdTime      = createdTime,
-                                                         startedTime      = startedTime,
-                                                         updatedTime      = updatedTime,
-                                                         uuidStr          = uuidStr,
-                                                         machinetypeName  = machinetypeName,
-                                                         zone             = zone)
+        id = str(oneMachine['id'])
+
+        # Try to get the IP address. Always use the zeroth member of the earliest network
+        try:
+          ip = str(oneMachine['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
+        except:
+          ip = '0.0.0.0'
+
+        try:
+          createdTime = calendar.timegm(time.strptime(str(oneMachine['creationTimestamp']), "%Y-%m-%dT%H:%M:%S-"))
+        except:
+          createdTime = None  
+        
+        updatedTime  = createdTime
+
+        try:
+          startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
+        except:
+          startedTime = None
+
+        status     = str(oneMachine['status'])
+
+        try:
+          machinetypeName = str(oneServer['metadata']['machinetype'])
+        except:
+          machinetypeName = None
+
+        if status == 'RUNNING':
+          state = vcycle.MachineState.running
+        elif status == 'TERMINATED':
+          state = vcycle.MachineState.shutdown
+        elif status == 'PENDING':
+          state = vcycle.MachineState.starting
+        elif status == 'STOPPING':
+          state = vcycle.MachineState.deleting
+#        elif status == 'ERROR':
+#          state = vcycle.MachineState.failed
+#        elif status == 'DELETED':
+#          state = vcycle.MachineState.deleting
+        else:
+          state = vcycle.MachineState.unknown
+
+        self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+                                                           spaceName        = self.spaceName,
+                                                           state            = state,
+                                                           ip               = ip,
+                                                           createdTime      = createdTime,
+                                                           startedTime      = startedTime,
+                                                           updatedTime      = updatedTime,
+                                                           uuidStr          = id,
+                                                           machinetypeName  = machinetypeName,
+                                                           zone             = zone)
 
   def getFlavorID(self, flavorName):
     """Get the "flavor" ID"""
@@ -572,71 +572,115 @@ class GoogleSpace(vcycle.BaseSpace):
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
 
-  def createMachine(self, machineName, machinetypeName):
-
+  def createMachine(self, machineName, machinetypeName, zone):
     # Google-specific machine creation steps
 
-    try:
+    try:    
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
         joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-    
-      request = { 'server' : 
-                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-                    'name'      : machineName,
-                    'imageRef'  : self.getImageID(machinetypeName),
-                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
-                    'metadata'  : { 'cern-services'   : 'false',
-                                    'name'	      : machineName,
-                                    'machinetype'     : machinetypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : joboutputsURL,
-                                    'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
-                    # but point them both to the joboutputs directory that we now provide
-                  }    
+
+      request = { 'name'        : machineName,
+                  'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_name),
+                  'disks' : [ 
+                              { 
+                                'initializeParams' : { 'sourceImage' : 'global/images/' + self.machinetypes[machinetypeName].root_image },
+                                'boot' : True
+                              }
+                            ],
+                  'networkInterfaces' : [ 
+                                          {
+                                            'network' : 'global/networks/default',
+                                            'accessConfigs' : [
+                                                                { 'name': 'external-nat',
+                                                                  'type': 'ONE_TO_ONE_NAT' }
+                                                              ]
+                                          }
+                                        ],
+                  'metadata': {
+                                'items': [
+                                           { 'key'   : 'cvm-user-data',
+                                             'value' : 'IyEgL2Jpbi9iYXNoCnNlZCAtaSAnczpeREVGX01EX1ZFUlNJT04uKjpERUZfTURfVkVSU0lPTiA9ICIwLjEvbWV0YS1kYXRhL2F0dHJpYnV0ZXMiOicgXAogIC91c3IvbGliL3B5dGhvbjIuNi9zaXRlLXBhY2thZ2VzL2Nsb3VkaW5pdC9zb3VyY2VzL0RhdGFTb3VyY2VFYzIucHkgClthbWljb25maWddCnBsdWdpbnM9Y2VybnZtCltjZXJudm1dCnJlcG9zaXRvcmllcyA9IGdyaWQKcHJveHk9RElSRUNUClt1Y2VybnZtLWJlZ2luXQpyZXNpemVfcm9vdGZzPW9mZgpjdm1mc19odHRwX3Byb3h5PURJUkVDVApbdWNlcm52bS1lbmRdCg==' },
+#                                             'value' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()) },
+                                           { 'key'   : 'name',
+                                             'value' : machineName },
+                                           { 'key'   : 'machinetype',
+                                             'value' :  machinetypeName },
+                                           { 'key'   : 'machinefeatures',
+                                             'value' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures' },
+                                           { 'key'   : 'jobfeatures',
+                                             'value' :  'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures' },
+                                           { 'key'   : 'joboutputs',
+                                             'value' :  joboutputsURL }
+                                         ]
+                              }
                 }
 
-      if self.network_uuid:
-        request['server']['networks'] = [{"uuid": self.network_uuid}]
-        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
+      pprint.pprint(request)
 
-      if self.zones:
-        request['server']['availability_zone'] = random.choice(self.zones)
-        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, request['server']['availability_zone'], self.spaceName))
+#      request = { 'server' : 
+#                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
+#                    'name'      : machineName,
+#                    'imageRef'  : self.getImageID(machinetypeName),
+#                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
+#                    'metadata'  : { 'cern-services'   : 'false',
+#                                    'name'	      : machineName,
+#                                    'machinetype'     : machinetypeName,
+#                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+#                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
+#                                    'machineoutputs'  : joboutputsURL,
+#                                    'joboutputs'      : joboutputsURL  }
+#                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
+#                    # but point them both to the joboutputs directory that we now provide
+#                  }    
+#                }
 
-      if self.machinetypes[machinetypeName].root_public_key:
-        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
+       
+
+
+#      if self.network_uuid:
+#        request['server']['networks'] = [{"uuid": self.network_uuid}]
+#        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
+
+#      if self.zones:
+#        request['server']['availability_zone'] = random.choice(self.zones)
+#        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, request['server']['availability_zone'], self.spaceName))
+
+#      if self.machinetypes[machinetypeName].root_public_key:
+#        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
 
     except Exception as e:
-      raise GoogleError('Failed to create new machine %s: %s' % (machineName, str(e)))
+      raise GoogleError('Failed to create new machine request for %s: %s' % (machineName, str(e)))
 
     try:
-      result = self.httpRequest(self.computeURL + '/servers',
+      result = self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/zones/%s/instances' % (self.project_id, zone),
                                 jsonRequest = request,
-                                headers = [ 'X-Auth-Token: ' + self.token ])
+                                headers = [ 'Authorization: Bearer ' + self.accessToken ])
     except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise GoogleError('Cannot create VM (' + str(e) + ')')
+      
+    pprint.pprint(result)
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
-                                                       spaceName   = self.spaceName,
-                                                       state       = vcycle.MachineState.starting,
-                                                       ip          = '0.0.0.0',
-                                                       createdTime = int(time.time()),
-                                                       startedTime = None,
-                                                       updatedTime = int(time.time()),
-                                                       uuidStr     = None,
-                                                       machinetypeName  = machinetypeName)
+    self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
+                                                       spaceName       = self.spaceName,
+                                                       state           = vcycle.MachineState.starting,
+                                                       ip              = '0.0.0.0',
+                                                       createdTime     = int(time.time()),
+                                                       startedTime     = None,
+                                                       updatedTime     = int(time.time()),
+                                                       uuidStr         = None,
+                                                       machinetypeName = machinetypeName,
+                                                       zone            = zone)
 
   def deleteOneMachine(self, machineName):
 
     try:
-      self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
+      self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/zones/%s/instances/%s' % (self.project_id, self.machines[machineName].zone, machineName),
                        method = 'DELETE',
-                       headers = [ 'X-Auth-Token: ' + self.token ])
+                       headers = [ 'Authorization: Bearer ' + self.accessToken ])
+                       
     except Exception as e:
-      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')

@@ -134,6 +134,16 @@ class Machine:
         self.machinetypeName = f.read().strip()
         f.close()
         
+#    if not zone:
+#      # Try to get zone name saved when we requested the machine
+#      try:
+#        f = open('/var/lib/vcycle/machines/' + name + '/zone', 'r')
+#      except:
+#        pass
+#      else:
+#        self.machinetypeName = f.read().strip()
+#        f.close()
+        
     try:
       self.processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
     except:
@@ -1426,6 +1436,12 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
+    if self.zones:
+      zone = random.choice(self.zones)
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/zone',  zone,   0644, '/var/lib/vcycle/tmp')
+    else:
+      zone = None
+
     if self.machinetypes[machinetypeName].remote_joboutputs_url:
       joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
     else:
@@ -1462,7 +1478,7 @@ class BaseSpace(object):
 
     # Call the API-specific method to actually create the machine
     try:
-      self.createMachine(machineName, machinetypeName)
+      self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
       vcycle.vacutils.logLine('Machine creation fails with: ' + str(e))
 
