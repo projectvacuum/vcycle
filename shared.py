@@ -342,7 +342,7 @@ class Machine:
     except:
       processorsField = ''
     else:
-      processorField = 'Processors: ' + str(processors) + '\n'
+      processorsField = 'Processors: ' + str(processors) + '\n'
 
     if spaces[self.spaceName].gocdb_sitename:
       tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
@@ -652,6 +652,11 @@ class Machinetype:
       self.flavor_name = parser.get(machinetypeSectionName, 'flavor_name')
     except Exception as e:
       raise VcycleError('flavor_name is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
+
+    try:
+      self.disk_gb_per_processor = int(parser.get(machinetypeSectionName, 'disk_gb_per_processor'))
+    except Exception as e:
+      self.disk_gb_per_processor = None
     
     try:
       self.root_public_key = parser.get(machinetypeSectionName, 'root_public_key')
@@ -1462,7 +1467,7 @@ class BaseSpace(object):
                                                         machinetypeName    = machinetypeName,
                                                         userDataPath       = self.machinetypes[machinetypeName].user_data,
                                                         rootImageURL       = rootImageURL,
-                                                        hostName           = machineName + '.' + self.spaceName,
+                                                        hostName           = machineName,
                                                         uuidStr            = None,
                                                         machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
                                                         jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',

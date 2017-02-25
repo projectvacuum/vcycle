@@ -80,35 +80,20 @@ class GoogleSpace(vcycle.BaseSpace):
     except Exception as e:
       raise GoogleError('project_id is required in Google [space ' + spaceName + '] (' + str(e) + ')')
 
-#    try:
-#      self.domain_name = parser.get(spaceSectionName, 'domain_name')
-#    except Exception as e:
-#      self.domain_name = 'default'
-#
-#    try:
-#      self.network_uuid = parser.get(spaceSectionName, 'network_uuid')
-#    except Exception as e:
-#      self.network_uuid = None
-
     try:
       self.zones = parser.get(spaceSectionName, 'zones').split()
     except Exception as e:
       raise GoogleError('The zones option is required in Google [space ' + spaceName + '] (' + str(e) + ')')
 
-#    try:
-#      self.identityURL = parser.get(spaceSectionName, 'url')
-#    except Exception as e:
-#      raise GoogleError('url is required in Google [space ' + spaceName + '] (' + str(e) + ')')
-
     try:
       self.client_email = parser.get(spaceSectionName, 'client_email')
     except Exception as e:
-      self.client_email = None
+      raise GoogleError('The client_email option is required in Google [space ' + spaceName + '] (' + str(e) + ')')
       
     try:
       self.private_key = parser.get(spaceSectionName, 'private_key')
     except Exception as e:
-      self.private_key = None
+      raise GoogleError('The private_key option is required in Google [space ' + spaceName + '] (' + str(e) + ')')
 
   def _getAccessToken(self):
     # https://developers.google.com/identity/protocols/OAuth2ServiceAccount#authorizingrequests
@@ -152,42 +137,6 @@ class GoogleSpace(vcycle.BaseSpace):
     
     return accessToken
 
-  def connectXXX(self):
-  # Wrapper around the connect methods and some common post-connection updates
-  
-
-    # Build dictionary of flavor details using API
-    self._getFlavors()
-
-    # Try to get the limit on the number of processors in this project
-    processorsLimit =  self._getProcessorsLimit()
-
-    # Try to use it for this space
-    if self.max_processors is None:
-      vcycle.vacutils.logLine('No limit on processors set in Vcycle configuration')
-      if processorsLimit is not None:
-        vcycle.vacutils.logLine('Processors limit set to %d from Google' % processorsLimit)
-        self.max_processors = processorsLimit
-    else:
-      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
-      
-    # Try to update processors_per_machine and rss_bytes_per_processor from flavor definitions
-    for machinetypeName in self.machinetypes:
-      try:
-        flavorID = self.getFlavorID(self.machinetypes[machinetypeName].flavor_name)
-      except:
-        continue
-
-      try:
-        self.machinetypes[machinetypeName].processors_per_machine = self.flavors[flavorID]['processors']
-      except:
-        pass
-
-      try:      
-        self.machinetypes[machinetypeName].rss_bytes_per_processor = (self.flavors[flavorID]['mb'] * 1048576) / self.machinetypes[machinetypeName].processors
-      except:
-        pass
-
   def connect(self):
     """Connect to the Google compute cloud service"""
 
@@ -200,44 +149,6 @@ class GoogleSpace(vcycle.BaseSpace):
       except:
         pass
 
-  def _getFlavors(self):
-    """Query Google to get details of flavors defined for this project"""
-
-    self.flavors = {}
-    
-    try:
-      result = self.httpRequest(self.computeURL + '/flavors/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
-    for oneFlavor in result['response']['flavors']:
-     
-#      print str(oneFlavor)
-      
-      flavor = {}
-      flavor['mb']          = oneFlavor['ram']
-      flavor['flavor_name'] = oneFlavor['name']
-      flavor['processors']  = oneFlavor['vcpus']
-
-      self.flavors[oneFlavor['id']] = flavor
-
-#    print str(self.flavors)
-
-  def _getProcessorsLimit(self):
-    """Query Google to get processor limit for this project"""
-    
-    try:
-      result = self.httpRequest(self.computeURL + '/limits',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
-    try:
-      return int(result['response']['limits']['absolute']['maxTotalCores'])
-    except:
-      return None 
-     
   def scanMachines(self):
     """Query Google compute service for details of machines in this space"""
 
@@ -262,15 +173,13 @@ class GoogleSpace(vcycle.BaseSpace):
         zone = oneZone
     
       for oneMachine in result['response']['items'][oneZone]['instances']:
-      
-        pprint.pprint(oneMachine)
-      
+            
         machineName = str(oneMachine['name'])
 #        flavorID = str(oneMachine['machineType'])
         processors = 1
        
         # Just in case other VMs are in this space
-        if machineName[:7] != 'vcycle-':
+        if not machineName.startswith('vcycle-'):
           # Still count VMs that we didn't create and won't manage, to avoid going above space limit
           self.totalProcessors += processors
           continue
@@ -327,15 +236,6 @@ class GoogleSpace(vcycle.BaseSpace):
                                                            uuidStr          = id,
                                                            machinetypeName  = machinetypeName,
                                                            zone             = zone)
-
-  def getFlavorID(self, flavorName):
-    """Get the "flavor" ID"""
-    
-    for flavorID in self.flavors:
-      if self.flavors[flavorID]['flavor_name'] == flavorName:
-        return flavorID
-
-    raise GoogleError('Flavor "' + flavorName + '" not available!')
 
   def getImageID(self, machinetypeName):
     """Get the image ID"""
@@ -505,75 +405,38 @@ class GoogleSpace(vcycle.BaseSpace):
     except:
       raise GoogleError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
 
-  def getKeyPairName(self, machinetypeName):
-    """Get the key pair name from root_public_key"""
-
-    if hasattr(self.machinetypes[machinetypeName], '_keyPairName'):
-      if self.machinetypes[machinetypeName]._keyPairName:
-        return self.machinetypes[machinetypeName]._keyPairName
-      else:
-        raise GoogleError('Key pair "' + self.machinetypes[machinetypeName].root_public_key + '" for machinetype ' + machinetypeName + ' not available!')
-      
-    # Get the ssh public key from the root_public_key file
-        
-    if self.machinetypes[machinetypeName].root_public_key[0] == '/':
-      try:
-        f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
-      except Exception as e:
-        GoogleError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
-    else:  
-      try:
-        f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
-      except Exception as e:
-        GoogleError('Cannot open /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key)
-
-    while True:
-      try:
-        line = f.read()
-      except:
-        raise GoogleError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
-      if line[:8] == 'ssh-rsa ':
-        sshPublicKey =  line.split(' ')[1]
-        break
-
-    # Check if public key is there already
+  def cvmUserData(self, machinetypeName):
+  
+    template = """#! /bin/bash
+#
+# Hotfix EC2 paths to work with GCE !!!
+#
+sed -i 's:^DEF_MD_VERSION.*:DEF_MD_VERSION = "0.1":' \
+  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py 
+sed -i 's:ec2.get_instance_userdata.self.api_ver,.*:ec2.get_instance_userdata\(self.api_ver + "/meta-data/attributes",:' \
+  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py 
+sed -i 's:\[NoCloud:[Ec2, NoCloud:' /etc/cloud/cloud.cfg.d/50_cernvm.cfg        
+exit 0
+[amiconfig]
+plugins=cernvm
+[cernvm]
+repositories=grid
+proxy=##user_data_option_cvmfs_proxy##
+[ucernvm-begin]
+resize_rootfs=off
+cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
+[ucernvm-end]
+"""        
 
     try:
-      result = self.httpRequest(self.computeURL + '/os-keypairs',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    for keypair in result['response']['keypairs']:
-      try:
-        if 'ssh-rsa ' + sshPublicKey + ' vcycle' == keypair['keypair']['public_key']:
-          self.machinetypes[machinetypeName]._keyPairName = str(keypair['keypair']['name'])
-          return self.machinetypes[machinetypeName]._keyPairName
-      except:
-        pass
-      
-    # Not there so we try to add it
+      proxyExpr = self.machinetypes[machinetypeName].options['user_data_cvmfs_proxy']
+    except:
+      proxyExpr = 'DIRECT'
     
-    keyName = str(time.time()).replace('.','-')
-
-    try:
-      result = self.httpRequest(self.computeURL + '/os-keypairs',
-                                jsonRequest = { 'keypair' : { 'name'       : keyName,
-                                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
-                                                            }
-                                              },
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-
-    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
-
-    self.machinetypes[machinetypeName]._keyPairName = keyName
-    return self.machinetypes[machinetypeName]._keyPairName
+    return base64.b64encode(template.replace('##user_data_option_cvmfs_proxy##', proxyExpr))
 
   def createMachine(self, machineName, machinetypeName, zone):
-    # Google-specific machine creation steps
+    # Google-specific machine creation steps (included hardcoded default 40 GB/processor if not explicitly given)
 
     try:    
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
@@ -581,12 +444,21 @@ class GoogleSpace(vcycle.BaseSpace):
       else:
         joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
+      userData = open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()
+
+      if self.machinetypes[machinetypeName].disk_gb_per_processor is None:
+        disk_gb_per_processor = 40
+      else:
+        disk_gb_per_processor = self.machinetypes[machinetypeName].disk_gb_per_processor
+
       request = { 'name'        : machineName,
                   'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_name),
                   'disks' : [ 
                               { 
-                                'initializeParams' : { 'sourceImage' : 'global/images/' + self.machinetypes[machinetypeName].root_image },
-                                'boot' : True
+                                'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].processors_per_machine,
+                                                       'sourceImage' : 'global/images/' + self.machinetypes[machinetypeName].root_image },
+                                'boot'             : True,
+                                'autoDelete'       : True
                               }
                             ],
                   'networkInterfaces' : [ 
@@ -600,55 +472,59 @@ class GoogleSpace(vcycle.BaseSpace):
                                         ],
                   'metadata': {
                                 'items': [
-                                           { 'key'   : 'cvm-user-data',
-                                             'value' : 'IyEgL2Jpbi9iYXNoCnNlZCAtaSAnczpeREVGX01EX1ZFUlNJT04uKjpERUZfTURfVkVSU0lPTiA9ICIwLjEvbWV0YS1kYXRhL2F0dHJpYnV0ZXMiOicgXAogIC91c3IvbGliL3B5dGhvbjIuNi9zaXRlLXBhY2thZ2VzL2Nsb3VkaW5pdC9zb3VyY2VzL0RhdGFTb3VyY2VFYzIucHkgClthbWljb25maWddCnBsdWdpbnM9Y2VybnZtCltjZXJudm1dCnJlcG9zaXRvcmllcyA9IGdyaWQKcHJveHk9RElSRUNUClt1Y2VybnZtLWJlZ2luXQpyZXNpemVfcm9vdGZzPW9mZgpjdm1mc19odHRwX3Byb3h5PURJUkVDVApbdWNlcm52bS1lbmRdCg==' },
-#                                             'value' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()) },
-                                           { 'key'   : 'name',
-                                             'value' : machineName },
+                                           { 'key'   : 'user-data',
+                                             'value' :  userData },
                                            { 'key'   : 'machinetype',
                                              'value' :  machinetypeName },
                                            { 'key'   : 'machinefeatures',
                                              'value' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures' },
                                            { 'key'   : 'jobfeatures',
-                                             'value' :  'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures' },
+                                             'value' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures' },
                                            { 'key'   : 'joboutputs',
                                              'value' :  joboutputsURL }
                                          ]
                               }
                 }
 
-      pprint.pprint(request)
+      if userData.startswith('From '):
+        # user_data file looks like Cloud Init, so for CernVM 3 we add the amiconfig wrapper cvm-user-data file
+        request['metadata']['items'].append( { 'key'   : 'cvm-user-data',
+                                               'value' : self.cvmUserData(machinetypeName) } )
 
-#      request = { 'server' : 
-#                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-#                    'name'      : machineName,
-#                    'imageRef'  : self.getImageID(machinetypeName),
-#                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
-#                    'metadata'  : { 'cern-services'   : 'false',
-#                                    'name'	      : machineName,
-#                                    'machinetype'     : machinetypeName,
-#                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-#                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-#                                    'machineoutputs'  : joboutputsURL,
-#                                    'joboutputs'      : joboutputsURL  }
-#                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
-#                    # but point them both to the joboutputs directory that we now provide
-#                  }    
-#                }
+      # Get the ssh public key from the root_public_key file
+      if self.machinetypes[machinetypeName].root_public_key:
+        if self.machinetypes[machinetypeName].root_public_key[0] == '/':
+          try:
+            f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
+          except Exception as e:
+            GoogleError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
+        else:  
+          try:
+            f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
+          except Exception as e:
+            GoogleError('Cannot open /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key)
 
-       
+        while True:
+          try:
+            line = f.read()
+          except:
+            f.close()
+            raise GoogleError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
+        
+          if line.startswith('ssh-rsa '):
+            f.close()
+            sshPublicKey = line.split(' ')[1]
+            break
 
+        # Only get this far if an "ssh-rsa ..." line has been found
 
-#      if self.network_uuid:
-#        request['server']['networks'] = [{"uuid": self.network_uuid}]
-#        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
+        # This old version is still needed by google daemon inside CernVM 3
+        request['metadata']['items'].append( { 'key' : 'sshKeys',
+                                               'value' : 'root:ssh-rsa ' + sshPublicKey + ' root' } )
 
-#      if self.zones:
-#        request['server']['availability_zone'] = random.choice(self.zones)
-#        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, request['server']['availability_zone'], self.spaceName))
-
-#      if self.machinetypes[machinetypeName].root_public_key:
-#        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
+        # This is the current version
+        request['metadata']['items'].append( { 'key' : 'ssh-keys',                                 
+                                               'value' : 'root:ssh-rsa ' + sshPublicKey + ' root' } )
 
     except Exception as e:
       raise GoogleError('Failed to create new machine request for %s: %s' % (machineName, str(e)))
@@ -660,8 +536,6 @@ class GoogleSpace(vcycle.BaseSpace):
     except Exception as e:
       raise GoogleError('Cannot create VM (' + str(e) + ')')
       
-    pprint.pprint(result)
-
     vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
