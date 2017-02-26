@@ -290,7 +290,7 @@ class Machine:
                             str(self.spaceName) + ':' +
                             (self.zone if self.zone else '') + ':' +
                             str(self.machinetypeName) + ' ' + 
-                            self.ip + ' ' + 
+                            self.ip + ' ' + str(self.processors) + ' ' +
                             self.state + ' ' + 
                             time.strftime("%b %d %H:%M:%S ", time.localtime(self.createdTime)) + 
                             logStartedTimeStr + ':' +

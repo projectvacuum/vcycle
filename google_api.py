@@ -138,19 +138,53 @@ class GoogleSpace(vcycle.BaseSpace):
     return accessToken
 
   def connect(self):
-    """Connect to the Google compute cloud service"""
+    """Connect to Google Compute Engine"""
 
     self.accessToken = self._getAccessToken()
-    vcycle.vacutils.logLine('Connected to Google compute cloud service for space ' + self.spaceName)
+    vcycle.vacutils.logLine('Connected to Google Compute Engine for space ' + self.spaceName)
     
+    try:
+      result = self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/global/images' % self.project_id,
+                                headers = [ 'Authorization: Bearer ' + self.accessToken ])
+    except Exception as e:
+      raise GoogleError('Cannot connect to https://www.googleapis.com/compute/v1/projects/%s/global/images (%s)' % (self.project_id, str(e)))
+
+    if 'items' in result['response']:
+      self.images = result['response']['items']
+    else:
+      self.images = []
+
     for machinetypeName in self.machinetypes:
       try:
-        self.machinetypes[machinetypeName].processors_per_machine = 1
+        self.machinetypes[machinetypeName].processors_per_machine = self._googleMachineTypeProcessors(self.machinetypes[machinetypeName].flavor_name)
       except:
         pass
 
+  def _googleMachineTypeProcessors(self, googleMachineType):
+    # Return the number of processors associated with this Google MachineType
+    # or 1 if we are unable to determine it
+
+    shortMachineType = googleMachineType.split('/')[-1]
+    
+    if shortMachineType.startswith('custom-'):
+      # custom-PROCESSORS-MEMORY
+      try:
+        return int(shortMachineType.split('-')[1])
+      except:
+        return 1
+  
+    if shortMachineType.startswith('n1-'):
+      # n1-MEMORYNAME-PROCESSORS
+      try:
+        return int(shortMachineType.split('-')[2])
+      except:
+        return 1
+      
+    # Something else. Micro, small etc? Something new? Default to 1
+    return 1
+
   def scanMachines(self):
-    """Query Google compute service for details of machines in this space"""
+    """Query Google Compute Engine for details of machines in this space"""
 
     # For each machine found in the space, this method is responsible for 
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
@@ -175,8 +209,7 @@ class GoogleSpace(vcycle.BaseSpace):
       for oneMachine in result['response']['items'][oneZone]['instances']:
             
         machineName = str(oneMachine['name'])
-#        flavorID = str(oneMachine['machineType'])
-        processors = 1
+        processors = self._googleMachineTypeProcessors(oneMachine['machineType'])
        
         # Just in case other VMs are in this space
         if not machineName.startswith('vcycle-'):
@@ -200,11 +233,12 @@ class GoogleSpace(vcycle.BaseSpace):
         updatedTime  = createdTime
 
         try:
+# THIS NEEDS CHANGING FOR GCE. CAN WE DETERMINE THIS SOMEHOW? OR USE creationTimeStamp FOR startedTime?
           startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
         except:
           startedTime = None
 
-        status     = str(oneMachine['status'])
+        status = str(oneMachine['status'])
 
         try:
           machinetypeName = str(oneServer['metadata']['machinetype'])
@@ -219,6 +253,7 @@ class GoogleSpace(vcycle.BaseSpace):
           state = vcycle.MachineState.starting
         elif status == 'STOPPING':
           state = vcycle.MachineState.deleting
+# Do these states like these come up?
 #        elif status == 'ERROR':
 #          state = vcycle.MachineState.failed
 #        elif status == 'DELETED':
@@ -237,97 +272,79 @@ class GoogleSpace(vcycle.BaseSpace):
                                                            machinetypeName  = machinetypeName,
                                                            zone             = zone)
 
-  def getImageID(self, machinetypeName):
-    """Get the image ID"""
+  def _imageNameExists(self, imageName):
+    """Check that imageName has already been uploaded to Google"""
 
-    # If we already know the image ID, then just return it
-    if hasattr(self.machinetypes[machinetypeName], '_imageID'):
-      if self.machinetypes[machinetypeName]._imageID:
-        return self.machinetypes[machinetypeName]._imageID
-      else:
-        # If _imageID is None, then it's not available for this cycle
-        raise GoogleError('Image "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' not available!')
+    for imageDict in self.images:
+      if 'name' in imageDict and imageDict['name'] == imageName:
+        return True
 
-    # Get the existing images for this tenancy
-    try:
-      result = self.httpRequest(self.computeURL + '/images/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise GoogleError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+    return False
 
-    # Specific image, not managed by Vcycle, lookup ID
-    if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
-      for image in result['response']['images']:
-         if self.machinetypes[machinetypeName].root_image[6:] == image['name']:
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
+  def _getImageName(self, machinetypeName):
+    """Get the image Name"""
 
-      raise GoogleError('Image "' + self.machinetypes[machinetypeName].root_image[6:] + '" for machinetype ' + machinetypeName + ' not available!')
+    # Existing image, not managed by Vcycle. Easy.
+    if self.machinetypes[machinetypeName].root_image.startswith('image:'):
+      imageName = self.machinetypes[machinetypeName].root_image[6:]
+      if not self._imageNameExists(imageName):
+        raise GoogleError('%s is not an existing image on GCE!' % imageName)
 
-    # Always store/make the image name
-    if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
-       self.machinetypes[machinetypeName].root_image[:8] == 'https://' or \
-       self.machinetypes[machinetypeName].root_image[0] == '/':
-      imageName = self.machinetypes[machinetypeName].root_image
-    else:
-      imageName = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_image
+      return imageName
 
-    # Find the local copy of the image file
-    if not hasattr(self.machinetypes[machinetypeName], '_imageFile'):
+# Just image: for now.
+    raise GoogleError('Only existing images are supported! Please use root_image = image:IMAGENAME')
 
-      if self.machinetypes[machinetypeName].root_image[:7] == 'http://' or \
-         self.machinetypes[machinetypeName].root_image[:8] == 'https://':
+# To enable the rest of this method, self.uploadImage() must first be updated for GCE (it's still OS.)
 
-        try:
+    # imageFile is the full path to the source file or cached file on disk on this VM factory machine 
+    # imageURL is the remote URL or local source path of the image, to use in the hashes given to GCE
+    # imageName is the hash of the modification time and the URL/path of the image: new for each version
+    # imageFamily is the hash of just the URL or file path of the image: it doesn't change as the version 
+    #   changes and it can be used to identify old versions which should be deleted
+
+    if self.machinetypes[machinetypeName].root_image.startswith('http://') or \
+       self.machinetypes[machinetypeName].root_image.startswith('https://'):
+
+      try:
           imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
                                          '/var/lib/vcycle/imagecache', 
                                          '/var/lib/vcycle/tmp',
                                          'Vcycle ' + vcycle.shared.vcycleVersion)
 
-          imageLastModified = int(os.stat(imageFile).st_mtime)
-        except Exception as e:
+          imageLastModified = int(os.stat(imageFile).st_mtime)          
+          imageURL = self.machinetypes[machinetypeName].root_image
+          
+      except Exception as e:
           raise GoogleError('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
-
-        self.machinetypes[machinetypeName]._imageFile = imageFile
  
-      elif self.machinetypes[machinetypeName].root_image[0] == '/':
-        
-        try:
-          imageLastModified = int(os.stat(self.machinetypes[machinetypeName].root_image).st_mtime)
-        except Exception as e:
-          raise GoogleError('Image file "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' does not exist!')
-
-        self.machinetypes[machinetypeName]._imageFile = self.machinetypes[machinetypeName].root_image
-
-      else: # root_image is not an absolute path, but imageName is
-        
-        try:
-          imageLastModified = int(os.stat(imageName).st_mtime)
-        except Exception as e:
-          raise GoogleError('Image file "' + self.machinetypes[machinetypeName].root_image +
-                            '" does not exist in /var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/ !')
-
-        self.machinetypes[machinetypeName]._imageFile = imageName
-
     else:
-      imageLastModified = int(os.stat(self.machinetypes[machinetypeName]._imageFile).st_mtime)
+      if self.machinetypes[machinetypeName].root_image[0] == '/':
+          imageFile = self.machinetypes[machinetypeName].root_image          
+      else:
+          imageFile = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_image
 
-    # Go through the existing images looking for a name and time stamp match
-# We should delete old copies of the current image name if we find them here
-    for image in result['response']['images']:
       try:
-         if image['name'] == imageName and \
-            image['status'] == 'ACTIVE' and \
-            image['metadata']['last_modified'] == str(imageLastModified):
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
-      except:
-        pass
+          imageLastModified = int(os.stat(imageFile).st_mtime)
+      except Exception as e:
+          raise GoogleError('Image file "' + imageFile + '" does not exist!')
 
-    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
+      imageURL = imageFile
+
+    # Create the hash for use with the GCE store of images
+    imageName = base64.b32encode(hashlib.sha256(str(imageLastModified) + ' ' + imageURL).digest()).lower().replace('=','0')
+
+    if self._imageNameExists(imageName):
+      # We already have it!
+      return imageName
+
+    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in GCE image store, so need to upload')
+
+    # Create the family name, which is also a hash but doesn't change with new versions
+    imageFamily = base64.b32encode(hashlib.sha256(imageURL).digest()).lower().replace('=','0')
 
     if self.machinetypes[machinetypeName].cernvm_signing_dn:
-      cernvmDict = vac.vacutils.getCernvmImageData(self.machinetypes[machinetypeName]._imageFile)
+      cernvmDict = vac.vacutils.getCernvmImageData(imageFile)
 
       if cernvmDict['verified'] == False:
         raise GoogleError('Failed to verify signature/cert for ' + self.machinetypes[machinetypeName].root_image)
@@ -338,13 +355,21 @@ class GoogleSpace(vcycle.BaseSpace):
 
     # Try to upload the image
     try:
-      self.machinetypes[machinetypeName]._imageID = self.uploadImage(self.machinetypes[machinetypeName]._imageFile, imageName, imageLastModified)
-      return self.machinetypes[machinetypeName]._imageID
+      self.uploadImage(imageFile, imageName, imageFamily)
+      return imageName
+
     except Exception as e:
-      raise GoogleError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
+      raise GoogleError('Failed to upload image file as ' + imageName + ' (' + str(e) + ')')
 
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
-
+  def uploadImage(self, imageFile, imageName, imageFamily, verbose = False):
+#
+# This is the OpenStack version! We need to write a GCE version. It will look similar :)
+#
+# It needs to implement something like this using the REST API:
+#   gsutil mb gs://vcycle
+#   gsutil cp cernvm3-micro-2.7-7.tar.gz gs://vcycle/cernvm3-micro-2.7-7.tar.gz
+#   gcloud compute images create cernvm3 --source-uri=gs://vcycle/cernvm3-micro-2.7-7.tar.gz
+#
     try:
       f = open(imageFile, 'r')
     except Exception as e:
@@ -405,7 +430,10 @@ class GoogleSpace(vcycle.BaseSpace):
     except:
       raise GoogleError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
 
-  def cvmUserData(self, machinetypeName):
+  def _cvmUserData(self, machinetypeName):
+    # Create a user-data file for use with amiconfig in CernVM 3, which looks for the 
+    # metadata key cvm-user-data. The sed commands make the EC2 support in Cloud Init 
+    # find the user-data file in the GCE metadata, when it is run after amiconfig.
   
     template = """#! /bin/bash
 #
@@ -456,7 +484,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                   'disks' : [ 
                               { 
                                 'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].processors_per_machine,
-                                                       'sourceImage' : 'global/images/' + self.machinetypes[machinetypeName].root_image },
+                                                       'sourceImage' : 'global/images/' + self._getImageName(machinetypeName) },
                                 'boot'             : True,
                                 'autoDelete'       : True
                               }
@@ -489,7 +517,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
       if userData.startswith('From '):
         # user_data file looks like Cloud Init, so for CernVM 3 we add the amiconfig wrapper cvm-user-data file
         request['metadata']['items'].append( { 'key'   : 'cvm-user-data',
-                                               'value' : self.cvmUserData(machinetypeName) } )
+                                               'value' : self._cvmUserData(machinetypeName) } )
 
       # Get the ssh public key from the root_public_key file
       if self.machinetypes[machinetypeName].root_public_key:
