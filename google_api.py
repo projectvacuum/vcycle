@@ -207,70 +207,73 @@ class GoogleSpace(vcycle.BaseSpace):
         zone = oneZone
     
       for oneMachine in result['response']['items'][oneZone]['instances']:
-            
         machineName = str(oneMachine['name'])
-        processors = self._googleMachineTypeProcessors(oneMachine['machineType'])
+
+        try:
+          processors = self._googleMachineTypeProcessors(oneMachine['machineType'])
        
-        # Just in case other VMs are in this space
-        if not machineName.startswith('vcycle-'):
-          # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-          self.totalProcessors += processors
-          continue
+          # Just in case other VMs are in this space
+          if not machineName.startswith('vcycle-'):
+            # Still count VMs that we didn't create and won't manage, to avoid going above space limit
+            self.totalProcessors += processors
+            continue
 
-        id = str(oneMachine['id'])
+          id = str(oneMachine['id'])
 
-        # Try to get the IP address. Always use the zeroth member of the earliest network
-        try:
-          ip = str(oneMachine['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
-        except:
-          ip = '0.0.0.0'
+          # Try to get the IP address. Always use the zeroth member of the earliest network
+          try:
+            ip = str(oneMachine['networkInterfaces'][0]['accessConfigs'][0]['natIP'])
+          except:
+            ip = '0.0.0.0'
 
-        try:
-          createdTime = calendar.timegm(time.strptime(str(oneMachine['creationTimestamp']), "%Y-%m-%dT%H:%M:%S-"))
-        except:
-          createdTime = None  
+          try:
+            createdTime = calendar.timegm(time.strptime(str(oneMachine['creationTimestamp']), "%Y-%m-%dT%H:%M:%S-"))
+          except:
+            createdTime = None  
         
-        updatedTime  = createdTime
-
-        try:
+#          updatedTime  = createdTime
+#
+#          try:
 # THIS NEEDS CHANGING FOR GCE. CAN WE DETERMINE THIS SOMEHOW? OR USE creationTimeStamp FOR startedTime?
-          startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
-        except:
-          startedTime = None
+#            startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
+#          except:
+#            startedTime = createdTime
 
-        status = str(oneMachine['status'])
+          status = str(oneMachine['status'])
+ 
+          try:
+            machinetypeName = str(oneServer['metadata']['machinetype'])
+          except:
+            machinetypeName = None
 
-        try:
-          machinetypeName = str(oneServer['metadata']['machinetype'])
-        except:
-          machinetypeName = None
-
-        if status == 'RUNNING':
-          state = vcycle.MachineState.running
-        elif status == 'TERMINATED':
-          state = vcycle.MachineState.shutdown
-        elif status == 'PENDING':
-          state = vcycle.MachineState.starting
-        elif status == 'STOPPING':
-          state = vcycle.MachineState.deleting
+          if status == 'RUNNING':
+            state = vcycle.MachineState.running
+          elif status == 'TERMINATED':
+            state = vcycle.MachineState.shutdown
+          elif status == 'PENDING':
+            state = vcycle.MachineState.starting
+          elif status == 'STOPPING':
+            state = vcycle.MachineState.deleting
 # Do these states like these come up?
-#        elif status == 'ERROR':
-#          state = vcycle.MachineState.failed
-#        elif status == 'DELETED':
-#          state = vcycle.MachineState.deleting
-        else:
-          state = vcycle.MachineState.unknown
+#         elif status == 'ERROR':
+#           state = vcycle.MachineState.failed
+#         elif status == 'DELETED':
+#           state = vcycle.MachineState.deleting
+          else:
+            state = vcycle.MachineState.unknown
 
-        self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
-                                                           spaceName        = self.spaceName,
-                                                           state            = state,
-                                                           ip               = ip,
-                                                           createdTime      = createdTime,
-                                                           startedTime      = startedTime,
-                                                           updatedTime      = updatedTime,
-                                                           uuidStr          = id,
-                                                           machinetypeName  = machinetypeName,
-                                                           zone             = zone)
+          self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+                                                             spaceName        = self.spaceName,
+                                                             state            = state,
+                                                             ip               = ip,
+                                                             createdTime      = createdTime,
+                                                             startedTime      = None,
+                                                             updatedTime      = None,
+                                                             uuidStr          = id,
+                                                             machinetypeName  = machinetypeName,
+                                                             zone             = zone)
+        except Exception as e:
+          vcycle.vacutils.logLine('Problem processing %s - skipping (%s)' % (machineName, str(e)))
 
   def _imageNameExists(self, imageName):
     """Check that imageName has already been uploaded to Google"""

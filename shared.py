@@ -169,6 +169,10 @@ class Machine:
       
     if self.state == MachineState.running:
       try:
+        if not self.startedTime:
+          self.startedTime = int(time.time())
+          self.updatedTime = self.startedTime
+      
         spaces[self.spaceName].runningMachines += 1
         spaces[self.spaceName].machinetypes[self.machinetypeName].runningMachines += 1
 
@@ -220,9 +224,13 @@ class Machine:
     except:
       if self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting:
         # Record that we have seen the machine in a stopped state for the first time
-        # updateTime has the last transition time, presumably to being stopped.
-        # This is certainly a better estimate than using time.time()?
-        self.stoppedTime = updatedTime
+        # If updateTime has the last transition time, presumably it is to being stopped.
+        # This is certainly a better estimate than using time.time() if available (ie OpenStack)
+        if not self.updatedTime:
+          self.updatedTime = int(time.time())
+          vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
+          
+        self.stoppedTime = self.updatedTime
         vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
 
         # Record the shutdown message if available
