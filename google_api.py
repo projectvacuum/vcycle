@@ -226,19 +226,12 @@ class GoogleSpace(vcycle.BaseSpace):
           except:
             ip = '0.0.0.0'
 
+          # With GCE we only have createdTime. Machine class infers updatedTime and stoppedTime
           try:
             createdTime = calendar.timegm(time.strptime(str(oneMachine['creationTimestamp']), "%Y-%m-%dT%H:%M:%S-"))
           except:
             createdTime = None  
         
-#          updatedTime  = createdTime
-#
-#          try:
-# THIS NEEDS CHANGING FOR GCE. CAN WE DETERMINE THIS SOMEHOW? OR USE creationTimeStamp FOR startedTime?
-#            startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
-#          except:
-#            startedTime = createdTime
-
           status = str(oneMachine['status'])
  
           try:
@@ -248,17 +241,13 @@ class GoogleSpace(vcycle.BaseSpace):
 
           if status == 'RUNNING':
             state = vcycle.MachineState.running
-          elif status == 'TERMINATED':
+          elif status == 'TERMINATED' or status == 'SUSPENDED':
             state = vcycle.MachineState.shutdown
-          elif status == 'PENDING':
+          elif status == 'PROVISIONING' or status == 'STAGING':
             state = vcycle.MachineState.starting
-          elif status == 'STOPPING':
+          elif status == 'STOPPING' or status == 'SUSPENDING':
             state = vcycle.MachineState.deleting
-# Do these states like these come up?
-#         elif status == 'ERROR':
-#           state = vcycle.MachineState.failed
-#         elif status == 'DELETED':
-#           state = vcycle.MachineState.deleting
+          # No need to use vcycle.MachineState.failed? Covered by TERMINATED?
           else:
             state = vcycle.MachineState.unknown
 
