@@ -1546,8 +1546,9 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs', 
                                str(int(time.time())), 0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
-                               machineName, 0644, '/var/lib/vcycle/tmp')
+    if self.machines[machineName].uuidStr is not None:
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
+                                 self.machines[machineName].uuidStr, 0644, '/var/lib/vcycle/tmp')
 
     if self.machinetypes[machinetypeName].hs06_per_processor:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job', 

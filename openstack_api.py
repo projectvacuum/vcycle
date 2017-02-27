@@ -681,7 +681,12 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + str(result['response']['server']['id']) + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    try:
+      uuidStr = str(result['response']['server']['id'])
+    except:
+      raise OpenstackError('Could not get VM UUID from VM creation response (' + str(e) + ')')
+
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
@@ -690,7 +695,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
-                                                       uuidStr     = None,
+                                                       uuidStr     = uuidStr,
                                                        machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):

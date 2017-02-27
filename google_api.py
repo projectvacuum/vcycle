@@ -556,6 +556,11 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
     except Exception as e:
       raise GoogleError('Cannot create VM (' + str(e) + ')')
       
+    try:
+      uuidStr = str(result['response']['id'])
+    except:
+      uuidStr = str(time.time())
+      
     vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
@@ -565,7 +570,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                                                        createdTime     = int(time.time()),
                                                        startedTime     = None,
                                                        updatedTime     = int(time.time()),
-                                                       uuidStr         = None,
+                                                       uuidStr         = uuidStr,
                                                        machinetypeName = machinetypeName,
                                                        zone            = zone)
 
