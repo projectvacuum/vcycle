@@ -559,9 +559,9 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
     try:
       uuidStr = str(result['response']['id'])
     except:
-      uuidStr = str(time.time())
+      raise GoogleError('Unable to get VM id from GCE instance insert response (' + str(e) + ')')
       
-    vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
                                                        spaceName       = self.spaceName,
