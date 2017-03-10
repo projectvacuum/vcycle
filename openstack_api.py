@@ -86,6 +86,11 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.network_uuid = None
 
     try:
+      self.region = parser.get(spaceSectionName, 'region')
+    except Exception as e:
+      self.region = None
+
+    try:
       self.zones = parser.get(spaceSectionName, 'zones').split()
     except Exception as e:
       self.zones = None
@@ -235,17 +240,19 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.computeURL = None
     self.imageURL   = None
 
-    # This might be a bit naive? We just keep the LAST one we see.
+    # This might be a bit naive? We just keep the LAST matching one we see.
     for service in result['response']['token']['catalog']:
 
       if service['type'] == 'compute':
         for endpoint in service['endpoints']:      
-          if endpoint['interface'] == 'public':
+          if endpoint['interface'] == 'public' and \
+              (self.region is None or self.region == endpoint['region']):
             self.computeURL = str(endpoint['url'])
       
       elif service['type'] == 'image':
         for endpoint in service['endpoints']:
-          if endpoint['interface'] == 'public':
+          if endpoint['interface'] == 'public' and \
+              (self.region is None or self.region == endpoint['region']):
             self.imageURL = str(endpoint['url'])
         
     if not self.computeURL:
