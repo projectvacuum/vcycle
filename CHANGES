@@ -15,6 +15,7 @@
 - max_machines -> max_processors in spaces and machinetypes; 
   hs06 -> hs06_per_processor; cpu_per_machine -> processors_per_machine 
 - running_hs06 isn't published to VacMon if no hs06_per_processor
+- Add region and zones options to OpenStack plugin
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
