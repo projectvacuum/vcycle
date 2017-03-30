@@ -43,6 +43,9 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
 GNUTAR ?= tar
+
+PYTHONDIR := $(shell python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+
 vcycle.tgz: $(TGZ_FILES)
 	mkdir -p TEMPDIR/vcycle
 	cp $(TGZ_FILES) TEMPDIR/vcycle
@@ -51,7 +54,7 @@ vcycle.tgz: $(TGZ_FILES)
 
 install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
- 	         $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle \
+	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle \
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
  	         $(RPM_BUILD_ROOT)/usr/share/man/man5 \
                  $(RPM_BUILD_ROOT)/usr/share/man/man8 \
@@ -71,7 +74,7 @@ install: $(INSTALL_FILES)
 	cp __init__.py shared.py vacutils.py \
 	   openstack_api.py occi_api.py \
 	   dbce_api.py azure_api.py ec2_api.py \
-	   $(RPM_BUILD_ROOT)/usr/lib64/python2.6/site-packages/vcycle
+	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle
 	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
 	   example.vcycle.conf vcycle.conf.5 vcycled.8 \
 	   admin-guide.html \

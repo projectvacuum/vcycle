@@ -58,13 +58,13 @@ if [ $? = 0 ] ; then
 fi
 
 %files
-/usr/sbin
+/usr/sbin/*
 /usr/share/doc/vcycle-%{version}
-/usr/lib64/python2.6/site-packages/vcycle/__init__.py*
-/usr/lib64/python2.6/site-packages/vcycle/shared.py*
-/usr/lib64/python2.6/site-packages/vcycle/vacutils.py*
-/usr/lib64/python2.6/site-packages/vcycle/openstack_api.py*
-/usr/lib64/python2.6/site-packages/vcycle/ec2_api.py*
+%{python_sitelib}/vcycle/__init__.py*
+%{python_sitelib}/vcycle/shared.py*
+%{python_sitelib}/vcycle/vacutils.py*
+%{python_sitelib}/vcycle/openstack_api.py*
+%{python_sitelib}/vcycle/ec2_api.py*
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
@@ -76,10 +76,10 @@ fi
 pip install azure-servicemanagement-legacy
 
 %files azure
-/usr/lib64/python2.6/site-packages/vcycle/azure_api.py* 
+%{python_sitelib}/vcycle/azure_api.py*
 
 %files occi
-/usr/lib64/python2.6/site-packages/vcycle/occi_api.py* 
+%{python_sitelib}/vcycle/occi_api.py*
 
 %files dbce
-/usr/lib64/python2.6/site-packages/vcycle/dbce_api.py*
+%{python_sitelib}/vcycle/dbce_api.py*
