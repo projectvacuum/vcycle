@@ -556,11 +556,11 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       self.curl.perform()
     except Exception as e:
-      raise OpenstackError('Failed uploadimg image to ' + url + ' (' + str(e) + ')')
+      raise OpenstackError('Failed uploadimg image (' + str(e) + ')')
 
     # Any 2xx code is OK; otherwise raise an exception
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise OpenstackError('Upload to ' + url + ' returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
     try:
       response = json.loads(outputBuffer.getvalue())
