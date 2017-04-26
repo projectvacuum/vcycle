@@ -416,7 +416,9 @@ class Machine:
     else:
       tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
 
-    if self.stoppedTime:
+    if not self.startedTime:
+      cpuSeconds = 0
+    elif self.stoppedTime:
       cpuSeconds = self.stoppedTime - self.startedTime
     elif self.state == MachineState.running:
       cpuSeconds = timeNow - self.startedTime
