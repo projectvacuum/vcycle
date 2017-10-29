@@ -73,19 +73,7 @@ class CreamceSpace(vcycle.BaseSpace):
       raise CreamceError('url is required in CREAM CE [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
-  # Some per-machinetype setup
-
-    # Try to get the limit on the number of processors in this project
-#    processorsLimit =  self._getProcessorsLimit()
-
-    # Try to use it for this space
-    if self.max_processors is None:
-      vcycle.vacutils.logLine('No limit on processors set in Vcycle configuration')
-      if processorsLimit is not None:
-        vcycle.vacutils.logLine('Processors limit set to %d from Cream CE' % processorsLimit)
-        self.max_processors = processorsLimit
-    else:
-      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
+    pass
      
   def scanMachines(self):
     """Query Cream CE compute service for details of machines in this space"""
@@ -147,6 +135,11 @@ class CreamceSpace(vcycle.BaseSpace):
         stoppedTime = int(open('/var/lib/vcycle/machines/%s/stopped' % machineName, 'r').readline().strip())
       except:
         stoppedTime = None
+        
+      try:
+        processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
+      except:
+        processors = 1
 
       # Map CREAM Status to Vcycle state        
       if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):

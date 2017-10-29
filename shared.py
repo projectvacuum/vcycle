@@ -167,6 +167,9 @@ class Machine:
     except:
       pass
       
+    if self.state == MachineState.starting:
+      spaces[self.spaceName].machinetypes[self.machinetypeName].startingProcessors += self.processors
+      
     if self.state == MachineState.running:
       try:
         if not self.startedTime:
@@ -688,6 +691,14 @@ class Machinetype:
           self.max_processors = None
       except Exception as e:
         raise VcycleError('Failed to parse max_processors in [' + machinetypeSectionName + '] (' + str(e) + ')')
+
+    if parser.has_option(machinetypeSectionName, 'max_starting_processors'):
+      try:
+        self.max_starting_processors = int(parser.get(machinetypeSectionName, 'max_starting_processors'))
+      except Exception as e:
+        raise VcycleError('Failed to parse max_starting_processors in [' + machinetypeSectionName + '] (' + str(e) + ')')
+    else:
+      self.max_starting_processors = self.max_processors
       
     try:
       self.backoff_seconds = int(parser.get(machinetypeSectionName, 'backoff_seconds'))
@@ -841,12 +852,13 @@ class Machinetype:
       self.options['legacy_proxy'] = False
 
     # Just for this instance, so Total for this machinetype in one space
-    self.totalMachines     = 0
-    self.totalProcessors   = 0
-    self.runningMachines   = 0
-    self.runningProcessors = 0
-    self.weightedMachines  = 0.0
-    self.notPassedFizzle   = 0
+    self.totalMachines      = 0
+    self.totalProcessors    = 0
+    self.startingProcessors = 0
+    self.runningMachines    = 0
+    self.runningProcessors  = 0
+    self.weightedMachines   = 0.0
+    self.notPassedFizzle    = 0
 
   def setLastAbortTime(self, abortTime):
 
@@ -1352,11 +1364,12 @@ class BaseSpace(object):
   
     for machinetypeName,machinetype in self.machinetypes.iteritems():
       vcycle.vacutils.logLine('machinetype ' + machinetypeName + 
-                              ' has ' + str(machinetype.runningMachines) + 
-                              ' running vcycle VMs out of ' + str(machinetype.totalMachines) +
+                              ' has ' + str(machinetype.startingProcessors) + 
+                              ' starting and ' + str(machinetype.runningProcessors) + 
+                              ' running processors out of ' + str(machinetype.totalProcessors) +
                               ' found in any state. ' + str(machinetype.notPassedFizzle) +
                               ' not passed fizzle_seconds(' + str(machinetype.fizzle_seconds) +
-                              ').')
+                              '). ')
   
     creationsPerCycle  = int(0.9999999 + self.max_processors * 0.1)
     creationsThisCycle = 0
@@ -1384,6 +1397,10 @@ class BaseSpace(object):
 
         if self.machinetypes[machinetypeName].max_processors is not None and self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].max_processors:
           vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].totalProcessors) + ') on number of processors to allocate for machinetype ' + machinetypeName)
+          continue
+
+        if self.machinetypes[machinetypeName].max_starting_processors is not None and self.machinetypes[machinetypeName].startingProcessors >= self.machinetypes[machinetypeName].max_starting_processors:
+          vcycle.vacutils.logLine('Reached limit (%d) on processors that can be in starting state for machinetype %s' % (self.machinetypes[machinetypeName].max_starting_processors, machinetypeName))
           continue
 
         if int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime + self.machinetypes[machinetypeName].backoff_seconds):
@@ -1415,6 +1432,7 @@ class BaseSpace(object):
 
         # This tracks creation attempts, whether successful or not
         creationsThisCycle += self.machinetypes[machinetypeName].processors
+        self.machinetypes[machinetypeName].startingProcessors += self.machinetypes[machinetypeName].processors
         self.machinetypes[machinetypeName].notPassedFizzle += 1
 
         try:
