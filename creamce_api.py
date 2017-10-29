@@ -44,12 +44,13 @@ import time
 import json
 import shutil
 import string
-import pycurl
+import urllib
 import random
 import base64
 import StringIO
 import tempfile
 import calendar
+import subprocess
 
 import vcycle.vacutils
 
@@ -64,35 +65,18 @@ class CreamceSpace(vcycle.BaseSpace):
     # Generic initialization
     vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName)
 
-    # CREAM CE specific initialization
-    try:
-      self.ce_host_port_queue = parser.get(spaceSectionName, 'ce_host_port_queue')
-    except Exception as e:
-      raise CreamceError('ce_host_port_queue is required in Cream CE [space ' + spaceName + '] (' + str(e) + ')')
+    self.maxStartingSeconds = None # no limit
 
     try:
-      self.usercert = parser.get(spaceSectionName, 'usercert')
+      self.url = parser.get(spaceSectionName, 'url')
     except Exception as e:
-      self.usercert = None
-      
-    try:
-      self.userkey = parser.get(spaceSectionName, 'userkey')
-    except Exception as e:
-      self.userkey = None
-      
-    if self.usercert and not self.userkey:
-      self.userkey = self.usercert
-    elif self.userkey and not self.usercert:
-      self.usercert = self.userkey
-
-    if not self.username and not self.usercert:      
-      raise CreamceError('X.509 usercert/userkey is required in Cream CE [space ' + spaceName + '] (' + str(e) + ')')
+      raise CreamceError('url is required in CREAM CE [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
-  # Wrapper around the connect methods and some common post-connection updates
+  # Some per-machinetype setup
 
     # Try to get the limit on the number of processors in this project
-    processorsLimit =  self._getProcessorsLimit()
+#    processorsLimit =  self._getProcessorsLimit()
 
     # Try to use it for this space
     if self.max_processors is None:
@@ -106,150 +90,171 @@ class CreamceSpace(vcycle.BaseSpace):
   def scanMachines(self):
     """Query Cream CE compute service for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each job found in the space, this method is responsible for 
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
-    try:
-      result = self.httpRequest(self.computeURL + '/servers/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise CreamceError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+    fd,path = tempfile.mkstemp()
 
-    for oneServer in result['response']['servers']:
+    os.write(fd, '##CREAMJOBS##\n')
+
+    for jobidEncoded in os.listdir('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/'):
+      try:
+        os.write(fd, urllib.unquote(jobidEncoded) + '\n')
+      except Exception as e:
+        print str(e)
+
+    os.close(fd)
+
+    with subprocess.Popen('glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
+      rawStatuses = p.read()
+      
+    for oneStatus in self.parseGliteCeJobStatus(rawStatuses):
     
       try:
-        machineName = str(oneServer['metadata']['name'])
+        with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(oneStatus['JobID'], '')) as f:
+          machineName = f.read().strip()
       except:
-        machineName = oneServer['name']
+        vcycle.vacutils.logLine('Failed to read jobid file for %s!' % oneStatus['JobID'])
+        continue
+        
+      # Collect values saved in machine's directory
 
       try:
-        flavorID = oneServer['flavor']['id']
+        machinetypeName = open('/var/lib/vcycle/machines/%s/machinetype_name' % machineName, 'r').readline().strip()
       except:
-        flavorID   = None
-        processors = 1
-      else:
-        try:
-          processors = self.flavors[flavorID]['processors']
-        except:
-          processors = 1
-       
-      # Just in case other VMs are in this space
-      if machineName[:7] != 'vcycle-':
-        # Still count VMs that we didn't create and won't manage, to avoid going above space limit
-        self.totalProcessors += processors
+        vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
+        continue
+        
+      try:
+        createdTime = int(open('/var/lib/vcycle/machines/%s/created' % machineName, 'r').readline().strip())
+      except:
+        vcycle.vacutils.logLine('Failed to read created file for %s!' % machineName)
+        continue
+        
+      try:
+        updatedTime = int(open('/var/lib/vcycle/machines/%s/updated' % machineName, 'r').readline().strip())
+      except:
+        vcycle.vacutils.logLine('Failed to read updated file for %s!' % machineName)
         continue
 
-      uuidStr = str(oneServer['id'])
-
-      # Try to get the IP address. Always use the zeroth member of the earliest network
       try:
-        ip = str(oneServer['addresses'][ min(oneServer['addresses']) ][0]['addr'])
-      except:
-        ip = '0.0.0.0'
-
-      createdTime  = calendar.timegm(time.strptime(str(oneServer['created']), "%Y-%m-%dT%H:%M:%SZ"))
-      updatedTime  = calendar.timegm(time.strptime(str(oneServer['updated']), "%Y-%m-%dT%H:%M:%SZ"))
-
-      try:
-        startedTime = calendar.timegm(time.strptime(str(oneServer['OS-SRV-USG:launched_at']).split('.')[0], "%Y-%m-%dT%H:%M:%S"))
+        startedTime = int(open('/var/lib/vcycle/machines/%s/started' % machineName, 'r').readline().strip())
       except:
         startedTime = None
 
-      taskState  = str(oneServer['OS-EXT-STS:task_state'])
-      powerState = int(oneServer['OS-EXT-STS:power_state'])
-      status     = str(oneServer['status'])
-
       try:
-        machinetypeName = str(oneServer['metadata']['machinetype'])
+        stoppedTime = int(open('/var/lib/vcycle/machines/%s/stopped' % machineName, 'r').readline().strip())
       except:
-        machinetypeName = None
+        stoppedTime = None
 
-      try:
-        zone = str(oneServer['OS-EXT-AZ:availability_zone'])
-      except:
-        zone = None
-
-      if taskState == 'Deleting':
-        state = vcycle.MachineState.deleting
-      elif status == 'ACTIVE' and powerState == 1:
-        state = vcycle.MachineState.running
-      elif status == 'BUILD' or status == 'ACTIVE':
+      # Map CREAM Status to Vcycle state        
+      if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):
         state = vcycle.MachineState.starting
-      elif status == 'SHUTOFF':
-        state = vcycle.MachineState.shutdown
-      elif status == 'ERROR':
+      elif oneStatus['Status'] in ('RUNNING','REALLY-RUNNING'):
+        state = vcycle.MachineState.running        
+      elif oneStatus['Status'] in ('DONE-FAILED','ABORTED'):
         state = vcycle.MachineState.failed
-      elif status == 'DELETED':
-        state = vcycle.MachineState.deleting
+      elif oneStatus['Status'] in ('DONE-OK','CANCELLED'):
+        state = vcycle.MachineState.shutdown
       else:
         state = vcycle.MachineState.unknown
+
+      if oneStatus['Status'] in ('DONE-FAILED','DONE-OK','RUNNING','REALLY-RUNNING') and startedTime is None:
+        #Record current time as an estimate of when the job started
+        # DONE-* included in case we missed the RUNNING/REALLY-RUNNING status
+        startedTime = int(time.time())
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
+        updatedTime = startedTime
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(updatedTime), 0600, '/var/lib/vcycle/tmp')
+
+      if oneStatus['Status'] in ('DONE-FAILED','DONE-OK','CANCELLED','ABORTED') and stoppedTime is None:
+        # Record current time as an estimate of when the job stopped
+        stoppedTime = int(time.time())
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/stopped', str(stoppedTime), 0600, '/var/lib/vcycle/tmp')      
+        updatedTime = stoppedTime
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(updatedTime), 0600, '/var/lib/vcycle/tmp')
 
       self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
                                                          spaceName        = self.spaceName,
                                                          state            = state,
-                                                         ip               = ip,
+                                                         ip               = '0.0.0.0',
                                                          createdTime      = createdTime,
                                                          startedTime      = startedTime,
                                                          updatedTime      = updatedTime,
-                                                         uuidStr          = uuidStr,
+                                                         uuidStr          = oneStatus['JobID'],
                                                          machinetypeName  = machinetypeName,
-                                                         zone             = zone)
+                                                         zone             = None)
+
+  def parseGliteCeJobStatus(self, rawStatuses):
+    # State machine to go through rawStatuses from glite-ce-job-status
+    # output, populating jobs list with status information
+
+    jobs = []
+    job  = None
+
+    for line in rawStatuses.split('\n'):
+
+      if line.startswith('******  JobID=['):
+        job = { 'JobID': line.split('[')[1].split(']')[0] }
+
+      elif line.strip().startswith('Status        = ['):
+        job['Status'] = line.split('[')[1].split(']')[0]
+
+      elif line.strip().startswith('ExitCode      = ['):
+        job['ExitCode'] = line.split('[')[1].split(']')[0]
+
+      elif job and line.strip() == '':
+        if 'JobID' in job and 'Status' in job:
+          # Add properly formed job items to the jobs list
+          jobs.append(job)
+
+        job = None
+
+    return jobs
 
   def createMachine(self, machineName, machinetypeName, zone = None):
-
-    # Cream CE-specific machine creation steps
-
-    try:
-      if self.machinetypes[machinetypeName].remote_joboutputs_url:
-        joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
-      else:
-        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
+    # Cream CE-specific job submission 
     
-      request = { 'server' : 
-                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
-                    'name'      : machineName,
-                    'imageRef'  : self.getImageID(machinetypeName),
-                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
-                    'metadata'  : { 'cern-services'   : 'false',
-                                    'name'	      : machineName,
-                                    'machinetype'     : machinetypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : joboutputsURL,
-                                    'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
-                    # but point them both to the joboutputs directory that we now provide
-                  }    
-                }
+       
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl', 
+                               '''[
+Type = "Job";
+JobType = "Normal";
+Executable = "user_data";
+StdOutput = "stdout.log";
+StdError = "stderr.log";
+InputSandbox = {"/var/lib/vcycle/machines/''' + machineName + '''/user_data"};
+OutputSandbox = {"stdout.log", "stderr.log"};
+OutputSandboxBaseDestURI = "gsiftp://localhost";
+]
+''', 
+                               0600, '/var/lib/vcycle/tmp')
 
-      if self.network_uuid:
-        request['server']['networks'] = [{"uuid": self.network_uuid}]
-        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
-
-      if zone:
-        request['server']['availability_zone'] = zone
-        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, zone, self.spaceName))
-
-      if self.machinetypes[machinetypeName].root_public_key:
-        request['server']['key_name'] = self.getKeyPairName(machinetypeName)
-
-    except Exception as e:
-      raise CreamceError('Failed to create new machine %s: %s' % (machineName, str(e)))
+    if self.url.startswith('https://'):
+      endpoint = self.url[8:]
+    else:
+      endpoint = self.url
 
     try:
-      result = self.httpRequest(self.computeURL + '/servers',
-                                jsonRequest = request,
-                                headers = [ 'X-Auth-Token: ' + self.token ])
+      with subprocess.Popen('glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' % 
+                          (endpoint, '/var/lib/vcycle/machines/' + machineName + '/jdl'),
+                          shell=True, stdout=subprocess.PIPE).stdout as p:
+        jobID = p.read().strip()
+
+
     except Exception as e:
-      raise CreamceError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+      raise CreamceError('Failed to submit new job %s: %s' % (machineName, str(e)))
 
-    try:
-      uuidStr = str(result['response']['server']['id'])
-    except:
-      raise CreamceError('Could not get VM UUID from VM creation response (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    if not jobID:
+      raise CreamceError('Could not get Job ID from %s job submission response' % machineName)
+      
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobid', jobID, 0600, '/var/lib/vcycle/tmp')
+
+    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID,''), machineName, 0600, '/var/lib/vcycle/tmp')
+
+    vcycle.vacutils.logLine('Created ' + machineName + ' (' + jobID + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
@@ -258,14 +263,15 @@ class CreamceSpace(vcycle.BaseSpace):
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
                                                        updatedTime = int(time.time()),
-                                                       uuidStr     = uuidStr,
+                                                       uuidStr     = jobID,
                                                        machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
 
     try:
-      self.httpRequest(self.computeURL + '/servers/' + self.machines[machineName].uuidStr,
-                       method = 'DELETE',
-                       headers = [ 'X-Auth-Token: ' + self.token ])
+      jobID = open('/var/lib/vcycle/machines/' + machineName + '/jobid', 'r').read().strip()
+      
+      # All we do is remove it from the list of jobids to ignore it from now on
+      os.remove('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID, ''))
     except Exception as e:
-      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+      vcycle.vacutils.logLine('Failed deleting %s (%s)' % (machineName, str(e)))

@@ -650,8 +650,8 @@ class Machinetype:
 
     try:
       self.root_image = parser.get(machinetypeSectionName, 'root_image')
-    except Exception as e:
-      raise VcycleError('root_image is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
+    except:
+      self.root_image = None
 
     try:
       self.cernvm_signing_dn = parser.get(machinetypeSectionName, 'cernvm_signing_dn')
@@ -660,8 +660,8 @@ class Machinetype:
 
     try:
       self.flavor_name = parser.get(machinetypeSectionName, 'flavor_name')
-    except Exception as e:
-      raise VcycleError('flavor_name is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
+    except:
+      self.flavor_name = None
 
     try:
       self.disk_gb_per_processor = int(parser.get(machinetypeSectionName, 'disk_gb_per_processor'))
@@ -874,13 +874,15 @@ class BaseSpace(object):
     self.apiVersion = apiVersion
     self.spaceName  = spaceName
 
-    self.max_processors    = None
-    self.totalMachines     = 0
+    self.max_processors     = None
+    self.totalMachines      = 0
     # totalProcessors includes ones Vcycle doesn't manage
-    self.totalProcessors   = 0
-    self.runningMachines   = 0
-    self.runningProcessors = 0
-    self.runningHS06       = None
+    self.totalProcessors    = 0
+    self.runningMachines    = 0
+    self.runningProcessors  = 0
+    self.runningHS06        = None
+    self.zones              = None
+    self.maxStartingSeconds = 3600
     
     if parser.has_option(spaceSectionName, 'max_machines'):
       try:
@@ -1171,8 +1173,9 @@ class BaseSpace(object):
       # Delete machines as appropriate
       if machine.state == MachineState.starting and \
          (machine.createdTime is None or 
-         machine.createdTime < int(time.time()) - 3600):
-        # We try to delete failed-to-start machines after 60 minutes
+          (self.maxStartingSeconds and 
+           machine.createdTime < int(time.time()) - self.maxStartingSeconds)):
+        # We try to delete failed-to-start machines after maxStartingSeconds (default 3600)
         self._deleteOneMachine(machineName)
       elif machine.state == MachineState.failed or \
            machine.state == MachineState.shutdown or \
@@ -1462,7 +1465,7 @@ class BaseSpace(object):
     else:
       joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
-    if self.machinetypes[machinetypeName].root_image.startswith('http://') or self.machinetypes[machinetypeName].root_image.startswith('https://'):
+    if self.machinetypes[machinetypeName].root_image and (self.machinetypes[machinetypeName].root_image.startswith('http://') or self.machinetypes[machinetypeName].root_image.startswith('https://')):
       rootImageURL = self.machinetypes[machinetypeName].root_image
     else:
       rootImageURL = None
@@ -1517,7 +1520,7 @@ class BaseSpace(object):
     if self.machinetypes[machinetypeName].hs06_per_processor:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06', 
                                  str(self.machinetypes[machinetypeName].hs06_per_processor * 
-                                     self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
+                                     self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
@@ -1535,7 +1538,7 @@ class BaseSpace(object):
     # Calculate MB for this VM ("job")
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/max_rss_bytes', 
                                str(self.machinetypes[machinetypeName].rss_bytes_per_processor * 
-                                   self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
+                                   self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # All the cpus are allocated to this one VM ("job")
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_cpu', 
@@ -1555,7 +1558,7 @@ class BaseSpace(object):
     if self.machinetypes[machinetypeName].hs06_per_processor:
       vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job', 
                                  str(self.machinetypes[machinetypeName].hs06_per_processor *
-                                     self.machinetypes[machinetypeName].processors_per_machine), 0644, '/var/lib/vcycle/tmp')
+                                     self.machinetypes[machinetypeName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
 

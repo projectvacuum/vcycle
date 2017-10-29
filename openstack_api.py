@@ -159,7 +159,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     else:
       vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
       
-    # Try to update processors_per_machine and rss_bytes_per_processor from flavor definitions
+    # Try to update processors and rss_bytes_per_processor from flavor definitions
     for machinetypeName in self.machinetypes:
       try:
         flavorID = self.getFlavorID(self.machinetypes[machinetypeName].flavor_name)
@@ -167,7 +167,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         continue
 
       try:
-        self.machinetypes[machinetypeName].processors_per_machine = self.flavors[flavorID]['processors']
+        self.machinetypes[machinetypeName].processors = self.flavors[flavorID]['processors']
       except:
         pass
 
