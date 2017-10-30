@@ -114,33 +114,6 @@ class CreamceSpace(vcycle.BaseSpace):
         vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
         continue
         
-      try:
-        createdTime = int(open('/var/lib/vcycle/machines/%s/created' % machineName, 'r').readline().strip())
-      except:
-        vcycle.vacutils.logLine('Failed to read created file for %s!' % machineName)
-        continue
-        
-      try:
-        updatedTime = int(open('/var/lib/vcycle/machines/%s/updated' % machineName, 'r').readline().strip())
-      except:
-        vcycle.vacutils.logLine('Failed to read updated file for %s!' % machineName)
-        continue
-
-      try:
-        startedTime = int(open('/var/lib/vcycle/machines/%s/started' % machineName, 'r').readline().strip())
-      except:
-        startedTime = None
-
-      try:
-        stoppedTime = int(open('/var/lib/vcycle/machines/%s/stopped' % machineName, 'r').readline().strip())
-      except:
-        stoppedTime = None
-        
-      try:
-        processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
-      except:
-        processors = 1
-
       # Map CREAM Status to Vcycle state        
       if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):
         state = vcycle.MachineState.starting
@@ -153,28 +126,13 @@ class CreamceSpace(vcycle.BaseSpace):
       else:
         state = vcycle.MachineState.unknown
 
-      if oneStatus['Status'] in ('DONE-FAILED','DONE-OK','RUNNING','REALLY-RUNNING') and startedTime is None:
-        #Record current time as an estimate of when the job started
-        # DONE-* included in case we missed the RUNNING/REALLY-RUNNING status
-        startedTime = int(time.time())
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/started', str(startedTime), 0600, '/var/lib/vcycle/tmp')
-        updatedTime = startedTime
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(updatedTime), 0600, '/var/lib/vcycle/tmp')
-
-      if oneStatus['Status'] in ('DONE-FAILED','DONE-OK','CANCELLED','ABORTED') and stoppedTime is None:
-        # Record current time as an estimate of when the job stopped
-        stoppedTime = int(time.time())
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/stopped', str(stoppedTime), 0600, '/var/lib/vcycle/tmp')      
-        updatedTime = stoppedTime
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(updatedTime), 0600, '/var/lib/vcycle/tmp')
-
       self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
                                                          spaceName        = self.spaceName,
                                                          state            = state,
                                                          ip               = '0.0.0.0',
-                                                         createdTime      = createdTime,
-                                                         startedTime      = startedTime,
-                                                         updatedTime      = updatedTime,
+                                                         createdTime      = None,
+                                                         startedTime      = None,
+                                                         updatedTime      = None,
                                                          uuidStr          = oneStatus['JobID'],
                                                          machinetypeName  = machinetypeName,
                                                          zone             = None)
