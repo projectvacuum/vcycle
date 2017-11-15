@@ -511,8 +511,107 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
 
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
+  def uploadImage(self, imageFile, imageName, imageLastModified,
+                  verbose = False):
+    return self._uploadImageV2(imageFile, imageName, imageLastModified, verbose)
 
+  def _uploadImageV2(self, imageFile, imageName, imageLastModified,
+                     verbose):
+    imageID = self._createImageV2(imageFile, imageName, imageLastModified, verbose)
+    self._uploadImageDataV2(imageFile, imageID, verbose)
+
+
+  def _createImageV2(self, imageFile, imageName, imageLastModified,
+                     verbose = False):
+    """ Upload an image using Glance v2 API """
+
+    # set cert path
+    if os.path.isdir('/etc/grid-security/certificates'):
+      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+
+    # Create image
+    self.curl.setopt(pycurl.CUSTOMREQUEST, 'POST')
+    self.curl.setopt(pycurl.URL, self.imageURL + '/v2/images')
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+    self.curl.setopt(pycurl.HTTPHEADER, [
+      'X-Auth-Token: ' + self.token,
+      'x-image-meta-property-architecture: x86_64',
+      'x-image-meta-property-last-modified: ' + str(imageLastModified)])
+
+    # data to send
+    disk_format = 'iso' if imageName.endswith('.iso') else 'raw'
+    jsonRequest = {
+        "name": imageName,
+        "disk_format": disk_format,
+        "container_format": "bare",
+        "visibility": "private",
+    }
+    self.curl.setopt(pycurl.POSTFIELDS, json.dumps(jsonRequest))
+
+    # set verbose option
+    if verbose:
+      self.curl.setopt(pycurl.VERBOSE, 2)
+    else:
+      self.curl.setopt(pycurl.VERBOSE, 0)
+
+    # output buffer
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+
+    self.curl.perform()
+
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
+    try:
+      imageID = json.loads(outputBuffer.getvalue())['id']
+    except:
+      raise OpenstackError('Image upload does not return imageID')
+
+    return imageID
+
+  def _uploadImageDataV2(self, imageFile, imageID, verbose):
+
+    # Upload data
+    imageFileURL = self.imageURL + '/v2/images/' + imageID + '/file'
+    self.curl.setopt(pycurl.URL, str(imageFileURL))
+
+    try:
+      f = open(str(imageFile), 'r')
+    except Exception as e:
+      raise OpenstackError('Failed to open file ' + imageFile + '(' + str(e)
+                            + ')')
+    self.curl.setopt(pycurl.UPLOAD, True)
+    self.curl.setopt(pycurl.READFUNCTION, f.read)
+
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+    self.curl.setopt(pycurl.CUSTOMREQUEST, 'PUT')
+    self.curl.setopt(pycurl.HTTPHEADER, [
+      'X-Auth-Token: ' + self.token,
+      'Content-Type: application/octet-stream'])
+
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+
+    try:
+      self.curl.perform()
+    except Exception as e:
+      raise OpenstackError('Failed uploading image (' + str(e) + ')')
+
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
+    return imageID
+
+  def _uploadImageV1(self, imageFile, imageName, imageLastModified, verbose = False):
     try:
       f = open(imageFile, 'r')
     except Exception as e:
