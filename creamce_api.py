@@ -97,6 +97,8 @@ class CreamceSpace(vcycle.BaseSpace):
     with subprocess.Popen('glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
       rawStatuses = p.read()
       
+    os.remove(path)    
+      
     for oneStatus in self.parseGliteCeJobStatus(rawStatuses):
     
       try:
