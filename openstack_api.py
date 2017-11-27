@@ -52,6 +52,7 @@ import tempfile
 import calendar
 
 import vcycle.vacutils
+import openstack.image_api_v2
 
 class OpenstackError(Exception):
   pass
@@ -133,6 +134,8 @@ class OpenstackSpace(vcycle.BaseSpace):
     if self.apiVersion and self.apiVersion != '2' and not self.apiVersion.startswith('2.') and self.apiVersion != '3' and not self.apiVersion.startswith('3.'):
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
+    self.glanceAPIVersion = 2
+
   def connect(self):
   # Wrapper around the connect methods and some common post-connection updates
   
@@ -143,6 +146,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     else:
       # This rechecks the checking done in the constructor called by readConf()
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
+
+    # initialise glance api (TODO for now just use v2)
+    self.imageAPI = openstack.image_api_v2.GlanceV2(self.token, self.imageURL)
 
     # Build dictionary of flavor details using API
     self._getFlavors()
@@ -406,7 +412,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     raise OpenstackError('Flavor "' + flavorName + '" not available!')
 
   def getImageID(self, machinetypeName):
-    """Get the image ID"""
+    """ Get the image ID """
 
     # If we already know the image ID, then just return it
     if hasattr(self.machinetypes[machinetypeName], '_imageID'):
@@ -417,11 +423,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         raise OpenstackError('Image "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' not available!')
 
     # Get the existing images for this tenancy
-    try:
-      result = self.httpRequest(self.computeURL + '/images/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+    result = self.imageAPI.getImageDetails()
 
     # Specific image, not managed by Vcycle, lookup ID
     if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
@@ -481,16 +483,27 @@ class OpenstackSpace(vcycle.BaseSpace):
       imageLastModified = int(os.stat(self.machinetypes[machinetypeName]._imageFile).st_mtime)
 
     # Go through the existing images looking for a name and time stamp match
-# We should delete old copies of the current image name if we find them here
-    for image in result['response']['images']:
-      try:
-         if image['name'] == imageName and \
-            image['status'] == 'ACTIVE' and \
-            image['metadata']['last_modified'] == str(imageLastModified):
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
-      except:
-        pass
+    # We should delete old copies of the current image name if we find them here
+    if self.glanceAPIVersion == 1:
+      for image in result['response']['images']:
+        try:
+          if image['name'] == imageName and \
+              image['status'] == 'ACTIVE' and \
+              image['metadata']['last_modified'] == str(imageLastModified):
+            self.machinetypes[machinetypeName]._imageID = str(image['id'])
+            return self.machinetypes[machinetypeName]._imageID
+        except:
+          pass
+    elif self.glanceAPIVersion == 2:
+      for image in result['response']['images']:
+        try:
+          if image['name'] == imageName and image['status'] == 'active':
+            for tag in image['tags']:
+              if tag.lstrip('last_modified: ') == str(imageLastModified):
+                self.machinetypes[machinetypeName]._imageID = str(image['id'])
+                return self.machinetypes[machinetypeName]._imageID
+        except: 
+          pass
 
     vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
 
@@ -513,13 +526,13 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def uploadImage(self, imageFile, imageName, imageLastModified,
                   verbose = False):
-    return self._uploadImageV2(imageFile, imageName, imageLastModified, verbose)
+    return self.imageAPI.uploadImage(imageFile, imageName, imageLastModified, True)
 
   def _uploadImageV2(self, imageFile, imageName, imageLastModified,
                      verbose):
     imageID = self._createImageV2(imageFile, imageName, imageLastModified, verbose)
     self._uploadImageDataV2(imageFile, imageID, verbose)
-
+    vcycle.vacutils.logLine('Uploaded image file to Glance')
 
   def _createImageV2(self, imageFile, imageName, imageLastModified,
                      verbose = False):
