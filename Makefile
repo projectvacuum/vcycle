@@ -34,7 +34,8 @@
 include VERSION
 
 INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
-              openstack_api.py occi_api.py azure_api.py \
+              openstack/__init__.py openstack_api.py occi_api.py azure_api.py \
+	      openstack/image_api_v2.py \
               dbce_api.py ec2_api.py example.vcycle.conf \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
               vcycled.logrotate admin-guide.html VERSION CHANGES \
@@ -47,14 +48,15 @@ GNUTAR ?= tar
 PYTHONDIR := $(shell python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 vcycle.tgz: $(TGZ_FILES)
-	mkdir -p TEMPDIR/vcycle
-	cp $(TGZ_FILES) TEMPDIR/vcycle
+	mkdir -p TEMPDIR/vcycle TEMPDIR/vcycle/openstack
+	cp --parents $(TGZ_FILES) TEMPDIR/vcycle
 	cd TEMPDIR ; $(GNUTAR) zcvf ../vcycle.tgz --owner=root --group=root vcycle
 	rm -R TEMPDIR
 
 install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
 	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle \
+	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/openstack \
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
  	         $(RPM_BUILD_ROOT)/usr/share/man/man5 \
                  $(RPM_BUILD_ROOT)/usr/share/man/man8 \
@@ -75,6 +77,8 @@ install: $(INSTALL_FILES)
 	   openstack_api.py occi_api.py \
 	   dbce_api.py azure_api.py ec2_api.py \
 	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle
+	cp openstack/__init__.py openstack/image_api_v2.py \
+	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/openstack
 	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
 	   example.vcycle.conf vcycle.conf.5 vcycled.8 \
 	   admin-guide.html \
@@ -89,7 +93,6 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/usr/share/man/man5
 	cp vcycled.8 \
 	   $(RPM_BUILD_ROOT)/usr/share/man/man8
-	   
 	
 rpm: vcycle.tgz
 	rm -Rf RPMTMP
@@ -99,3 +102,4 @@ rpm: vcycle.tgz
 	export VCYCLE_VERSION=$(VERSION) ; rpmbuild -ba \
 	  --define "_topdir $(shell pwd)/RPMTMP" \
 	  --buildroot $(shell pwd)/RPMTMP/BUILDROOT vcycle.spec
+
