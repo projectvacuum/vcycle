@@ -44,6 +44,7 @@ class GlanceV2(GlanceBase):
                                 verbose)
     self._uploadImageData(imageFile, imageID, verbose)
     vcycle.vacutils.logLine('Uploaded image file to Glance')
+    return imageID
 
   def _createImage(self, imageFile, imageName,
                    imageLastModified, verbose = False):
