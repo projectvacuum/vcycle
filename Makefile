@@ -35,7 +35,7 @@ include VERSION
 
 INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               openstack/__init__.py openstack_api.py occi_api.py azure_api.py \
-	      openstack/image_api_v2.py \
+	      openstack/image_api.py \
               dbce_api.py ec2_api.py example.vcycle.conf \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
               vcycled.logrotate admin-guide.html VERSION CHANGES \
@@ -77,7 +77,7 @@ install: $(INSTALL_FILES)
 	   openstack_api.py occi_api.py \
 	   dbce_api.py azure_api.py ec2_api.py \
 	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle
-	cp openstack/__init__.py openstack/image_api_v2.py \
+	cp openstack/__init__.py openstack/image_api.py \
 	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/openstack
 	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
 	   example.vcycle.conf vcycle.conf.5 vcycled.8 \

@@ -52,7 +52,7 @@ import tempfile
 import calendar
 
 import vcycle.vacutils
-import openstack.image_api_v2
+import openstack.image_api
 
 class OpenstackError(Exception):
   pass
@@ -148,7 +148,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
     # initialise glance api (TODO for now just use v2)
-    self.imageAPI = openstack.image_api_v2.GlanceV2(self.token, self.imageURL)
+    self.imageAPI = openstack.image_api.GlanceV2(self.token, self.imageURL)
 
     # Build dictionary of flavor details using API
     self._getFlavors()
