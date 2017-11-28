@@ -37,15 +37,16 @@ class GlanceV2(GlanceBase):
     super(GlanceV2, self).__init__(token, imageURL)
     vcycle.vacutils.logLine('Using Glance v2 api')
 
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose):
+  def uploadImage(self, imageFile, imageName, imageLastModified,
+                  verbose = False):
     """ Upload an image using Glance v2 API """
     imageID = self._createImage(imageFile, imageName, imageLastModified,
                                 verbose)
     self._uploadImageData(imageFile, imageID, verbose)
     vcycle.vacutils.logLine('Uploaded image file to Glance')
 
-  def _createImage(self, imageFile, imageName, imageLastModified,
-                   verbose = False):
+  def _createImage(self, imageFile, imageName,
+                   imageLastModified, verbose = False):
     """ Request image space """
 
     # set cert path
@@ -132,7 +133,8 @@ class GlanceV2(GlanceBase):
       raise OpenstackError('Failed uploading image (' + str(e) + ')')
 
     if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+      raise OpenstackError('Image upload returns HTTP error code '
+          + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
     return imageID
 
