@@ -526,7 +526,8 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def uploadImage(self, imageFile, imageName, imageLastModified,
                   verbose = False):
-    return self.imageAPI.uploadImage(imageFile, imageName, imageLastModified, True)
+    return self.imageAPI.uploadImage(imageFile, imageName, imageLastModified,
+                                     verbose)
 
   def _uploadImageV1(self, imageFile, imageName, imageLastModified, verbose = False):
     try:
