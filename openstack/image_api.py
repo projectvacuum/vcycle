@@ -169,3 +169,104 @@ class GlanceV2(GlanceBase):
         'status' : self.curl.getinfo(pycurl.RESPONSE_CODE)
         }
 
+
+class GlanceV1(GlanceBase):
+  """ Class to interact with Glance v1 API """
+
+  def __init__(self, token, imageURL):
+    super(GlanceV1, self).__init__(token, imageURL)
+    vcycle.vacutils.logLine('Using Glance v1 api')
+
+  def uploadImage(self, imageFile, imageName, imageLastModified,
+                  verbose = False):
+    """ Upload an image using Glance v1 API """
+    try:
+      f = open(imageFile, 'r')
+    except Exception as e:
+      raise OpenstackError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
+
+    self.curl.setopt(pycurl.READFUNCTION, f.read)
+    self.curl.setopt(pycurl.UPLOAD, True)
+    self.curl.setopt(pycurl.CUSTOMREQUEST, 'POST')
+    self.curl.setopt(pycurl.URL, self.imageURL + '/v1/images')
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+
+    self.curl.setopt(pycurl.HTTPHEADER,
+        [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'),
+          # ^^^ 'raw' for hdd; 'iso' for iso
+          'Content-Type: application/octet-stream',
+          'Accept: application/json',
+          'Transfer-Encoding: chunked',
+          'x-image-meta-container_format: bare',
+          'x-image-meta-is_public: False',
+          'x-image-meta-name: ' + imageName,
+          'x-image-meta-property-architecture: x86_64',
+          'x-image-meta-property-last-modified: ' + str(imageLastModified),
+          'X-Auth-Token: ' + self.token
+          ])
+
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+
+    if verbose:
+      self.curl.setopt(pycurl.VERBOSE, 2)
+    else:
+      self.curl.setopt(pycurl.VERBOSE, 0)
+
+    if os.path.isdir('/etc/grid-security/certificates'):
+      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+
+    try:
+      self.curl.perform()
+    except Exception as e:
+      raise OpenstackError('Failed uploading image (' + str(e) + ')')
+
+    # Any 2xx code is OK; otherwise raise an exception
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
+    try:
+      response = json.loads(outputBuffer.getvalue())
+    except Exception as e:
+      raise OpenstackError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
+
+    try:
+      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
+      return str(response['image']['id'])
+    except:
+      raise OpenstackError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
+
+  def getImageDetails(self):
+    """ Get image details using glance v1 API """
+
+    self.curl.setopt(pycurl.URL, self.imageURL + '/v1/images')
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+    self.curl.setopt(pycurl.CUSTOMREQUEST, 'GET')
+
+    self.curl.setopt(pycurl.HTTPHEADER, ['X-Auth-Token: ' + self.token])
+
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+
+    headersBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.HEADERFUNCTION, headersBuffer.write)
+
+    try:
+      self.curl.perform()
+    except Exception as e:
+      raise OpenstackError('Failed to get image details (' + str(e) + ')')
+
+    response = json.loads(outputBuffer.getvalue())
+
+    return {
+        'response' : response,
+        'status' : self.curl.getinfo(pycurl.RESPONSE_CODE)
+        }
