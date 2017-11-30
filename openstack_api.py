@@ -102,6 +102,12 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
+      self.glanceAPIVersion = parser.get(spaceSectionName, 'glance_api')
+    except Exception as e:
+      raise OpenstackError('glance_api is required in OpenStack [space '
+          + spaceName + '] (' + str(e) + ')')
+
+    try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
       self.username = None
@@ -134,8 +140,6 @@ class OpenstackSpace(vcycle.BaseSpace):
     if self.apiVersion and self.apiVersion != '2' and not self.apiVersion.startswith('2.') and self.apiVersion != '3' and not self.apiVersion.startswith('3.'):
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
-    self.glanceAPIVersion = 2
-
   def connect(self):
   # Wrapper around the connect methods and some common post-connection updates
   
@@ -147,8 +151,16 @@ class OpenstackSpace(vcycle.BaseSpace):
       # This rechecks the checking done in the constructor called by readConf()
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
-    # initialise glance api (TODO for now just use v2)
-    self.imageAPI = openstack.image_api.GlanceV2(self.token, self.imageURL)
+    # initialise glance api (has to be here as we don't have imageURL until
+    # after connecting)
+    if self.glanceAPIVersion == '2':
+      self.imageAPI = openstack.image_api.GlanceV2(self.token, self.imageURL)
+    elif self.glanceAPIVersion == '1':
+      self.imageAPI = openstack.image_api.GlanceV1(self.token, self.imageURL)
+    else:
+      raise OpenstackError('glanceAPIVersion %s not recongnised'
+          % self.glanceAPIVersion)
+
 
     # Build dictionary of flavor details using API
     self._getFlavors()
@@ -484,7 +496,8 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     # Go through the existing images looking for a name and time stamp match
     # We should delete old copies of the current image name if we find them here
-    if self.glanceAPIVersion == 1:
+    # Glance v2 api differs by keeping metadata in tags
+    if self.glanceAPIVersion == '1':
       for image in result['response']['images']:
         try:
           if image['name'] == imageName and \
@@ -494,7 +507,7 @@ class OpenstackSpace(vcycle.BaseSpace):
             return self.machinetypes[machinetypeName]._imageID
         except:
           pass
-    elif self.glanceAPIVersion == 2:
+    elif self.glanceAPIVersion == '2':
       for image in result['response']['images']:
         try:
           if image['name'] == imageName and image['status'] == 'active':
