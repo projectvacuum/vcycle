@@ -651,6 +651,12 @@ class Machinetype:
       self.lastAbortTime = int(f.read().strip())
       f.close()
 
+    if parser.has_option(machinetypeSectionName, 'vacuum_pipe_url'):
+      self.vacuum_pipe_url = parser.get(machinetypeSectionName, 'vacuum_pipe_url')
+      self._vacuumInit(parser, machinetypeSectionName)
+    else:
+      self.vacuum_pipe_url = None
+
     try:
       self.root_image = parser.get(machinetypeSectionName, 'root_image')
     except:
@@ -859,6 +865,96 @@ class Machinetype:
     self.runningProcessors  = 0
     self.weightedMachines   = 0.0
     self.notPassedFizzle    = 0
+
+  def _vacuumInit(self, parser, machinetypeSectionName):
+    """ Read configuration settings from a vacuum pipe """
+
+    try:
+      vacuumPipe = vcycle.vacutils.readPipe(
+          '/var/lib/vcycle/spaces/' + self.spaceName + '/'
+          + self.machinetypeName + '/vacuum.pipe',
+          self.vacuum_pipe_url,
+          'vcycle ' + vcycleVersion,
+          updatePipes = True)
+    except Exception as e:
+      # If a vacuum pipe is given but cannot be read disable the machinetype
+      vcycle.vacutils.logLine("Cannot read vacuum_pipe_url ("
+          + self.vacuum_pipe_url + ": " + str(e) + ") - machinetype disabled!")
+      parser.set(machinetypeSectionName, 'target_share', '0.0')
+      return
+
+    acceptedOptions = [
+        'accounting_fqan',
+        'backoff_seconds',
+        'cache_seconds',
+        'container_command',
+        'cvmfs_repositories',
+        'fizzle_seconds',
+        'disk_gb_per_processor',
+        'heartbeat_file',
+        'heartbeat_seconds',
+        'image_signing_dn',
+        'legacy_proxy',
+        'machine_model',
+        'max_processors',
+        'max_wallclock_seconds',
+        'min_processors',
+        'min_wallclock_seconds',
+        'root_device',
+        'root_image',
+        'scratch_device',
+        'tmp_binds',
+        'user_data',
+        'user_data_proxy'
+        ]
+
+    # Go through vacuumPipe adding options if not already present from configuration files
+    for optionRaw in vacuumPipe:
+      option = str(optionRaw)
+      value  = str(vacuumPipe[optionRaw])
+
+      # Skip if option already exists - configuration files take precedence
+      if parser.has_option(machinetypeSectionName, option):
+        continue
+
+      # Check option is one we accept
+      if not option.startswith('user_data_file_' ) and \
+         not option.startswith('user_data_option_' ) and \
+         not option in acceptedOptions:
+        vcycle.vacutils.logLine('Option %s is not accepted from vacuum pipe - ignoring!' % option)
+        continue
+
+      # Any options which specify filenames on the hypervisor must be checked here
+      if (option.startswith('user_data_file_' )  or
+          option ==         'cvmfs_repositories' or
+          option ==         'heartbeat_file'   ) and '/' in value:
+        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" - ignoring!'
+            % (option, self.vacuum_pipe_url))
+        continue
+
+      elif (option == 'user_data' or option == 'root_image') and '/../' in value:
+        vcycle.vacutils.logLine('Option %s in %s cannot contain "/../" - ignoring!'
+            % (option, machinetype['vacuum_pipe_url']))
+        continue
+
+      elif option == 'user_data' and '/' in value and \
+         not value.startswith('http://') and \
+         not value.startswith('https://'):
+        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
+            % (option, machinetype['vacuum_pipe_url']))
+        continue
+
+      elif option == 'root_image' and '/' in value and \
+         not value.startswith('docker://') and \
+         not value.startswith('/cvmfs/') and \
+         not value.startswith('http://') and \
+         not value.startswith('https://'):
+        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... or /cvmfs/... or docker://... - ignoring!'
+            % (option, machinetype['vacuum_pipe_url']))
+        continue
+
+      # if all OK, then can set value as if from configuration files
+      parser.set(machinetypeSectionName, option, value)
 
   def setLastAbortTime(self, abortTime):
 
