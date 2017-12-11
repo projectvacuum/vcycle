@@ -871,7 +871,7 @@ class Machinetype:
 
     try:
       vacuumPipe = vcycle.vacutils.readPipe(
-          '/var/lib/vcycle/spaces/' + self.spaceName + '/'
+          '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/'
           + self.machinetypeName + '/vacuum.pipe',
           self.vacuum_pipe_url,
           'vcycle ' + vcycleVersion,

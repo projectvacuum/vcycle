@@ -52,7 +52,7 @@ import tempfile
 import calendar
 
 import vcycle.vacutils
-import openstack.image_api
+import vcycle.openstack.image_api
 
 class OpenstackError(Exception):
   pass
@@ -154,9 +154,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     # initialise glance api (has to be here as we don't have imageURL until
     # after connecting)
     if self.glanceAPIVersion == '2':
-      self.imageAPI = openstack.image_api.GlanceV2(self.token, self.imageURL)
+      self.imageAPI = vcycle.openstack.image_api.GlanceV2(self.token, self.imageURL)
     elif self.glanceAPIVersion == '1':
-      self.imageAPI = openstack.image_api.GlanceV1(self.token, self.imageURL)
+      self.imageAPI = vcycle.openstack.image_api.GlanceV1(self.token, self.imageURL)
     else:
       raise OpenstackError('glanceAPIVersion %s not recongnised'
           % self.glanceAPIVersion)
