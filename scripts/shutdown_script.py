@@ -34,7 +34,7 @@ else:
 
 # check time is in future
 if shutdowntime < time.time():
-  print "Shutdown time must be in future."
+  vcycle.vacutils.logLine('Shutdown time must be in future')
   sys.exit(0)
 
 # read configuration to get spaces
@@ -49,38 +49,46 @@ for spaceName, space in vcycle.shared.spaces.iteritems():
   try:
     space.connect()
   except:
-    print 'Could not connect to ', spaceName
+    vcycle.vacutils.logLine('Could not connect to ', spaceName)
     continue
 
   try:
     space.scanMachines()
   except:
-    print 'Failed to scan machines for ', spaceName
+    vcycle.vacutils.logLine('Failed to scan machines for ', spaceName)
     continue
 
   # iterate over machines
   for machineName, machine in space.machines.iteritems():
 
+    vcycle.vacutils.logLine('{}: Updating shutdowntime_job'.
+        format(machineName))
+    shutdowntime_job = None
     jobfeaturespath = ('/var/lib/vcycle/machines/' + machineName
         + '/jobfeatures')
     try:
-      shutdown_file = open(jobfeaturespath +'/shutdowntime_job', 'r')
+      shutdown_file = open(jobfeaturespath + '/shutdowntime_job', 'r')
     except:
-      print 'Unable to open shutdowntime_job file'
-      shutdowntime_job = None
+      vcycle.vacutils.logLine('{}: Unable to open shutdowntime_job file'.
+          format(machineName))
     else:
       # if we were able to open it, try and read it
       try:
         shutdowntime_job = int(shutdown_file.read().strip())
-        print time.asctime(time.localtime(shutdowntime_job)), \
-            shutdowntime_job
       except:
-        print 'unable to read shutdowntime_job file'
+        vcycle.vacutils.logLine('{}: Unable to read shutdowntime_job file'
+            .format(machineName))
+
+    if shutdowntime_job is not None:
+      vcycle.vacutils.logLine('{}: shutdowntime_job currently {}'
+          .format(machineName, time.asctime(time.localtime(shutdowntime_job))))
 
     # want to be able to write to it if shutdowntime_job doesn't exist or
-    # shutdowntime is less
-    if shutdowntime_job > shutdowntime or shutdowntime_job == None:
-      print 'Updating shutdown time for job'
+    # shutdowntime is less than current value
+    if shutdowntime_job > shutdowntime or shutdowntime_job is None:
+      vcycle.vacutils.logLine('{}: Writing to shutdowntime_job file'
+          .format(machineName))
+
       shutdown_file = open(jobfeaturespath +'/shutdowntime_job', 'w')
       shutdown_file.write(str(shutdowntime))
 
