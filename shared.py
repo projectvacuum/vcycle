@@ -1476,9 +1476,10 @@ class BaseSpace(object):
 
   def makeMachines(self):
 
-    if self.shutdownTime < time.time():
-      vcycle.vacutils.logLine('Space {} has shutdown time in the past, not '\
-          'allocating any more machines'.format(self.spaceName))
+    if self.shutdownTime is not None and self.shutdownTime < time.time():
+      vcycle.vacutils.logLine('Space {} has shutdown time in the past ({}), '\
+          'not allocating any more machines'.format(
+            self.spaceName, self.shutdownTime))
       return
 
     vcycle.vacutils.logLine('Space ' + self.spaceName + 
