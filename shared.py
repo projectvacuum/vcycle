@@ -1476,6 +1476,11 @@ class BaseSpace(object):
 
   def makeMachines(self):
 
+    if self.shutdownTime < time.time():
+      vcycle.vacutils.logLine('Space {} has shutdown time in the past, not '\
+          'allocating any more machines'.format(self.spaceName))
+      return
+
     vcycle.vacutils.logLine('Space ' + self.spaceName + 
                             ' has ' + str(self.runningProcessors) + 
                             ' processor(s) found allocated to running Vcycle VMs out of ' + str(self.totalProcessors) +
@@ -1669,8 +1674,16 @@ class BaseSpace(object):
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     # Then $JOBFEATURES
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
-                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+
+    # check for existence of shutdownTime and whether wallclock limit is closer 
+    if (self.shutdownTime is None or 
+        int(time.time()) + self.machinetypes[machinetypeName].maxWallclockSeconds < self.shutdownTime):
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+    else:
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
+
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs', 
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
