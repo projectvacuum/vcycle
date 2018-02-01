@@ -64,6 +64,11 @@ gives the port number used to contact the Vcycle HTTPS server from
 within the VMs. This only needs to be changed if there is an intervening
 firewall. Default 443.
 
+.B space_shutdown_time
+gives a time to set shutdowntime_job files to, in Unix time. By default these
+are just set to be time + max_wallclock_seconds. If this time is in the past,
+vcycle stops creating machines for the space.
+
 .SH OPENSTACK SPACE SECTIONS
 
 OpenStack spaces are enabled with
