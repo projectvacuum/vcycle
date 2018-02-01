@@ -991,6 +991,7 @@ class BaseSpace(object):
     self.runningHS06        = None
     self.zones              = None
     self.maxStartingSeconds = 3600
+    self.shutdownTime  = None
     
     if parser.has_option(spaceSectionName, 'max_machines'):
       try:
@@ -1004,6 +1005,14 @@ class BaseSpace(object):
         self.max_processors = int(parser.get(spaceSectionName, 'max_processors'))
       except Exception as e:
         raise VcycleError('Failed to parse max_processors in [space ' + spaceName + '] (' + str(e) + ')')
+
+    if parser.has_option(spaceSectionName, 'space_shutdown_time'):
+      try:
+        self.shutdownTime = int(parser.get(spaceSectionName,
+          'space_shutdown_time'))
+      except Exception as e:
+        raise VcycleError('Failed to check parse space_shutdown_time in ['
+            + spaceSectionName + '] (' + str(e) + ')')
 
     self.machinetypes = {}
 
@@ -1423,6 +1432,26 @@ class BaseSpace(object):
 
     return messages
 
+  def updateShutdownTime(self):
+    """ If there is a space shutdown time update machines to this value if it
+        is closer than their value 
+    """
+    if self.shutdownTime:
+      for machineName, machine in self.machines.iteritems():
+
+        try:
+          mach_shutdowntime = int(machine.getFileContents(
+            'jobfeatures/shutdowntime_job'))
+        except:
+          mach_shutdowntime = None
+          vcycle.vacutils.logLine('Unable to read shutdowntime_job file')
+
+        if mach_shutdowntime is None or mach_shutdowntime > self.shutdownTime:
+          machine.setFileContents('jobfeatures/shutdowntime_job',
+              str(self.shutdownTime))
+          vcycle.vacutils.logLine('Set {} shutdown time to {}'
+              .format(machineName, self.shutdownTime))
+
   def sendVacMon(self):
 
     if not self.vacmons:
@@ -1689,7 +1718,13 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
-      
+
+    try:
+      self.updateShutdownTime()
+    except Exception as e:
+      vcycle.vacutils.logLine('Failed to update shutdown times for '
+          + self.spaceName + ' this cycle: ' + str(e))
+
     try:
       self.sendVacMon()
     except Exception as e:
