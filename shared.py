@@ -1294,17 +1294,29 @@ class BaseSpace(object):
            machine.createdTime < int(time.time()) - self.maxStartingSeconds)):
         # We try to delete failed-to-start machines after maxStartingSeconds (default 3600)
         self._deleteOneMachine(machineName)
+
       elif machine.state == MachineState.failed or \
            machine.state == MachineState.shutdown or \
            machine.state == MachineState.deleting:
         # Delete non-starting, non-running machines
         self._deleteOneMachine(machineName)
+
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].max_wallclock_seconds)):
         vcycle.vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
         self._deleteOneMachine(machineName)
+
+      # if it's gone over space shutdown time
+      elif machine.state == MachineState.running and \
+           machine.machinetypeName in self.machinetypes and \
+           self.shutdownTime is not None and \
+           int(time.time()) > self.shutdownTime:
+        vcycle.vacutils.logLine('{} went past shutdown time for space {}'
+            .format(machineName, self.spaceName))
+        self._deleteOneMachine(machineName)
+
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes and \
            self.machinetypes[machine.machinetypeName].heartbeat_file and \
@@ -1318,6 +1330,19 @@ class BaseSpace(object):
            ):
         vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName)
+
+      # final check of the machines shutdowntime_job
+      elif machine.state == MachineState.running and \
+           machine.machinetypeName in self.machinetypes:
+        try:
+          shutdowntime = int(machine.getFileContents('jobfeatures/shutdowntime_job'))
+        except:
+          pass
+        else:
+          if (int(time.time()) > shutdowntime):
+            vcycle.vacutils.logLine('{} passed its jobs shutdown time'
+                .format(machineName))
+            self._deleteOneMachine(machineName)
 
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
