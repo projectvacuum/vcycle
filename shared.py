@@ -1308,15 +1308,6 @@ class BaseSpace(object):
         vcycle.vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
         self._deleteOneMachine(machineName)
 
-      # if it's gone over space shutdown time
-      elif machine.state == MachineState.running and \
-           machine.machinetypeName in self.machinetypes and \
-           self.shutdownTime is not None and \
-           int(time.time()) > self.shutdownTime:
-        vcycle.vacutils.logLine('{} went past shutdown time for space {}'
-            .format(machineName, self.spaceName))
-        self._deleteOneMachine(machineName)
-
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes and \
            self.machinetypes[machine.machinetypeName].heartbeat_file and \
@@ -1331,18 +1322,21 @@ class BaseSpace(object):
         vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName)
 
-      # final check of the machines shutdowntime_job
+      # Check shutdown times
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes:
-        try:
-          shutdowntime = int(machine.getFileContents('jobfeatures/shutdowntime_job'))
-        except:
-          pass
-        else:
-          if (int(time.time()) > shutdowntime):
-            vcycle.vacutils.logLine('{} passed its jobs shutdown time'
-                .format(machineName))
-            self._deleteOneMachine(machineName)
+        shutdowntime = self.updateShutdownTime(machine)
+        if shutdowntime is not None and int(time.time()) > shutdowntime:
+          # log what has passed
+          if self.shutdownTime == shutdowntime:
+            vcycle.vacutils.logLine(
+                'shutdown time ({}) for space {} has passed'
+                .format(shutdowntime, self.spaceName))
+          else:
+            vcycle.vacutils.logLine(
+                'shutdown time ({}) for machine {} has passed'
+                .format(shutdowntime, machineName))
+          self._deleteOneMachine(machineName)
 
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
@@ -1457,25 +1451,24 @@ class BaseSpace(object):
 
     return messages
 
-  def updateShutdownTime(self):
+  def updateShutdownTime(self, machine):
     """ If there is a space shutdown time update machines to this value if it
-        is closer than their value 
+        is closer than their value.
+        Return closest shutdown time.
     """
-    if self.shutdownTime:
-      for machineName, machine in self.machines.iteritems():
+    try:
+      shutdowntime_job = int(machine.getFileContents(
+        'jobfeatures/shutdowntime_job'))
+    except:
+      shutdowntime_job = None
 
-        try:
-          mach_shutdowntime = int(machine.getFileContents(
-            'jobfeatures/shutdowntime_job'))
-        except:
-          mach_shutdowntime = None
-          vcycle.vacutils.logLine('Unable to read shutdowntime_job file')
+    # if shutdown time is none
+    if (shutdowntime_job is None and self.shutdownTime is not None) or \
+        shutdowntime_job > self.shutdownTime:
+      machine.setFileContents('jobfeatures/shutdowntime_job', str(self.shutdownTime))
+      shutdowntime_job = self.shutdownTime
 
-        if mach_shutdowntime is None or mach_shutdowntime > self.shutdownTime:
-          machine.setFileContents('jobfeatures/shutdowntime_job',
-              str(self.shutdownTime))
-          vcycle.vacutils.logLine('Set {} shutdown time to {}'
-              .format(machineName, self.shutdownTime))
+    return shutdowntime_job
 
   def sendVacMon(self):
 
@@ -1757,12 +1750,6 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
-
-    try:
-      self.updateShutdownTime()
-    except Exception as e:
-      vcycle.vacutils.logLine('Failed to update shutdown times for '
-          + self.spaceName + ' this cycle: ' + str(e))
 
     try:
       self.sendVacMon()
