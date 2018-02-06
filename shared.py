@@ -1006,12 +1006,12 @@ class BaseSpace(object):
       except Exception as e:
         raise VcycleError('Failed to parse max_processors in [space ' + spaceName + '] (' + str(e) + ')')
 
-    if parser.has_option(spaceSectionName, 'space_shutdown_time'):
+    if parser.has_option(spaceSectionName, 'shutdown_time'):
       try:
         self.shutdownTime = int(parser.get(spaceSectionName,
-          'space_shutdown_time'))
+          'shutdown_time'))
       except Exception as e:
-        raise VcycleError('Failed to check parse space_shutdown_time in ['
+        raise VcycleError('Failed to check parse shutdown_time in ['
             + spaceSectionName + '] (' + str(e) + ')')
 
     self.machinetypes = {}
