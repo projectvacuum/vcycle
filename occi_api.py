@@ -12,11 +12,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -115,7 +115,7 @@ class OcciSpace(vcycle.BaseSpace):
             response = self.session.get(self.computeURL)
         except Exception as e:
             raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
+
         for machineID in [line[line.rfind('/')+1:] for line in response.text.split("\n")[1:]]:
             try:
                 response = self.session.get("%s/%s" % (self.computeURL, machineID), headers=headers)
@@ -145,7 +145,7 @@ class OcciSpace(vcycle.BaseSpace):
                 createdTime = None
                 updatedTime = None
                 startedTime = None
-      
+
             if occiState == 'active':
                 state = vcycle.MachineState.running
             elif occiState == 'inactive':
@@ -205,7 +205,7 @@ class OcciSpace(vcycle.BaseSpace):
                     line = f.read()
                 except:
                     raise OcciError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
+
                 if line[:8] == 'ssh-rsa ':
                     sshPublicKey = line.split(' ')[1]
                     data += 'X-OCCI-Attribute: org.openstack.credentials.publickey.data="ssh-rsa ' + sshPublicKey + ' vcycle"'

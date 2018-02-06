@@ -8,11 +8,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -40,7 +40,7 @@ INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
               vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
               vcycled.logrotate admin-guide.html VERSION CHANGES \
               vcycle.conf.5 vcycled.8
-          
+
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
 GNUTAR ?= tar
@@ -93,7 +93,7 @@ install: $(INSTALL_FILES)
 	   $(RPM_BUILD_ROOT)/usr/share/man/man5
 	cp vcycled.8 \
 	   $(RPM_BUILD_ROOT)/usr/share/man/man8
-	
+
 rpm: vcycle.tgz
 	rm -Rf RPMTMP
 	mkdir -p RPMTMP/SOURCES RPMTMP/SPECS RPMTMP/BUILD \

@@ -12,8 +12,8 @@
   and machine_status when each machine finishes
 - Identity V3 support in OpenStack plugin, tenancy_name -> project_name,
   and add domain_name option.
-- max_machines -> max_processors in spaces and machinetypes; 
-  hs06 -> hs06_per_processor; cpu_per_machine -> processors_per_machine 
+- max_machines -> max_processors in spaces and machinetypes;
+  hs06 -> hs06_per_processor; cpu_per_machine -> processors_per_machine
 - running_hs06 isn't published to VacMon if no hs06_per_processor
 - Add region and zones options to OpenStack plugin
 ==================== Changes in Vcycle version 0.8.0 =====================
@@ -33,12 +33,12 @@
 - Add usercert/userkey to httpRequest if need to handle X.509/Proxy/VOMS
 - Add usercert/userkey to openstack_api.py as username alternative
 - Import azure_api.py and dbce_api.py
-- Add vcycle-azure and vcycle-dbce RPM subpackages 
+- Add vcycle-azure and vcycle-dbce RPM subpackages
 - Update revised OCCI plugin from Luis Villazon Esteban
 - Rename vmtype -> machinetype in code, configuration, and documentation
 - Use vacutils.py with MACHINEFEATURES, JOBFEATURES, and JOBOUTPUTS
   substitutions in user_data
-- Add joboutputs URL to metadata in OpenStack plugin 
+- Add joboutputs URL to metadata in OpenStack plugin
 - APEL job records now have SubmitHost: SPACE/vcycle-HOSTNAME where
   HOSTNAME is the host name of this Vcycle instance
 - Add cpu_per_machine for platforms where this can't be determined
@@ -68,7 +68,7 @@
 - Separate [space ...] and [vmtype ...] sections in vcycle.conf
 - Handle multiple vmtypes per space
 - Per-space user_data directories, containing per-vmtype user_data files
-- Use "ROT-1" encoding for passwords in config to avoid accidental 
+- Use "ROT-1" encoding for passwords in config to avoid accidental
   disclosure if browsing around. Obviously this is trivial to get around
   if one wants to.
 - Allow connections to unauthenticated HTTPS servers for now
@@ -77,9 +77,9 @@
 - createdThisCycle becomes creationsThisCycle to track attempts not just
   successes in case all creations always fail
 - Remove JSON files from httpd
-- Add log_machineoutputs and machineoutputs_days options to vmtypes, 
+- Add log_machineoutputs and machineoutputs_days options to vmtypes,
   copied from Vac
 - user_data file now in /var/lib/vcycle/vmtypes/SPACE/VMTYPE/user_data
   by default
 - Default and site configured substitutions in user_data templates
-- user_data can be a remote URL instead of a local file 
+- user_data can be a remote URL instead of a local file

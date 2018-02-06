@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -53,7 +53,7 @@ if __name__ == '__main__':
   else:
     os.chdir("/")
     os.setsid()
-    os.umask(0) 
+    os.umask(0)
 
     if os.fork() != 0:
       sys.exit() # second parent
@@ -82,59 +82,59 @@ if __name__ == '__main__':
 
         so = file('/var/log/vcycled', 'a+')
         os.dup2(so.fileno(), sys.stdout.fileno())
-          
+
         # Close and reopen stderr->log file, in case of logrotate
         try:
           close(se)
         except:
           pass
 
-        se = file('/var/log/vcycled', 'a+', 0)     
+        se = file('/var/log/vcycled', 'a+', 0)
         os.dup2(se.fileno(), sys.stderr.fileno())
 
         try:
           pf = open('/var/run/vcycled.pid', 'r')
           pid = int(pf.read().strip())
           pf.close()
-       
+
           if pid != os.getpid():
             print 'new /var/run/vcycled.pid - exiting'
             break
-                
+
         except:
           print 'no /var/run/vcycled.pid - exiting'
           break
-          
-        # Fork a subprocess to run each cycle          
+
+        # Fork a subprocess to run each cycle
         cyclePid = os.fork()
-        
+
         # Otherwise each subprocess starts from the same point in the sequence!
         random.seed()
 
         if cyclePid == 0:
           vcycle.vacutils.logLine('=============== Start cycle ===============')
 
-          try:       
+          try:
             vcycle.shared.readConf()
           except Exception as e:
             print 'readConf() fails with "' + str(e) + '", skipping cycle'
           else:
             for spaceName, space in vcycle.shared.spaces.iteritems():
               vcycle.vacutils.logLine('--- Space ' + spaceName + ' ---------------------------')
-              try:              
+              try:
                 space.oneCycle()
               except Exception as e:
                 print 'Processing space ' + spaceName + ' fails with exception ' + str(e)
 
           vcycle.vacutils.logLine('----------------- Cleanup -----------------')
           vcycle.shared.cleanupMachines()
-          vcycle.shared.cleanupJoboutputs() 
+          vcycle.shared.cleanupJoboutputs()
           vcycle.vacutils.logLine('================ End cycle ================')
           sys.exit(0)
 
         # wait for cyclePid subprocess to finish
         os.waitpid(cyclePid, 0)
- 
+
         # wait the allotted time between cycles
         time.sleep(sleepSeconds)
 

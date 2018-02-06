@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -111,28 +111,28 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
       self.username = None
-      
+
     try:
       self.usercert = parser.get(spaceSectionName, 'usercert')
     except Exception as e:
       self.usercert = None
-      
+
     try:
       self.userkey = parser.get(spaceSectionName, 'userkey')
     except Exception as e:
       self.userkey = None
-      
+
     if self.usercert and not self.userkey:
       self.userkey = self.usercert
     elif self.userkey and not self.usercert:
       self.usercert = self.userkey
-      
-    if not self.username and not self.usercert:      
+
+    if not self.username and not self.usercert:
       raise OpenstackError('username or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
-      # We use Base64 encoding so browsing around casually 
-      # doesn't reveal passwords in a memorable way. 
+      # We use Base64 encoding so browsing around casually
+      # doesn't reveal passwords in a memorable way.
       self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64').strip()).strip()
     except Exception:
       self.password = ''
@@ -142,7 +142,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def connect(self):
   # Wrapper around the connect methods and some common post-connection updates
-  
+
     if not self.apiVersion or self.apiVersion == '2' or self.apiVersion.startswith('2.'):
       self._connectV2()
     elif self.apiVersion == '3' or self.apiVersion.startswith('3.'):
@@ -176,7 +176,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         self.max_processors = processorsLimit
     else:
       vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
-      
+
     # Try to update processors and rss_bytes_per_processor from flavor definitions
     for machinetypeName in self.machinetypes:
       try:
@@ -189,7 +189,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       except:
         pass
 
-      try:      
+      try:
         self.machinetypes[machinetypeName].rss_bytes_per_processor = (self.flavors[flavorID]['mb'] * 1048576) / self.machinetypes[machinetypeName].processors
       except:
         pass
@@ -199,7 +199,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.identityURL + '/tokens',
-                                jsonRequest = { 'auth' : { 'tenantName' : self.project_name, 
+                                jsonRequest = { 'auth' : { 'tenantName' : self.project_name,
                                                            'passwordCredentials' : { 'username' : self.username, 'password' : self.password }
                                                          }
                                               }
@@ -211,13 +211,13 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     self.computeURL = None
     self.imageURL   = None
-    
+
     for endpoint in result['response']['access']['serviceCatalog']:
       if endpoint['type'] == 'compute':
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
-        
+
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
 
@@ -262,17 +262,17 @@ class OpenstackSpace(vcycle.BaseSpace):
     for service in result['response']['token']['catalog']:
 
       if service['type'] == 'compute':
-        for endpoint in service['endpoints']:      
+        for endpoint in service['endpoints']:
           if endpoint['interface'] == 'public' and \
               (self.region is None or self.region == endpoint['region']):
             self.computeURL = str(endpoint['url'])
-      
+
       elif service['type'] == 'image':
         for endpoint in service['endpoints']:
           if endpoint['interface'] == 'public' and \
               (self.region is None or self.region == endpoint['region']):
             self.imageURL = str(endpoint['url'])
-        
+
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
 
@@ -282,22 +282,22 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
-    
+
   def _getFlavors(self):
     """Query OpenStack to get details of flavors defined for this project"""
 
     self.flavors = {}
-    
+
     try:
       result = self.httpRequest(self.computeURL + '/flavors/detail',
                                 headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
+
     for oneFlavor in result['response']['flavors']:
-     
+
 #      print str(oneFlavor)
-      
+
       flavor = {}
       flavor['mb']          = oneFlavor['ram']
       flavor['flavor_name'] = oneFlavor['name']
@@ -309,22 +309,22 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def _getProcessorsLimit(self):
     """Query OpenStack to get processor limit for this project"""
-    
+
     try:
       result = self.httpRequest(self.computeURL + '/limits',
                                 headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
+
     try:
       return int(result['response']['limits']['absolute']['maxTotalCores'])
     except:
-      return None 
-     
+      return None
+
   def scanMachines(self):
     """Query OpenStack compute service for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each machine found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
@@ -335,7 +335,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     for oneServer in result['response']['servers']:
-    
+
       try:
         machineName = str(oneServer['metadata']['name'])
       except:
@@ -351,7 +351,7 @@ class OpenstackSpace(vcycle.BaseSpace):
           processors = self.flavors[flavorID]['processors']
         except:
           processors = 1
-       
+
       # Just in case other VMs are in this space
       if machineName[:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
@@ -416,7 +416,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def getFlavorID(self, flavorName):
     """Get the "flavor" ID"""
-    
+
     for flavorID in self.flavors:
       if self.flavors[flavorID]['flavor_name'] == flavorName:
         return flavorID
@@ -462,7 +462,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
         try:
           imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
-                                         '/var/lib/vcycle/imagecache', 
+                                         '/var/lib/vcycle/imagecache',
                                          '/var/lib/vcycle/tmp',
                                          'Vcycle ' + vcycle.shared.vcycleVersion)
 
@@ -471,9 +471,9 @@ class OpenstackSpace(vcycle.BaseSpace):
           raise OpenstackError('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
 
         self.machinetypes[machinetypeName]._imageFile = imageFile
- 
+
       elif self.machinetypes[machinetypeName].root_image[0] == '/':
-        
+
         try:
           imageLastModified = int(os.stat(self.machinetypes[machinetypeName].root_image).st_mtime)
         except Exception as e:
@@ -482,7 +482,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         self.machinetypes[machinetypeName]._imageFile = self.machinetypes[machinetypeName].root_image
 
       else: # root_image is not an absolute path, but imageName is
-        
+
         try:
           imageLastModified = int(os.stat(imageName).st_mtime)
         except Exception as e:
@@ -515,7 +515,7 @@ class OpenstackSpace(vcycle.BaseSpace):
               if tag.lstrip('last_modified: ') == str(imageLastModified):
                 self.machinetypes[machinetypeName]._imageID = str(image['id'])
                 return self.machinetypes[machinetypeName]._imageID
-        except: 
+        except:
           pass
 
     vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
@@ -550,15 +550,15 @@ class OpenstackSpace(vcycle.BaseSpace):
         return self.machinetypes[machinetypeName]._keyPairName
       else:
         raise OpenstackError('Key pair "' + self.machinetypes[machinetypeName].root_public_key + '" for machinetype ' + machinetypeName + ' not available!')
-      
+
     # Get the ssh public key from the root_public_key file
-        
+
     if self.machinetypes[machinetypeName].root_public_key[0] == '/':
       try:
         f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
         OpenstackError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
-    else:  
+    else:
       try:
         f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
@@ -569,7 +569,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         line = f.read()
       except:
         raise OpenstackError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
+
       if line[:8] == 'ssh-rsa ':
         sshPublicKey =  line.split(' ')[1]
         break
@@ -589,9 +589,9 @@ class OpenstackSpace(vcycle.BaseSpace):
           return self.machinetypes[machinetypeName]._keyPairName
       except:
         pass
-      
+
     # Not there so we try to add it
-    
+
     keyName = str(time.time()).replace('.','-')
 
     try:
@@ -618,8 +618,8 @@ class OpenstackSpace(vcycle.BaseSpace):
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
         joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-    
-      request = { 'server' : 
+
+      request = { 'server' :
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(machinetypeName),
@@ -631,9 +631,9 @@ class OpenstackSpace(vcycle.BaseSpace):
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : joboutputsURL,
                                     'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
+                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now,
                     # but point them both to the joboutputs directory that we now provide
-                  }    
+                  }
                 }
 
       if self.network_uuid:

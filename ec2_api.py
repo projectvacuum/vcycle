@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -101,7 +101,7 @@ class Ec2Space(vcycle.BaseSpace):
 
   def ec2Sign(self, key, message):
     return hmac.new(key, message.encode("utf-8"), hashlib.sha256).digest()
-    
+
   def ec2SignatureKey(self, dateStamp):
     kDate    = self.ec2Sign(('AWS4' + self.secret_key).encode('utf-8'), dateStamp)
     kRegion  = self.ec2Sign(kDate,    self.region)
@@ -132,7 +132,7 @@ class Ec2Space(vcycle.BaseSpace):
     signedHeaderNames      += ';x-amz-date'
     signedHeaderNameValues += 'x-amz-date:' + amzDate + '\n'
     headersList.append('X-Amz-Date: ' + amzDate)
-    
+
     # Now build up the signature bit by bit
 
     formRequestBody  = urllib.urlencode(formRequest)
@@ -150,10 +150,10 @@ class Ec2Space(vcycle.BaseSpace):
   def scanMachines(self):
     """Query EC2 service for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each machine found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
-  
+
     try:
       result = self.ec2Request( formRequest = { 'Action' : 'DescribeInstances', 'Version' : self.version }, verbose = False )
     except Exception as e:
@@ -169,7 +169,7 @@ class Ec2Space(vcycle.BaseSpace):
       machineName     = None
       machinetypeName = None
 
-      if 'tagSet' in oneServer and 'item' in oneServer['tagSet'][0]:  
+      if 'tagSet' in oneServer and 'item' in oneServer['tagSet'][0]:
         for keyValue in oneServer['tagSet'][0]['item']:
           key   = keyValue['key'  ][0]['#text']
           value = keyValue['value'][0]['#text']
@@ -186,7 +186,7 @@ class Ec2Space(vcycle.BaseSpace):
 
         if len(foundMachineNames) == 1:
           machineName = foundMachineNames[0]
-          
+
       if not machineName or not machineName.startswith('vcycle-'):
         # not one of ours
         continue
@@ -202,7 +202,7 @@ class Ec2Space(vcycle.BaseSpace):
       except:
         # something weird, not ours?
         continue
-        
+
       # Try to get the IP address
       try:
         ip = str(oneServer['privateIpAddress'][0]['#text'])
@@ -213,7 +213,7 @@ class Ec2Space(vcycle.BaseSpace):
         updatedTime = int(self.getFileContents(machineName, 'updated'))
       except:
         updatedTime = None
-        
+
       try:
         startedTime = calendar.timegm(time.strptime(oneServer['launchTime'][0]['#text'], "%Y-%m-%dT%H:%M:%SZ"))
       except:
@@ -255,7 +255,7 @@ class Ec2Space(vcycle.BaseSpace):
     # Specific image, not managed by Vcycle, lookup ID
     if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
       return self.machinetypes[machinetypeName].root_image[6:]
-    
+
     raise Ec2Error('Failed to get image ID as no image stored for machinetype ' + machinetypeName)
 
   def getKeyPairName(self, machinetypeName):
@@ -267,15 +267,15 @@ class Ec2Space(vcycle.BaseSpace):
         return self.machinetypes[machinetypeName]._keyPairName
       else:
         raise Ec2Error('Key pair "' + self.machinetypes[machinetypeName].root_public_key + '" for machinetype ' + machinetypeName + ' not available!')
-      
+
     # Get the ssh public key from the root_public_key file
-        
+
     if self.machinetypes[machinetypeName].root_public_key[0] == '/':
       try:
         f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
         Ec2Error('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
-    else:  
+    else:
       try:
         f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
@@ -286,7 +286,7 @@ class Ec2Space(vcycle.BaseSpace):
         line = f.read()
       except:
         raise Ec2Error('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
+
       if line[:8] == 'ssh-rsa ':
         sshPublicKey = line.split(' ')[1]
         sshFingerprint = vcycle.vacutils.makeSshFingerprint(line)
@@ -307,15 +307,15 @@ class Ec2Space(vcycle.BaseSpace):
           return self.machinetypes[machinetypeName]._keyPairName
       except:
         pass
-      
+
     # Not there so we try to add it
-    
+
     keyName = str(time.time()).replace('.','-')
 
     try:
       result = self.ec2Request(
-                                formRequest = 
-                                  { 
+                                formRequest =
+                                  {
                                     'Action'            : 'ImportKeyPair',
                                     'Version'           : self.version,
                                     'KeyName'           : keyName,
@@ -348,7 +348,7 @@ class Ec2Space(vcycle.BaseSpace):
                       'UserData'     : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                       'ImageId'      : self.getImageID(machinetypeName),
                       'InstanceType' : self.machinetypes[machinetypeName].flavor_name }
-      
+
       if self.machinetypes[machinetypeName].root_public_key:
         formRequest['KeyName'] = self.getKeyPairName(machinetypeName)
 
@@ -395,7 +395,7 @@ class Ec2Space(vcycle.BaseSpace):
       joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
 
     try:
-      result = self.ec2Request( formRequest = { 
+      result = self.ec2Request( formRequest = {
                       'Action'       : 'CreateTags',
                       'Version'      : self.version,
                       'ResourceId.1' : instanceId,
@@ -425,7 +425,7 @@ class Ec2Space(vcycle.BaseSpace):
       raise Ec2Error('Cannot find instance_id when trying to delete ' + machineName)
 
     try:
-      result = self.ec2Request( formRequest = { 
+      result = self.ec2Request( formRequest = {
                       'Action'       : 'TerminateInstances',
                       'Version'      : self.version,
                       'InstanceId.1' : instanceId

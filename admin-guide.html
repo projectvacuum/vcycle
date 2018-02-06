@@ -8,7 +8,7 @@
 <p align=center><b>Andrew McNab &lt;Andrew.McNab&nbsp;AT&nbsp;cern.ch&gt;</b>
 
 <p>
-Vcycle is a VM factory system which implements the Vacuum Platform described in 
+Vcycle is a VM factory system which implements the Vacuum Platform described in
 <a
 href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-04.pdf">HSF-TN-2016-04</a>,
 using a cloud service such as OpenStack to carry out its VM instantiation
@@ -65,7 +65,7 @@ the command ssh-keygen if /root/.ssh/id_rsa does not exist already. This
 key pair will be authorized to ssh into the VMs which is very useful for
 debugging. You may need to copy the keypair to another machine if the
 factory is not allowed ssh access to the OpenStack VMs. If this is
-completely barred, then production use of Vcycle is still possible as 
+completely barred, then production use of Vcycle is still possible as
 this feature is just used for debugging.
 
 <p>
@@ -76,10 +76,10 @@ section of example.vcycle.conf:
 <dt><b>url</b>
 <dd>This is the KeyStone URL for your OpenStack service. This is given
 by the Identity field when looking at the API Access tab of Access
-&amp;Security in the Horizon web dashboard. 
+&amp;Security in the Horizon web dashboard.
 
 <dt><b>tenancy_name</b>
-<dd>Is the OpenStack tenancy or project name. Spaces are allowed and 
+<dd>Is the OpenStack tenancy or project name. Spaces are allowed and
 quotes are not needed (or allowed).
 
 <dt><b>username</b>
@@ -90,13 +90,13 @@ quotes are not needed (or allowed).
 with something like: echo -n 'PASSword' | base64
 
 <dt><b>max_machines</b>
-<dd>If there are already VMs in the tenancy/project, then you should 
-increase this from 1 to one more than the number of existing VMs. Otherwise 
+<dd>If there are already VMs in the tenancy/project, then you should
+increase this from 1 to one more than the number of existing VMs. Otherwise
 leave it at 1 for now.
 </dl>
 
 <p>
-The next options are for the the section 
+The next options are for the the section
 <b>[machinetype vcycle01.example.com example]</b>
 
 <dl>
@@ -119,12 +119,12 @@ Now start vcycle with service vcycled start
 You will see messages appear in /var/log/vcycled.log and you see a VM
 appear in your OpenStack tenancy once a message saying Vcycle has created
 a VM is logged. If you are able to ssh to VMs, then you should be able
-to ssh into the VM. 
+to ssh into the VM.
 
 <p>
 If everything is working, you can see from the log file how a
 CernVM image is fetched from
-https://repo.gridpp.ac.uk/vacproject/example/cernvm3.iso and 
+https://repo.gridpp.ac.uk/vacproject/example/cernvm3.iso and
 uploaded to OpenStack, and a user_date template is fetched from
 https://repo.gridpp.ac.uk/vacproject/example/user_data and used
 to create the VM.
@@ -144,20 +144,20 @@ how best to configure your site.
 The configuration files /etc/vcycle.conf and /etc/vcycle.d/*conf use
 the Python ConfigParser syntax, which is similar to MS
 Windows INI files. The files are divided into sections, with each section
-name in square brackets. For example: [space vcycle01.example.com]. Each 
+name in square brackets. For example: [space vcycle01.example.com]. Each
 section contains
 a series of option=value pairs. Values can continue onto the next line
 by starting that line with some white space. Sections with the same name
-are merged and if options are duplicated, later values overwrite values 
-given earlier. 
+are merged and if options are duplicated, later values overwrite values
+given earlier.
 Any configuration file ending in .conf in the
-directory /etc/vcycle.d is read. These files are read in 
+directory /etc/vcycle.d is read. These files are read in
 alphanumeric order, and then /etc/vcycle.conf is read if present.
 
 <p>
-Based on this ordering in /etc/vcycle.d/, options from space.conf 
+Based on this ordering in /etc/vcycle.d/, options from space.conf
 would override any given
-in site.conf, but themselves be overwritten by options from 
+in site.conf, but themselves be overwritten by options from
 vm.conf .
 
 <p>
@@ -171,7 +171,7 @@ space02.conf, space02-machinetype01.conf each containing one
 
 <p>
 Vcycle uses an Apache httpd running on the VM factory to publish
-Machine/Job Features values according to 
+Machine/Job Features values according to
 <a href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-02.pdf">HSF-TN-2016-02</a>
 and to receive $JOBOUTPUTS files according to
 <a href="http://hepsoftwarefoundation.org/notes/HSF-TN-2016-04.pdf">HSF-TN-2016-04</a>
@@ -190,12 +190,12 @@ and then (re)start httpd. You must ensure that firewall rules
 allow access to TCP port 443 on the VM factory from the VMs.
 
 <p>
-If this port access is not possible, then you should replace 
+If this port access is not possible, then you should replace
 443 in both configuration files with a suitable value, and
 set the https_port option in the [space ...] sections. This
 will cause the $MACHINEFEATURES, $JOBFEATURES, and $JOBOUTPUTS
 URLs to include this port number. See the vcycle.conf man page
-for more details. 
+for more details.
 
 <h3><a name="cernvm">CernVM images</a></h3>
 
@@ -207,9 +207,9 @@ file, and CernVM boot images are particularly convenient due to
 their very small size.
 
 <p>
-If you need to download an image, they can be found on   
-the <a href="http://cernvm.cern.ch/portal/downloads">CernVM 
-downloads page</a>. 
+If you need to download an image, they can be found on
+the <a href="http://cernvm.cern.ch/portal/downloads">CernVM
+downloads page</a>.
 
 <p>
 However, most experiments will supply you with their own
@@ -225,8 +225,8 @@ from the <a href="https://repo.gridpp.ac.uk/vacproject/vcycle/">Vcycle
 downloads area</a>.
 
 <p>
-It is also possible to install Vcycle from a tar file, using the install 
-Makefile target. 
+It is also possible to install Vcycle from a tar file, using the install
+Makefile target.
 
 <h3><a name="settings">Configuration of the Vcycle space</a></h3>
 
@@ -238,8 +238,8 @@ vcycle01.example.com] .
 <p>
 The space must have a value for the option api which defines how to
 talk to the service (such as api = openstack), and then other API specific
-options. For OpenStack, these are url, tenancy_name, username, and 
-password_base64. 
+options. For OpenStack, these are url, tenancy_name, username, and
+password_base64.
 
 <p>
 See the vcycle.conf man page for more details.
@@ -251,21 +251,21 @@ Vcycle is designed to work within the WLCG/EGI grid model of sites composed
 of one or more CEs. Each Vcycle space name corresponds to one CE within a site,
 and can co-exist with conventional CREAM or ARC CEs. If you are at a
 site registered in the <a href="http://goc.egi.eu/">GOCDB</a>, you
-should add your space name(s) to your site in GOCDB as services. There 
-is a registered service type (uk.ac.gridpp.vcycle) for Vcycle spaces. 
+should add your space name(s) to your site in GOCDB as services. There
+is a registered service type (uk.ac.gridpp.vcycle) for Vcycle spaces.
 
 <p>
-Problems encountered during the operation of Vcycle in production may 
-appear as tickets in <a href="https://ggus.eu/">GGUS</a>. The 
+Problems encountered during the operation of Vcycle in production may
+appear as tickets in <a href="https://ggus.eu/">GGUS</a>. The
 <a href="https://wiki.egi.eu/wiki/GGUS:Vac_FAQ">Vac/Vcycle Support Unit</a>
 appears under &quot;Second Level - Software&quot; on the GGUS
 &quot;Assign ticket to support unit&quot; menu.
 
 <p>
 Vcycle writes APEL accounting records as described below. The GOCDB site
-name given by gocdb_sitename in the [space ...] section is included in these 
+name given by gocdb_sitename in the [space ...] section is included in these
 records. To avoid the risk of polluting the central APEL database with incorrect
-site names, please use your real GOCDB sitename for this option. 
+site names, please use your real GOCDB sitename for this option.
 
 <h3><a name="machinetypes">Setting up machinetypes</a></h3>
 
@@ -286,7 +286,7 @@ disabled by setting all shares to 0. Vcycle consults these shares
 when deciding which machinetype to start as VM slots become available.
 
 <p>
-For ease of management, the target_shares options can be grouped 
+For ease of management, the target_shares options can be grouped
 together in a separate file in /etc/vcycle.d apart from the main [machinetype
 ... ...]
 sections, which is convenient if shares
@@ -301,7 +301,7 @@ target_share = 7.0
 </pre>
 
 <p>
-The experiment or VO responsible for each machinetype should supply 
+The experiment or VO responsible for each machinetype should supply
 step by step intructions on how to set up the rest of the [machinetype ...
 ...]
 section and how to create any hostcert.pem and hostkey.pem
@@ -312,23 +312,23 @@ vcycled</a></h2>
 
 <p>
 The Vcycle daemon, vcycled, is started and stopped by
-/etc/rc.d/init.d/vcycled 
-on conjunction with the usual service and chkconfig commands. As the 
-configuration files are reread at the start of each cycle (by default, 
-one per minute) <b>it is not necessary to restart vacd after changing the 
+/etc/rc.d/init.d/vcycled
+on conjunction with the usual service and chkconfig commands. As the
+configuration files are reread at the start of each cycle (by default,
+one per minute) <b>it is not necessary to restart vacd after changing the
 configuration</b>.
 
 <p>
 Furthermore, as vcycled rereads the current state of the VMs from status
-files and the cloud service at the start of each cycle, vcycled can be 
+files and the cloud service at the start of each cycle, vcycled can be
 restarted without disrupting running VMs or losing information about
-their state. 
+their state.
 In most cases it will even be possible to upgrade vcycled from one patch
 level to another within the same minor release without having to
 drain the site of running VMs. If problems arise during upgrades,
-the most likely outcome is that Vcycle will fail to create new VMs until 
+the most likely outcome is that Vcycle will fail to create new VMs until
 the configuration is fixed, but the existing VMs will continue to run.
-(&quot;We want Vcycle failures to look like planned draining.&quot;) 
+(&quot;We want Vcycle failures to look like planned draining.&quot;)
 
 <h2 style="border-bottom: 1px solid"><a name="apel">APEL accounting</a></h2>
 
@@ -337,27 +337,27 @@ When Vcycle detects that a VM has run for at least fizzle_seconds and
 now finished, it writes a copy of the APEL
 accounting message to subdirectories of /var/lib/vcycle/apel-archive .
 If you have set gocdb_sitename in [space ...], then the file is also
-written to /var/lib/vcycle/apel-outgoing . 
+written to /var/lib/vcycle/apel-outgoing .
 
 
 <p>
-Vcycle uses the UUID of the VM as the local job 
+Vcycle uses the UUID of the VM as the local job
 ID, the VM factory hostname as the local user ID, and the machinetype name as the
-batch queue name. A unique user DN is constructed from the components 
+batch queue name. A unique user DN is constructed from the components
 of the Vcycle space name. For example, vac01.example.com becomes
 /DC=com/DC=example/DC=vac01 . If the accounting_fqan option is present in
-the [machinetype ... ...] section, then for VMs of that type the value of that option 
+the [machinetype ... ...] section, then for VMs of that type the value of that option
 is included as the user FQAN, which indicates the VO associated with the VM.
 The GOCDB sitename field is either the value you
-gave explicitly or the Vcycle space name as a placeholder. 
+gave explicitly or the Vcycle space name as a placeholder.
 
 <p>
 These accounting messages are designed to be published to the central
 APEL service using the
 standard APEL ssmsend command, which can be run on each factory machine
-from cron. Please see the <a href="https://wiki.egi.eu/wiki/APEL">APEL 
-SSM client documentation for details</a>. To submit records you should agree 
-use of APEL with the APEL team, have your certificate authorized, set up the 
+from cron. Please see the <a href="https://wiki.egi.eu/wiki/APEL">APEL
+SSM client documentation for details</a>. To submit records you should agree
+use of APEL with the APEL team, have your certificate authorized, set up the
 correct APEL entries in GOCDB, and do any requested tests.
 
 <h2 style="border-bottom: 1px solid"><a name="fizzlebackoff">Setting fizzle_seconds and backoff_seconds</a></h2>
@@ -369,7 +369,7 @@ VMs.
 
 <p>
 You may be able to optimize the value of fizzle_seconds by looking for VMs
-which fail to find work and seeing how long they ran for. However, for most 
+which fail to find work and seeing how long they ran for. However, for most
 VM architectures and VM factories a value of
 600 seconds will work perfectly well and you do not need to spend a lot
 of effort arriving at an ideal number.
@@ -380,12 +380,12 @@ quickly to recover from periods when each experiment has no work available.
 If you know a particular experiment usually has plenty of work, then you
 could set a low value of 600 seconds, so that Vcycle will try creating one
 VM every 10 minutes or so to see if work is available again after a short
-idle period. Alternatively, 
+idle period. Alternatively,
 if you know that an experiment usually has no work for you, then you could
 set much larger values of many hours between creating VMs. In either
 case, once Vcycle identifies that VMs for the experiment are indeed passing
 fizzle_seconds and finding work to do, then the backoff_seconds option is
-ignored and VMs are created as VM slots become free in line with the 
+ignored and VMs are created as VM slots become free in line with the
 machinetype's target_share.
 
 </body>
