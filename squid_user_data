@@ -31,7 +31,7 @@ write_files:
         #
         acl manager proto cache_object
         acl localhost src 127.0.0.1/32
-        acl to_localhost dst 127.0.0.0/8 0.0.0.0/32 
+        acl to_localhost dst 127.0.0.0/8 0.0.0.0/32
 
         # Example rule allowing access from your local networks.
         # Adapt to list your (internal) IP networks from where browsing
@@ -42,14 +42,14 @@ write_files:
         #acl localnet src 192.168.0.0/16	# RFC1918 possible internal network
         #acl localnet src fc00::/7       # RFC 4193 local private network range
         #acl localnet src fe80::/10      # RFC 4291 link-local (directly plugged) machines
-        
+
         icp_port 3130
         icp_access allow localnet
         icp_access deny all
 
         # One cache_peer line with the IP address of the other Squids with peer with
         #cache_peer IPADDR sibling 3128 3130 default
-        
+
         acl SSL_ports port 443
         acl Safe_ports port 80		# http
         acl Safe_ports port 21		# ftp
@@ -62,58 +62,58 @@ write_files:
         acl Safe_ports port 591		# filemaker
         acl Safe_ports port 777		# multiling http
         acl CONNECT method CONNECT
-        
+
         #
         # Recommended minimum Access Permission configuration:
         #
         # Only allow cachemgr access from localhost
         http_access allow manager localhost
         http_access deny manager
-        
+
         # Deny requests to certain unsafe ports
         http_access deny !Safe_ports
-        
+
         # Deny CONNECT to other than secure SSL ports
         http_access deny CONNECT !SSL_ports
-        
+
         # We strongly recommend the following be uncommented to protect innocent
         # web applications running on the proxy server who think the only
         # one who can access services on "localhost" is a local user
         #http_access deny to_localhost
-        
+
         #
         # INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
         #
-        
+
         # Example rule allowing access from your local networks.
         # Adapt localnet in the ACL section to list your (internal) IP networks
         # from where browsing should be allowed
         http_access allow localnet
         http_access allow localhost
-        
+
         # And finally deny all other access to this proxy
         http_access deny all
-        
+
         # Squid normally listens to port 3128
         http_port ##HTTP_PORT##
-        
+
         # We recommend you to use at least the following line.
         hierarchy_stoplist cgi-bin ?
-        
+
         # Uncomment and adjust the following to add a disk cache directory.
         # The first number after the directory path is the total size in MB
         cache_dir ufs /var/spool/squid 5000 16 256
-        
+
         # Leave coredumps in the first cache dir
         coredump_dir /var/spool/squid
-        
+
         # Add any of your own refresh_pattern entries above these.
         refresh_pattern ^ftp:		1440	20%	10080
         refresh_pattern ^gopher:	1440	0%	1440
         refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
         refresh_pattern /repodata/	0	0%	0
         refresh_pattern .		0	20%	4320
-        
+
 --===============3141592653589793238==
 MIME-Version: 1.0
 Content-Type: text/x-shellscript; charset="us-ascii"

@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -74,7 +74,7 @@ class GoogleSpace(vcycle.BaseSpace):
     # Always has to be an explicit maximum, so default 1 if not given in [space ...] or [machinetype ...]
     if self.max_processors is None:
       self.max_processors = 1
-    
+
     try:
       self.project_id = parser.get(spaceSectionName, 'project_id')
     except Exception as e:
@@ -89,7 +89,7 @@ class GoogleSpace(vcycle.BaseSpace):
       self.client_email = parser.get(spaceSectionName, 'client_email')
     except Exception as e:
       raise GoogleError('The client_email option is required in Google [space ' + spaceName + '] (' + str(e) + ')')
-      
+
     try:
       self.private_key = parser.get(spaceSectionName, 'private_key')
     except Exception as e:
@@ -105,10 +105,10 @@ class GoogleSpace(vcycle.BaseSpace):
     headerBase64 = base64.urlsafe_b64encode('{"alg": "RS256", "typ": "JWT"}')
 
     # Create encoded JWT claimset (600 seconds lifetime)
-    claimsetBase64 = base64.urlsafe_b64encode('{"iss": "%s", "scope": "%s", "aud": "%s", "exp": %d, "iat": %d}' % 
+    claimsetBase64 = base64.urlsafe_b64encode('{"iss": "%s", "scope": "%s", "aud": "%s", "exp": %d, "iat": %d}' %
                                               (self.client_email,
-                                               scope, 
-                                               tokenURL, 
+                                               scope,
+                                               tokenURL,
                                                int(time.time()) + 600,
                                                int(time.time())))
 
@@ -123,18 +123,18 @@ class GoogleSpace(vcycle.BaseSpace):
 
     # HTTP POST to get the access_token
     try:
-      result = self.httpRequest(tokenURL, 
+      result = self.httpRequest(tokenURL,
                                 formRequest = { 'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                                                 'assertion' : headerBase64 + "." + claimsetBase64 + "." + signatureBase64 }
                                )
     except Exception as e:
       raise GoogleError('Cannot connect to ' + tokenURL + ' to get OAUTH access_token (' + str(e) + ')')
-    
+
     try:
       accessToken = str(result['response']['access_token'])
     except Exception as e:
       raise GoogleError('Failed to get OAUTH access_token from ' + tokenURL + ' (' + str(e) + ')')
-    
+
     return accessToken
 
   def connect(self):
@@ -142,7 +142,7 @@ class GoogleSpace(vcycle.BaseSpace):
 
     self.accessToken = self._getAccessToken()
     vcycle.vacutils.logLine('Connected to Google Compute Engine for space ' + self.spaceName)
-    
+
     try:
       result = self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/global/images' % self.project_id,
                                 headers = [ 'Authorization: Bearer ' + self.accessToken ])
@@ -165,28 +165,28 @@ class GoogleSpace(vcycle.BaseSpace):
     # or 1 if we are unable to determine it
 
     shortMachineType = googleMachineType.split('/')[-1]
-    
+
     if shortMachineType.startswith('custom-'):
       # custom-PROCESSORS-MEMORY
       try:
         return int(shortMachineType.split('-')[1])
       except:
         return 1
-  
+
     if shortMachineType.startswith('n1-'):
       # n1-MEMORYNAME-PROCESSORS
       try:
         return int(shortMachineType.split('-')[2])
       except:
         return 1
-      
+
     # Something else. Micro, small etc? Something new? Default to 1
     return 1
 
   def scanMachines(self):
     """Query Google Compute Engine for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each machine found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
@@ -195,9 +195,9 @@ class GoogleSpace(vcycle.BaseSpace):
                                 headers = [ 'Authorization: Bearer ' + self.accessToken ])
     except Exception as e:
       raise GoogleError('Cannot get instances list (' + str(e) + ')')
-      
+
     for oneZone in result['response']['items']:
-    
+
       if 'instances' not in result['response']['items'][oneZone]:
         continue
 
@@ -205,13 +205,13 @@ class GoogleSpace(vcycle.BaseSpace):
         zone = oneZone[6:]
       else:
         zone = oneZone
-    
+
       for oneMachine in result['response']['items'][oneZone]['instances']:
         machineName = str(oneMachine['name'])
 
         try:
           processors = self._googleMachineTypeProcessors(oneMachine['machineType'])
-       
+
           # Just in case other VMs are in this space
           if not machineName.startswith('vcycle-'):
             # Still count VMs that we didn't create and won't manage, to avoid going above space limit
@@ -230,10 +230,10 @@ class GoogleSpace(vcycle.BaseSpace):
           try:
             createdTime = calendar.timegm(time.strptime(str(oneMachine['creationTimestamp']), "%Y-%m-%dT%H:%M:%S-"))
           except:
-            createdTime = None  
-        
+            createdTime = None
+
           status = str(oneMachine['status'])
- 
+
           try:
             machinetypeName = str(oneServer['metadata']['machinetype'])
           except:
@@ -289,10 +289,10 @@ class GoogleSpace(vcycle.BaseSpace):
 
 # To enable the rest of this method, self.uploadImage() must first be updated for GCE (it's still OS.)
 
-    # imageFile is the full path to the source file or cached file on disk on this VM factory machine 
+    # imageFile is the full path to the source file or cached file on disk on this VM factory machine
     # imageURL is the remote URL or local source path of the image, to use in the hashes given to GCE
     # imageName is the hash of the modification time and the URL/path of the image: new for each version
-    # imageFamily is the hash of just the URL or file path of the image: it doesn't change as the version 
+    # imageFamily is the hash of just the URL or file path of the image: it doesn't change as the version
     #   changes and it can be used to identify old versions which should be deleted
 
     if self.machinetypes[machinetypeName].root_image.startswith('http://') or \
@@ -300,19 +300,19 @@ class GoogleSpace(vcycle.BaseSpace):
 
       try:
           imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
-                                         '/var/lib/vcycle/imagecache', 
+                                         '/var/lib/vcycle/imagecache',
                                          '/var/lib/vcycle/tmp',
                                          'Vcycle ' + vcycle.shared.vcycleVersion)
 
-          imageLastModified = int(os.stat(imageFile).st_mtime)          
+          imageLastModified = int(os.stat(imageFile).st_mtime)
           imageURL = self.machinetypes[machinetypeName].root_image
-          
+
       except Exception as e:
           raise GoogleError('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
- 
+
     else:
       if self.machinetypes[machinetypeName].root_image[0] == '/':
-          imageFile = self.machinetypes[machinetypeName].root_image          
+          imageFile = self.machinetypes[machinetypeName].root_image
       else:
           imageFile = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_image
 
@@ -378,13 +378,13 @@ class GoogleSpace(vcycle.BaseSpace):
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
 
     self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'), 
+                     [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'),
                         # ^^^ 'raw' for hdd; 'iso' for iso
                        'Content-Type: application/octet-stream',
                        'Accept: application/json',
                        'Transfer-Encoding: chunked',
                        'x-image-meta-container_format: bare',
-                       'x-image-meta-is_public: False',                       
+                       'x-image-meta-is_public: False',
                        'x-image-meta-name: ' + imageName,
                        'x-image-meta-property-architecture: x86_64',
                        'x-image-meta-property-last-modified: ' + str(imageLastModified),
@@ -393,7 +393,7 @@ class GoogleSpace(vcycle.BaseSpace):
 
     outputBuffer = StringIO.StringIO()
     self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
-    
+
     if verbose:
       self.curl.setopt(pycurl.VERBOSE, 2)
     else:
@@ -415,7 +415,7 @@ class GoogleSpace(vcycle.BaseSpace):
       response = json.loads(outputBuffer.getvalue())
     except Exception as e:
       raise GoogleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
-    
+
     try:
       vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
       return str(response['image']['id'])
@@ -423,19 +423,19 @@ class GoogleSpace(vcycle.BaseSpace):
       raise GoogleError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
 
   def _cvmUserData(self, machinetypeName):
-    # Create a user-data file for use with amiconfig in CernVM 3, which looks for the 
-    # metadata key cvm-user-data. The sed commands make the EC2 support in Cloud Init 
+    # Create a user-data file for use with amiconfig in CernVM 3, which looks for the
+    # metadata key cvm-user-data. The sed commands make the EC2 support in Cloud Init
     # find the user-data file in the GCE metadata, when it is run after amiconfig.
-  
+
     template = """#! /bin/bash
 #
 # Hotfix EC2 paths to work with GCE !!!
 #
 sed -i 's:^DEF_MD_VERSION.*:DEF_MD_VERSION = "0.1":' \
-  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py 
+  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py
 sed -i 's:ec2.get_instance_userdata.self.api_ver,.*:ec2.get_instance_userdata\(self.api_ver + "/meta-data/attributes",:' \
-  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py 
-sed -i 's:\[NoCloud:[Ec2, NoCloud:' /etc/cloud/cloud.cfg.d/50_cernvm.cfg        
+  /usr/lib/python2.6/site-packages/cloudinit/sources/DataSourceEc2.py
+sed -i 's:\[NoCloud:[Ec2, NoCloud:' /etc/cloud/cloud.cfg.d/50_cernvm.cfg
 exit 0
 [amiconfig]
 plugins=cernvm
@@ -446,19 +446,19 @@ proxy=##user_data_option_cvmfs_proxy##
 resize_rootfs=off
 cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
 [ucernvm-end]
-"""        
+"""
 
     try:
       proxyExpr = self.machinetypes[machinetypeName].options['user_data_cvmfs_proxy']
     except:
       proxyExpr = 'DIRECT'
-    
+
     return base64.b64encode(template.replace('##user_data_option_cvmfs_proxy##', proxyExpr))
 
   def createMachine(self, machineName, machinetypeName, zone):
     # Google-specific machine creation steps (included hardcoded default 40 GB/processor if not explicitly given)
 
-    try:    
+    try:
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
@@ -473,15 +473,15 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
 
       request = { 'name'        : machineName,
                   'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_name),
-                  'disks' : [ 
-                              { 
+                  'disks' : [
+                              {
                                 'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].processors,
                                                        'sourceImage' : 'global/images/' + self._getImageName(machinetypeName) },
                                 'boot'             : True,
                                 'autoDelete'       : True
                               }
                             ],
-                  'networkInterfaces' : [ 
+                  'networkInterfaces' : [
                                           {
                                             'network' : 'global/networks/default',
                                             'accessConfigs' : [
@@ -518,7 +518,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
             f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
           except Exception as e:
             GoogleError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
-        else:  
+        else:
           try:
             f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
           except Exception as e:
@@ -530,7 +530,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
           except:
             f.close()
             raise GoogleError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
+
           if line.startswith('ssh-rsa '):
             f.close()
             sshPublicKey = line.split(' ')[1]
@@ -543,7 +543,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                                                'value' : 'root:ssh-rsa ' + sshPublicKey + ' root' } )
 
         # This is the current version
-        request['metadata']['items'].append( { 'key' : 'ssh-keys',                                 
+        request['metadata']['items'].append( { 'key' : 'ssh-keys',
                                                'value' : 'root:ssh-rsa ' + sshPublicKey + ' root' } )
 
     except Exception as e:
@@ -555,12 +555,12 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                                 headers = [ 'Authorization: Bearer ' + self.accessToken ])
     except Exception as e:
       raise GoogleError('Cannot create VM (' + str(e) + ')')
-      
+
     try:
       uuidStr = str(result['response']['id'])
     except:
       raise GoogleError('Unable to get VM id from GCE instance insert response (' + str(e) + ')')
-      
+
     vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
     self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
@@ -580,6 +580,6 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
       self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/zones/%s/instances/%s' % (self.project_id, self.machines[machineName].zone, machineName),
                        method = 'DELETE',
                        headers = [ 'Authorization: Bearer ' + self.accessToken ])
-                       
+
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')

@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -52,6 +52,7 @@ import tempfile
 import calendar
 
 import vcycle.vacutils
+import vcycle.openstack.image_api
 
 class OpenstackError(Exception):
   pass
@@ -101,31 +102,37 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('url is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
+      self.glanceAPIVersion = parser.get(spaceSectionName, 'glance_api')
+    except Exception as e:
+      raise OpenstackError('glance_api is required in OpenStack [space '
+          + spaceName + '] (' + str(e) + ')')
+
+    try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
       self.username = None
-      
+
     try:
       self.usercert = parser.get(spaceSectionName, 'usercert')
     except Exception as e:
       self.usercert = None
-      
+
     try:
       self.userkey = parser.get(spaceSectionName, 'userkey')
     except Exception as e:
       self.userkey = None
-      
+
     if self.usercert and not self.userkey:
       self.userkey = self.usercert
     elif self.userkey and not self.usercert:
       self.usercert = self.userkey
-      
-    if not self.username and not self.usercert:      
+
+    if not self.username and not self.usercert:
       raise OpenstackError('username or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
-      # We use Base64 encoding so browsing around casually 
-      # doesn't reveal passwords in a memorable way. 
+      # We use Base64 encoding so browsing around casually
+      # doesn't reveal passwords in a memorable way.
       self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64').strip()).strip()
     except Exception:
       self.password = ''
@@ -135,7 +142,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def connect(self):
   # Wrapper around the connect methods and some common post-connection updates
-  
+
     if not self.apiVersion or self.apiVersion == '2' or self.apiVersion.startswith('2.'):
       self._connectV2()
     elif self.apiVersion == '3' or self.apiVersion.startswith('3.'):
@@ -143,6 +150,17 @@ class OpenstackSpace(vcycle.BaseSpace):
     else:
       # This rechecks the checking done in the constructor called by readConf()
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
+
+    # initialise glance api (has to be here as we don't have imageURL until
+    # after connecting)
+    if self.glanceAPIVersion == '2':
+      self.imageAPI = vcycle.openstack.image_api.GlanceV2(self.token, self.imageURL)
+    elif self.glanceAPIVersion == '1':
+      self.imageAPI = vcycle.openstack.image_api.GlanceV1(self.token, self.imageURL)
+    else:
+      raise OpenstackError('glanceAPIVersion %s not recongnised'
+          % self.glanceAPIVersion)
+
 
     # Build dictionary of flavor details using API
     self._getFlavors()
@@ -158,7 +176,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         self.max_processors = processorsLimit
     else:
       vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
-      
+
     # Try to update processors and rss_bytes_per_processor from flavor definitions
     for machinetypeName in self.machinetypes:
       try:
@@ -171,7 +189,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       except:
         pass
 
-      try:      
+      try:
         self.machinetypes[machinetypeName].rss_bytes_per_processor = (self.flavors[flavorID]['mb'] * 1048576) / self.machinetypes[machinetypeName].processors
       except:
         pass
@@ -181,7 +199,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     try:
       result = self.httpRequest(self.identityURL + '/tokens',
-                                jsonRequest = { 'auth' : { 'tenantName' : self.project_name, 
+                                jsonRequest = { 'auth' : { 'tenantName' : self.project_name,
                                                            'passwordCredentials' : { 'username' : self.username, 'password' : self.password }
                                                          }
                                               }
@@ -193,13 +211,13 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     self.computeURL = None
     self.imageURL   = None
-    
+
     for endpoint in result['response']['access']['serviceCatalog']:
       if endpoint['type'] == 'compute':
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
-        
+
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
 
@@ -244,17 +262,17 @@ class OpenstackSpace(vcycle.BaseSpace):
     for service in result['response']['token']['catalog']:
 
       if service['type'] == 'compute':
-        for endpoint in service['endpoints']:      
+        for endpoint in service['endpoints']:
           if endpoint['interface'] == 'public' and \
               (self.region is None or self.region == endpoint['region']):
             self.computeURL = str(endpoint['url'])
-      
+
       elif service['type'] == 'image':
         for endpoint in service['endpoints']:
           if endpoint['interface'] == 'public' and \
               (self.region is None or self.region == endpoint['region']):
             self.imageURL = str(endpoint['url'])
-        
+
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
 
@@ -264,22 +282,22 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
-    
+
   def _getFlavors(self):
     """Query OpenStack to get details of flavors defined for this project"""
 
     self.flavors = {}
-    
+
     try:
       result = self.httpRequest(self.computeURL + '/flavors/detail',
                                 headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
+
     for oneFlavor in result['response']['flavors']:
-     
+
 #      print str(oneFlavor)
-      
+
       flavor = {}
       flavor['mb']          = oneFlavor['ram']
       flavor['flavor_name'] = oneFlavor['name']
@@ -291,22 +309,22 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def _getProcessorsLimit(self):
     """Query OpenStack to get processor limit for this project"""
-    
+
     try:
       result = self.httpRequest(self.computeURL + '/limits',
                                 headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
-      
+
     try:
       return int(result['response']['limits']['absolute']['maxTotalCores'])
     except:
-      return None 
-     
+      return None
+
   def scanMachines(self):
     """Query OpenStack compute service for details of machines in this space"""
 
-    # For each machine found in the space, this method is responsible for 
+    # For each machine found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
@@ -317,7 +335,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
     for oneServer in result['response']['servers']:
-    
+
       try:
         machineName = str(oneServer['metadata']['name'])
       except:
@@ -333,7 +351,7 @@ class OpenstackSpace(vcycle.BaseSpace):
           processors = self.flavors[flavorID]['processors']
         except:
           processors = 1
-       
+
       # Just in case other VMs are in this space
       if machineName[:7] != 'vcycle-':
         # Still count VMs that we didn't create and won't manage, to avoid going above space limit
@@ -398,7 +416,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
   def getFlavorID(self, flavorName):
     """Get the "flavor" ID"""
-    
+
     for flavorID in self.flavors:
       if self.flavors[flavorID]['flavor_name'] == flavorName:
         return flavorID
@@ -406,7 +424,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     raise OpenstackError('Flavor "' + flavorName + '" not available!')
 
   def getImageID(self, machinetypeName):
-    """Get the image ID"""
+    """ Get the image ID """
 
     # If we already know the image ID, then just return it
     if hasattr(self.machinetypes[machinetypeName], '_imageID'):
@@ -417,11 +435,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         raise OpenstackError('Image "' + self.machinetypes[machinetypeName].root_image + '" for machinetype ' + machinetypeName + ' not available!')
 
     # Get the existing images for this tenancy
-    try:
-      result = self.httpRequest(self.computeURL + '/images/detail',
-                                headers = [ 'X-Auth-Token: ' + self.token ])
-    except Exception as e:
-      raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
+    result = self.imageAPI.getImageDetails()
 
     # Specific image, not managed by Vcycle, lookup ID
     if self.machinetypes[machinetypeName].root_image[:6] == 'image:':
@@ -448,7 +462,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
         try:
           imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
-                                         '/var/lib/vcycle/imagecache', 
+                                         '/var/lib/vcycle/imagecache',
                                          '/var/lib/vcycle/tmp',
                                          'Vcycle ' + vcycle.shared.vcycleVersion)
 
@@ -457,9 +471,9 @@ class OpenstackSpace(vcycle.BaseSpace):
           raise OpenstackError('Failed fetching ' + self.machinetypes[machinetypeName].root_image + ' (' + str(e) + ')')
 
         self.machinetypes[machinetypeName]._imageFile = imageFile
- 
+
       elif self.machinetypes[machinetypeName].root_image[0] == '/':
-        
+
         try:
           imageLastModified = int(os.stat(self.machinetypes[machinetypeName].root_image).st_mtime)
         except Exception as e:
@@ -468,7 +482,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         self.machinetypes[machinetypeName]._imageFile = self.machinetypes[machinetypeName].root_image
 
       else: # root_image is not an absolute path, but imageName is
-        
+
         try:
           imageLastModified = int(os.stat(imageName).st_mtime)
         except Exception as e:
@@ -481,16 +495,28 @@ class OpenstackSpace(vcycle.BaseSpace):
       imageLastModified = int(os.stat(self.machinetypes[machinetypeName]._imageFile).st_mtime)
 
     # Go through the existing images looking for a name and time stamp match
-# We should delete old copies of the current image name if we find them here
-    for image in result['response']['images']:
-      try:
-         if image['name'] == imageName and \
-            image['status'] == 'ACTIVE' and \
-            image['metadata']['last_modified'] == str(imageLastModified):
-           self.machinetypes[machinetypeName]._imageID = str(image['id'])
-           return self.machinetypes[machinetypeName]._imageID
-      except:
-        pass
+    # We should delete old copies of the current image name if we find them here
+    # Glance v2 api differs by keeping metadata in tags
+    if self.glanceAPIVersion == '1':
+      for image in result['response']['images']:
+        try:
+          if image['name'] == imageName and \
+              image['status'] == 'ACTIVE' and \
+              image['metadata']['last_modified'] == str(imageLastModified):
+            self.machinetypes[machinetypeName]._imageID = str(image['id'])
+            return self.machinetypes[machinetypeName]._imageID
+        except:
+          pass
+    elif self.glanceAPIVersion == '2':
+      for image in result['response']['images']:
+        try:
+          if image['name'] == imageName and image['status'] == 'active':
+            for tag in image['tags']:
+              if tag.lstrip('last_modified: ') == str(imageLastModified):
+                self.machinetypes[machinetypeName]._imageID = str(image['id'])
+                return self.machinetypes[machinetypeName]._imageID
+        except:
+          pass
 
     vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
 
@@ -511,67 +537,10 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Failed to upload image file ' + imageName + ' (' + str(e) + ')')
 
-  def uploadImage(self, imageFile, imageName, imageLastModified, verbose = False):
-
-    try:
-      f = open(imageFile, 'r')
-    except Exception as e:
-      raise OpenstackError('Failed to open image file ' + imageName + ' (' + str(e) + ')')
-
-    self.curl.setopt(pycurl.READFUNCTION,   f.read)
-    self.curl.setopt(pycurl.UPLOAD,         True)
-    self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
-    self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycle.shared.vcycleVersion)
-    self.curl.setopt(pycurl.TIMEOUT,        30)
-    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
-    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
-    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
-
-    self.curl.setopt(pycurl.HTTPHEADER,
-                     [ 'x-image-meta-disk_format: ' + ('iso' if imageName.endswith('.iso') else 'raw'), 
-                        # ^^^ 'raw' for hdd; 'iso' for iso
-                       'Content-Type: application/octet-stream',
-                       'Accept: application/json',
-                       'Transfer-Encoding: chunked',
-                       'x-image-meta-container_format: bare',
-                       'x-image-meta-is_public: False',                       
-                       'x-image-meta-name: ' + imageName,
-                       'x-image-meta-property-architecture: x86_64',
-                       'x-image-meta-property-last-modified: ' + str(imageLastModified),
-                       'X-Auth-Token: ' + self.token
-                     ])
-
-    outputBuffer = StringIO.StringIO()
-    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
-    
-    if verbose:
-      self.curl.setopt(pycurl.VERBOSE, 2)
-    else:
-      self.curl.setopt(pycurl.VERBOSE, 0)
-
-    if os.path.isdir('/etc/grid-security/certificates'):
-      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
-
-    try:
-      self.curl.perform()
-    except Exception as e:
-      raise OpenstackError('Failed uploadimg image (' + str(e) + ')')
-
-    # Any 2xx code is OK; otherwise raise an exception
-    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
-      raise OpenstackError('Image upload returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
-
-    try:
-      response = json.loads(outputBuffer.getvalue())
-    except Exception as e:
-      raise OpenstackError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
-    
-    try:
-      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
-      return str(response['image']['id'])
-    except:
-      raise OpenstackError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
+  def uploadImage(self, imageFile, imageName, imageLastModified,
+                  verbose = False):
+    return self.imageAPI.uploadImage(imageFile, imageName, imageLastModified,
+                                     verbose)
 
   def getKeyPairName(self, machinetypeName):
     """Get the key pair name from root_public_key"""
@@ -581,15 +550,15 @@ class OpenstackSpace(vcycle.BaseSpace):
         return self.machinetypes[machinetypeName]._keyPairName
       else:
         raise OpenstackError('Key pair "' + self.machinetypes[machinetypeName].root_public_key + '" for machinetype ' + machinetypeName + ' not available!')
-      
+
     # Get the ssh public key from the root_public_key file
-        
+
     if self.machinetypes[machinetypeName].root_public_key[0] == '/':
       try:
         f = open(self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
         OpenstackError('Cannot open ' + self.machinetypes[machinetypeName].root_public_key)
-    else:  
+    else:
       try:
         f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/files/' + self.machinetypes[machinetypeName].root_public_key, 'r')
       except Exception as e:
@@ -600,7 +569,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         line = f.read()
       except:
         raise OpenstackError('Cannot find ssh-rsa public key line in ' + self.machinetypes[machinetypeName].root_public_key)
-        
+
       if line[:8] == 'ssh-rsa ':
         sshPublicKey =  line.split(' ')[1]
         break
@@ -620,9 +589,9 @@ class OpenstackSpace(vcycle.BaseSpace):
           return self.machinetypes[machinetypeName]._keyPairName
       except:
         pass
-      
+
     # Not there so we try to add it
-    
+
     keyName = str(time.time()).replace('.','-')
 
     try:
@@ -649,8 +618,8 @@ class OpenstackSpace(vcycle.BaseSpace):
         joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
       else:
         joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-    
-      request = { 'server' : 
+
+      request = { 'server' :
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(machinetypeName),
@@ -662,9 +631,9 @@ class OpenstackSpace(vcycle.BaseSpace):
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
                                     'machineoutputs'  : joboutputsURL,
                                     'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now, 
+                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now,
                     # but point them both to the joboutputs directory that we now provide
-                  }    
+                  }
                 }
 
       if self.network_uuid:

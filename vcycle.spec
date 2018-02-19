@@ -63,8 +63,9 @@ fi
 %{python_sitelib}/vcycle/__init__.py*
 %{python_sitelib}/vcycle/shared.py*
 %{python_sitelib}/vcycle/vacutils.py*
-%{python_sitelib}/vcycle/openstack_api.py*
+%{python_sitelib}/vcycle/openstack/openstack_api.py*
 %{python_sitelib}/vcycle/ec2_api.py*
+%{python_sitelib}/vcycle/openstack/*.py*
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled

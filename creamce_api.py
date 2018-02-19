@@ -11,11 +11,11 @@
 #
 #    o Redistributions of source code must retain the above
 #      copyright notice, this list of conditions and the following
-#      disclaimer. 
+#      disclaimer.
 #    o Redistributions in binary form must reproduce the above
 #      copyright notice, this list of conditions and the following
 #      disclaimer in the documentation and/or other materials
-#      provided with the distribution. 
+#      provided with the distribution.
 #
 #  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
 #  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
@@ -74,11 +74,11 @@ class CreamceSpace(vcycle.BaseSpace):
 
   def connect(self):
     pass
-     
+
   def scanMachines(self):
     """Query Cream CE compute service for details of machines in this space"""
 
-    # For each job found in the space, this method is responsible for 
+    # For each job found in the space, this method is responsible for
     # either (a) ignorning non-Vcycle VMs but updating self.totalProcessors
     # or (b) creating a Machine object for the VM in self.spaces
 
@@ -96,18 +96,18 @@ class CreamceSpace(vcycle.BaseSpace):
 
     with subprocess.Popen('glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
       rawStatuses = p.read()
-      
-    os.remove(path)    
-      
+
+    os.remove(path)
+
     for oneStatus in self.parseGliteCeJobStatus(rawStatuses):
-    
+
       try:
         with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(oneStatus['JobID'], '')) as f:
           machineName = f.read().strip()
       except:
         vcycle.vacutils.logLine('Failed to read jobid file for %s!' % oneStatus['JobID'])
         continue
-        
+
       # Collect values saved in machine's directory
 
       try:
@@ -115,12 +115,12 @@ class CreamceSpace(vcycle.BaseSpace):
       except:
         vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
         continue
-        
-      # Map CREAM Status to Vcycle state        
+
+      # Map CREAM Status to Vcycle state
       if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):
         state = vcycle.MachineState.starting
       elif oneStatus['Status'] in ('RUNNING','REALLY-RUNNING'):
-        state = vcycle.MachineState.running        
+        state = vcycle.MachineState.running
       elif oneStatus['Status'] in ('DONE-FAILED','ABORTED'):
         state = vcycle.MachineState.failed
       elif oneStatus['Status'] in ('DONE-OK','CANCELLED'):
@@ -167,10 +167,10 @@ class CreamceSpace(vcycle.BaseSpace):
     return jobs
 
   def createMachine(self, machineName, machinetypeName, zone = None):
-    # Cream CE-specific job submission 
-    
-       
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl', 
+    # Cream CE-specific job submission
+
+
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl',
                                '''[
 Type = "Job";
 JobType = "Normal";
@@ -181,7 +181,7 @@ InputSandbox = {"/var/lib/vcycle/machines/''' + machineName + '''/user_data"};
 OutputSandbox = {"stdout.log", "stderr.log"};
 OutputSandboxBaseDestURI = "gsiftp://localhost";
 ]
-''', 
+''',
                                0600, '/var/lib/vcycle/tmp')
 
     if self.url.startswith('https://'):
@@ -190,7 +190,7 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
       endpoint = self.url
 
     try:
-      with subprocess.Popen('glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' % 
+      with subprocess.Popen('glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' %
                           (endpoint, '/var/lib/vcycle/machines/' + machineName + '/jdl'),
                           shell=True, stdout=subprocess.PIPE).stdout as p:
         jobID = p.read().strip()
@@ -202,7 +202,7 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
 
     if not jobID:
       raise CreamceError('Could not get Job ID from %s job submission response' % machineName)
-      
+
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobid', jobID, 0600, '/var/lib/vcycle/tmp')
 
     vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID,''), machineName, 0600, '/var/lib/vcycle/tmp')
@@ -223,7 +223,7 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
 
     try:
       jobID = open('/var/lib/vcycle/machines/' + machineName + '/jobid', 'r').read().strip()
-      
+
       # All we do is remove it from the list of jobids to ignore it from now on
       os.remove('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID, ''))
     except Exception as e:
