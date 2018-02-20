@@ -49,7 +49,7 @@ PYTHONDIR := $(shell python -c "from distutils.sysconfig import get_python_lib; 
 
 vcycle.tgz: $(TGZ_FILES)
 	mkdir -p TEMPDIR/vcycle TEMPDIR/vcycle/openstack
-	cp --parents $(TGZ_FILES) TEMPDIR/vcycle
+	for i in $(TGZ_FILES) ; do cp $$i TEMPDIR/vcycle/$i ; done
 	cd TEMPDIR ; $(GNUTAR) zcvf ../vcycle.tgz --owner=root --group=root vcycle
 	rm -R TEMPDIR
 
