@@ -1464,7 +1464,7 @@ class BaseSpace(object):
 
     # if shutdown time is none
     if (shutdowntime_job is None and self.shutdownTime is not None) or \
-        shutdowntime_job > self.shutdownTime:
+        (self.shutdownTime is not None and shutdowntime_job > self.shutdownTime):
       machine.setFileContents('jobfeatures/shutdowntime_job', str(self.shutdownTime))
       shutdowntime_job = self.shutdownTime
 
