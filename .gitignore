@@ -1,5 +1,8 @@
 # package file
 *.tgz
 
+# compiled python files
+*.pyc
+
 # Temporary rpm folder
 RPMTMP
