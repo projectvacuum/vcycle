@@ -175,23 +175,14 @@ class GlanceV2(GlanceBase):
     for image in response['images']:
       if (osShutdownTimeout is not None and
           image['os_shutdown_timeout'] is None):
-        self._addOsShutdownTimeout(image['id'], osShutdownTimeout)
+        self._patchOsShutdownTimeout(image['id'], 'add', osShutdownTimeout)
       elif (osShutdownTimeout is None and
           image['os_shutdown_timeout'] is not None):
-        self._delOsShutdownTimeout(image['id'])
+        self._patchOsShutdownTimeout(image['id'], 'remove')
       elif (osShutdownTimeout is not None and
           image['os_shutdown_timeout'] is not None and
           osShutdownTimeout != image['os_shutdown_timeout']):
-        self._repOsShutdownTimeout(image['id'], osShutdownTimeout)
-
-  def _addOsShutdownTimeout(self, imageID, osShutdownTimeout):
-    self._patchOsShutdownTimeout(imageID, 'add', osShutdownTimeout)
-
-  def _delOsShutdownTimeout(self, imageID):
-    self._patchOsShutdownTimeout(imageID, 'remove')
-
-  def _repOsShutdownTimeout(self, imageID, osShutdownTimeout):
-    self._patchOsShutdownTimeout(imageID, 'replace', osShutdownTimeout)
+        self._patchOsShutdownTimeout(image['id'], 'replace', osShutdownTimeout)
 
   def _patchOsShutdownTimeout(self, imageID, op, value = None):
     """ patch image value """
@@ -200,7 +191,6 @@ class GlanceV2(GlanceBase):
     if os.path.isdir('/etc/grid-security/certificates'):
       self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
 
-    vcycle.vacutils.logLine('{} {} {}'.format(imageID, op, value))
     self.curl.setopt(pycurl.CUSTOMREQUEST, 'PATCH')
     self.curl.setopt(pycurl.URL, str(self.imageURL + '/v2/images/' + imageID))
     self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
