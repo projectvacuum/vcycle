@@ -108,6 +108,11 @@ class OpenstackSpace(vcycle.BaseSpace):
           + spaceName + '] (' + str(e) + ')')
 
     try:
+      self.osShutdownTimeout = parser.get(spaceSectionName, 'os_shutdown_timeout')
+    except:
+      self.osShutdownTimeout = None
+
+    try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
       self.username = None
@@ -155,12 +160,13 @@ class OpenstackSpace(vcycle.BaseSpace):
     # after connecting)
     if self.glanceAPIVersion == '2':
       self.imageAPI = vcycle.openstack.image_api.GlanceV2(self.token, self.imageURL)
+      # update image additional properties
+      self.imageAPI.updateShutdownTimeout(self.osShutdownTimeout)
     elif self.glanceAPIVersion == '1':
       self.imageAPI = vcycle.openstack.image_api.GlanceV1(self.token, self.imageURL)
     else:
       raise OpenstackError('glanceAPIVersion %s not recongnised'
           % self.glanceAPIVersion)
-
 
     # Build dictionary of flavor details using API
     self._getFlavors()
