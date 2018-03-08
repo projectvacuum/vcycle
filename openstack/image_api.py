@@ -174,13 +174,13 @@ class GlanceV2(GlanceBase):
     response = self.getImageDetails()['response']
     for image in response['images']:
       if (osShutdownTimeout is not None and
-          image['os_shutdown_timeout'] is None):
+          'os_shutdown_timeout' not in image):
         self._patchOsShutdownTimeout(image['id'], 'add', osShutdownTimeout)
       elif (osShutdownTimeout is None and
-          image['os_shutdown_timeout'] is not None):
+          'os_shutdown_timeout' in image):
         self._patchOsShutdownTimeout(image['id'], 'remove')
       elif (osShutdownTimeout is not None and
-          image['os_shutdown_timeout'] is not None and
+          'os_shutdown_timeout' not in image and
           osShutdownTimeout != image['os_shutdown_timeout']):
         self._patchOsShutdownTimeout(image['id'], 'replace', osShutdownTimeout)
 
