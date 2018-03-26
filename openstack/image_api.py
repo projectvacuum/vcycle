@@ -162,6 +162,10 @@ class GlanceV2(GlanceBase):
     except Exception as e:
       raise OpenstackError('Failed to get image details (' + str(e) + ')')
 
+    # Any 2xx code is OK; otherwise raise an exception
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise OpenstackError('Image details query returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
+
     response = json.loads(outputBuffer.getvalue())
 
     return {
@@ -263,6 +267,10 @@ class GlanceV1(GlanceBase):
       self.curl.perform()
     except Exception as e:
       raise OpenstackError('Failed to get image details (' + str(e) + ')')
+
+    # Any 2xx code is OK; otherwise raise an exception
+    if self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+      raise OpenstackError('Image details query returns HTTP error code ' + str(self.curl.getinfo(pycurl.RESPONSE_CODE)))
 
     response = json.loads(outputBuffer.getvalue())
 
