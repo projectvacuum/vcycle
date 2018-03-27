@@ -683,3 +683,16 @@ class OpenstackSpace(vcycle.BaseSpace):
                        headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+
+  def shutdownOneMachine(self, machineName):
+      """ Send shutdown signal to one machine """
+      try:
+        self.httpRequest(
+                (self.computeURL + '/servers/'
+                + self.machines[machineName].uuidStr + '/action'),
+                method = 'POST',
+                headers = ['X-Auth-Token: ' + self.token],
+                jsonRequest = {"os-stop": ""})
+      except Exception as e:
+        raise vcycle.shared.VcycleError('Cannot shutdown ' + machineName
+                + ' via ' + self.computeURL + ' (' + str(e) + ')')
