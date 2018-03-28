@@ -1263,13 +1263,19 @@ class BaseSpace(object):
 
     return { 'headers' : outputHeaders, 'response' : response, 'raw' : str(outputBuffer.getvalue()), 'status' : self.curl.getinfo(pycurl.RESPONSE_CODE) }
 
-  def _deleteOneMachine(self, machineName):
+  def _deleteOneMachine(self, machineName, shutdownMessage = None):
 
     vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
                             str(self.machines[machineName].machinetypeName) + ', in state ' + str(self.machines[machineName].state))
 
     # record when this was tried (not when done, since don't want to overload service with failing deletes)
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+
+    if shutdownMessage and not os.path.exists('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message'):
+      try:
+        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600, '/var/lib/vcycle/tmp')
+      except:
+        pass
 
     # Call the subclass method specific to this space
     self.deleteOneMachine(machineName)
@@ -1293,7 +1299,7 @@ class BaseSpace(object):
           (self.maxStartingSeconds and
            machine.createdTime < int(time.time()) - self.maxStartingSeconds)):
         # We try to delete failed-to-start machines after maxStartingSeconds (default 3600)
-        self._deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName, '700 Failed to start')
 
       elif machine.state == MachineState.failed or \
            machine.state == MachineState.shutdown or \
@@ -1306,7 +1312,7 @@ class BaseSpace(object):
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].max_wallclock_seconds)):
         vcycle.vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
-        self._deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName, '700 Exceeded max_wallclock_seconds')
 
       elif machine.state == MachineState.running and \
            machine.machinetypeName in self.machinetypes and \
@@ -1320,7 +1326,7 @@ class BaseSpace(object):
             (machine.heartbeatTime < (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
            ):
         vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
-        self._deleteOneMachine(machineName)
+        self._deleteOneMachine(machineName, '700 Heartbeat file not updated')
 
       # Check shutdown times
       elif machine.state == MachineState.running and \
@@ -1336,7 +1342,7 @@ class BaseSpace(object):
             vcycle.vacutils.logLine(
                 'shutdown time ({}) for machine {} has passed'
                 .format(shutdowntime, machineName))
-          self._deleteOneMachine(machineName)
+          self._deleteOneMachine(machineName, '700 Passed shutdowntime')
 
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
