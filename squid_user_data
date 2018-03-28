@@ -124,7 +124,7 @@ Content-Disposition: attachment; filename="user_data_script"
 
 (
   # Needed for YANDEX.ru  Not sure about other sites?
-  #ethtool -K eth0 gso off gro off tso off
+  ethtool -K eth0 gso off gro off tso off
 
   yum -y install squid nano
 

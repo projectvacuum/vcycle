@@ -3,7 +3,7 @@
 #  shared.py - common functions, classes, and variables for Vcycle
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-7. All rights reserved.
+#  Copyright (c) 2013-8. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -1344,6 +1344,44 @@ class BaseSpace(object):
                 .format(shutdowntime, machineName))
           self._deleteOneMachine(machineName, '700 Passed shutdowntime')
 
+  def createProxiesFiles(self):
+    # Create proxies.pac and proxies.dat for the proxies machinetype VMs in this space
+
+    proxies = []
+
+    for machineName,machine in self.machines.iteritems():
+    
+      if machine.managedHere and \
+         machine.state == MachineState.running and \
+         machine.machinetypeName == 'proxies' and \
+         self.machinetypes[machine.machinetypeName].heartbeat_file and \
+         self.machinetypes[machine.machinetypeName].heartbeat_seconds and \
+         machine.startedTime and \
+         (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].fizzle_seconds)) and \
+         (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].heartbeat_seconds)) and \
+         (
+          (machine.heartbeatTime is not None) and
+          (machine.heartbeatTime > (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
+         ):
+        # An active, heartbeat producing proxy VM
+        proxies.append(machine.ip)
+
+    proxies.sort()
+
+    proxiesDatStr = ''
+    proxiesPacStr = 'function FindProxyForURL(url, host){\nreturn "PROXY '
+
+    for proxyIP in proxies:
+      proxiesDatStr += proxyIP + '\n'
+      proxiesPacStr += proxyIP + ':3128; '
+    
+    proxiesPacStr += '";\n}\n'
+
+    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/proxies.dat', proxiesDatStr, 0660, '/var/lib/vcycle/tmp')
+
+    if len(proxies):
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/proxies.pac', proxiesPacStr, 0660, '/var/lib/vcycle/tmp')
+
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
 
@@ -1663,7 +1701,8 @@ class BaseSpace(object):
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
     try:
-      open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'w').write(userDataContents)
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/user_data',
+                                 userDataContents, 0600, '/var/lib/vcycle/tmp')
     except:
       raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
 
@@ -1767,7 +1806,14 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
-
+      
+    if 'proxies' in self.machinetypes:
+      # This triggers creation of the proxies.cfg/proxies.dat
+      try:
+        self.createProxiesFiles()
+      except Exception as e:
+        vcycle.vacutils.logLine('Creating proxies files for ' + self.spaceName + ' fails: ' + str(e))
+      
     try:
       self.makeMachines()
     except Exception as e:

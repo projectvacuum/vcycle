@@ -2,7 +2,7 @@
 #  Apache httpd.conf include file for Vcycle
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-5. All rights reserved.
+#  Copyright (c) 2013-8. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -65,8 +65,9 @@ DocumentRoot "/var/lib/vcycle/machines"
 
 CustomLog logs/http--vcycle.log combined
 
-Alias          /machines/                  /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/glue2.json$ /var/lib/vcycle/spaces/$1/glue2.json
+Alias          /machines/                     /var/lib/vcycle/machines/
+AliasMatch    ^/spaces/([^/]*)/proxies\.cfg$  /var/lib/vcycle/spaces/$1/proxies.cfg
+AliasMatch    ^/spaces/([^/]*)/proxies\.dat$  /var/lib/vcycle/spaces/$1/proxies.dat
 Alias          /blank404error /dev/null
 
 <DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/glue2.json">
@@ -94,7 +95,8 @@ ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
 
 Alias          /machines/                  /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/glue2.json$ /var/lib/vcycle/spaces/$1/glue2.json
+AliasMatch    ^/spaces/([^/]*)/proxies\.cfg$  /var/lib/vcycle/spaces/$1/proxies.cfg
+AliasMatch    ^/spaces/([^/]*)/proxies\.dat$  /var/lib/vcycle/spaces/$1/proxies.dat
 Alias          /blank404error /dev/null
 
 <DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/glue2.json">
