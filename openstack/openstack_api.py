@@ -629,10 +629,7 @@ class OpenstackSpace(vcycle.BaseSpace):
                                     'machinetype'     : machinetypeName,
                                     'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : joboutputsURL,
                                     'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now,
-                    # but point them both to the joboutputs directory that we now provide
                   }
                 }
 

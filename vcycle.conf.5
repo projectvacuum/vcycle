@@ -378,12 +378,17 @@ created if the user_data_proxy_cert and user_data_proxy_key options
 are given.
 
 .B cvmfs_proxy_machinetype
-may be given with the name of a machinetype consisting of HTTP 
+may be given in a machinetype definition 
+with the name of another machinetype consisting of HTTP 
 caching proxies suitable for cvmfs. The list of proxies is made
-available to VMs via the ##user_data_option_cvmfs_proxy## substitution.
-Only machines with a valid heartbeat are included. If
-user_data_option_cvmfs_proxy is already given, then a semicolon
-separator and the original value are appended to
+available to VMs via the normal ##user_data_option_cvmfs_proxy## 
+substitution.
+Only machines with a valid heartbeat are included, and they are 
+identified by IP address in the format http://xxx.xxx.xxx.xxx:3128 and 
+separated by pipe ('|')
+characters so they are used in round-robin mode by cvmfs. 
+If user_data_option_cvmfs_proxy is also given, then a semicolon
+separator and the option's value are appended to
 the list of proxies obtained from the machinetype's list. This allows
 a static choice of backup proxies to be given, which will benefit from
 cvmfs's failover feature if none of the machinetype proxies are usable.
