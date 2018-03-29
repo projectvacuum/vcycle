@@ -66,10 +66,10 @@ DocumentRoot "/var/lib/vcycle/machines"
 CustomLog logs/http--vcycle.log combined
 
 Alias          /machines/ /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/machinetypelists/([^/]*) /var/lib/vcycle/spaces/$1/machinetypelists/$2
+AliasMatch    ^/spaces/([^/]*)/heartbeatmachines/([^/]*) /var/lib/vcycle/spaces/$1/heartbeatmachines/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/machinetypelists/">
+<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/heartbeatmachines/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
@@ -94,10 +94,10 @@ ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
 
 Alias          /machines/ /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/machinetypelists/([^/]*) /var/lib/vcycle/spaces/$1/machinetypelists/$2
+AliasMatch    ^/spaces/([^/]*)/heartbeatmachines/([^/]*) /var/lib/vcycle/spaces/$1/heartbeatmachines/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/machinetypelists/">
+<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/heartbeatmachines/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
