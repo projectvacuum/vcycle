@@ -1349,11 +1349,11 @@ class BaseSpace(object):
                 .format(shutdowntime, machineName))
           self._deleteOneMachine(machineName, '700 Passed shutdowntime')
 
-  def createHeartbeatMachineLists(self):
+  def createHeartbeatMachines(self):
     # Create a list of machines in each machinetype, to be populated
     # with machine names of machines with a current heartbeat
     try:
-      os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypelists',
+      os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     except:
       pass
@@ -1384,7 +1384,7 @@ class BaseSpace(object):
 
       # Sort the list by heartbeat time, newest first, then write as a file
       fileContents.sort(reverse=True)
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypelists/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
       
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
@@ -1683,7 +1683,7 @@ class BaseSpace(object):
     if self.machinetypes[machinetypeName].root_image and (self.machinetypes[machinetypeName].root_image.startswith('http://') or self.machinetypes[machinetypeName].root_image.startswith('https://')):
       rootImageURL = self.machinetypes[machinetypeName].root_image
     else:
-      rootImageURL = None
+      rootImageURL = None    
       
     userDataOptions = self.machinetypes[machinetypeName].options
     
@@ -1713,20 +1713,21 @@ class BaseSpace(object):
                                  % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
         
     try:
-      userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
+      userDataContents = vcycle.vacutils.createUserData(shutdownTime         = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName,
-                                                        options            = userDataOptions,
-                                                        versionString      = 'Vcycle ' + vcycleVersion,
-                                                        spaceName          = self.spaceName,
-                                                        machinetypeName    = machinetypeName,
-                                                        userDataPath       = self.machinetypes[machinetypeName].user_data,
-                                                        rootImageURL       = rootImageURL,
-                                                        hostName           = machineName,
-                                                        uuidStr            = None,
-                                                        machinefeaturesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                                        jobfeaturesURL     = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                                        joboutputsURL      = joboutputsURL
+                                                        machinetypePath      = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName,
+                                                        options              = userDataOptions,
+                                                        versionString        = 'Vcycle ' + vcycleVersion,
+                                                        spaceName            = self.spaceName,
+                                                        machinetypeName      = machinetypeName,
+                                                        userDataPath         = self.machinetypes[machinetypeName].user_data,
+                                                        rootImageURL         = rootImageURL,
+                                                        hostName             = machineName,
+                                                        uuidStr              = None,
+                                                        machinefeaturesURL   = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+                                                        jobfeaturesURL       = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
+                                                        joboutputsURL        = joboutputsURL,
+                                                        heartbeatMachinesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/spaces/' + self.spaceName + '/heartbeatmachines'
                                                        )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
@@ -1839,9 +1840,9 @@ class BaseSpace(object):
       # We carry on because this isn't fatal
       
     try:
-       self.createHeartbeatMachineLists()
+       self.createHeartbeatMachines()
     except Exception as e:
-      vcycle.vacutils.logLine('Creating machinetype heartbeat lists for ' + self.spaceName + ' fails: ' + str(e))
+      vcycle.vacutils.logLine('Creating heartbeat machine lists for ' + self.spaceName + ' fails: ' + str(e))
       
     try:
       self.makeMachines()

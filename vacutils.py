@@ -189,7 +189,7 @@ def readPipe(pipeFile, pipeURL, versionString, updatePipes = False):
    return pipeDict
 
 def createUserData(shutdownTime, machinetypePath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr,
-                   machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None, rootImageURL = None):
+                   machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None, rootImageURL = None, heartbeatMachinesURL = None):
 
    # Get raw user_data template file, either from network ...
    if (userDataPath[0:7] == 'http://') or (userDataPath[0:8] == 'https://'):
@@ -248,8 +248,11 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
    if joboutputsURL:
      userDataContents = userDataContents.replace('##user_data_joboutputs_url##', joboutputsURL)
 
-   if rootImageURL :
+   if rootImageURL:
      userDataContents = userDataContents.replace('##user_data_root_image_url##', rootImageURL)
+
+   if heartbeatMachinesURL:
+     userDataContents = userDataContents.replace('##user_data_heartbeat_machines_url##', heartbeatMachinesURL)
 
    # Deprecated vmtype/VM/VMLM terminology
    userDataContents = userDataContents.replace('##user_data_vmtype##',           machinetypeName)
@@ -876,6 +879,9 @@ def updateSpaceInGOCDB(siteName, spaceName, serviceType, certPath, keyPath, caPa
      curl.perform()
    except Exception as e:
      raise VacutilsError('Failed to update service data (' + str(e) + ')')
+
+   if curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
+     raise VacutilsError('PUT %s fails with HTTP code %d!' % (curl.URL, curl.getinfo(pycurl.RESPONSE_CODE)))
 
 # WE DON'T DO THIS YET SINCE GOCDB DOES NOT SUPPORT CREATING ENDPOINTS THROUGH THE API!
 #
