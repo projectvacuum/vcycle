@@ -747,6 +747,11 @@ class Machinetype:
     except Exception as e:
       raise VcycleError('Failed to parse heartbeat_seconds in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
+    try:
+      self.cvmfsProxyMachinetype = parser.get(machinetypeSectionName, 'cvmfs_proxy_machinetype')
+    except:
+      self.cvmfsProxyMachinetype = None
+
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
                parser.get(machinetypeSectionName, 'log_machineoutputs').lower() == 'true':
       self.log_joboutputs = True
@@ -849,14 +854,14 @@ class Machinetype:
        parser.get(machinetypeSectionName,'user_data_proxy').lower() == 'true':
       self.options['user_data_proxy'] = True
     else:
-      self.options['user_data_proxy'] = False
+      self.options['user_data_proxy'] = False    
 
     if parser.has_option(machinetypeSectionName, 'legacy_proxy') and \
        parser.get(machinetypeSectionName, 'legacy_proxy').lower() == 'true':
       self.options['legacy_proxy'] = True
     else:
       self.options['legacy_proxy'] = False
-
+    
     # Just for this instance, so Total for this machinetype in one space
     self.totalMachines      = 0
     self.totalProcessors    = 0
@@ -1344,44 +1349,43 @@ class BaseSpace(object):
                 .format(shutdowntime, machineName))
           self._deleteOneMachine(machineName, '700 Passed shutdowntime')
 
-  def createProxiesFiles(self):
-    # Create proxies.pac and proxies.dat for the proxies machinetype VMs in this space
+  def createHeartbeatMachineLists(self):
+    # Create a list of machines in each machinetype, to be populated
+    # with machine names of machines with a current heartbeat
+    try:
+      os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypelists',
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    except:
+      pass
 
-    proxies = []
+    for machinetypeName in self.machinetypes:
+       self.machinetypes[machinetypeName].heartbeatMachines = []
 
     for machineName,machine in self.machines.iteritems():
-    
       if machine.managedHere and \
          machine.state == MachineState.running and \
-         machine.machinetypeName == 'proxies' and \
+         machine.machinetypeName in self.machinetypes and \
          self.machinetypes[machine.machinetypeName].heartbeat_file and \
          self.machinetypes[machine.machinetypeName].heartbeat_seconds and \
          machine.startedTime and \
-         (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].fizzle_seconds)) and \
-         (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].heartbeat_seconds)) and \
          (
           (machine.heartbeatTime is not None) and
           (machine.heartbeatTime > (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
          ):
-        # An active, heartbeat producing proxy VM
-        proxies.append(machine.ip)
+        # An active machine producing its heartbeat
+        self.machinetypes[machine.machinetypeName].heartbeatMachines.append(machineName)
 
-    proxies.sort()
+    # Save these lists as files accessible through the web server    
+    for machinetypeName in self.machinetypes:
+      fileContents = []
+      for machineName in self.machinetypes[machinetypeName].heartbeatMachines:
+        fileContents.append('%d %s %s\n' 
+                        % (self.machines[machineName].heartbeatTime, machineName, self.machines[machineName].ip))
 
-    proxiesDatStr = ''
-    proxiesPacStr = 'function FindProxyForURL(url, host){\nreturn "PROXY '
-
-    for proxyIP in proxies:
-      proxiesDatStr += proxyIP + '\n'
-      proxiesPacStr += proxyIP + ':3128; '
-    
-    proxiesPacStr += '";\n}\n'
-
-    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/proxies.dat', proxiesDatStr, 0660, '/var/lib/vcycle/tmp')
-
-    if len(proxies):
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/proxies.pac', proxiesPacStr, 0660, '/var/lib/vcycle/tmp')
-
+      # Sort the list by heartbeat time, newest first, then write as a file
+      fileContents.sort(reverse=True)
+      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypelists/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
+      
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
 
@@ -1680,12 +1684,39 @@ class BaseSpace(object):
       rootImageURL = self.machinetypes[machinetypeName].root_image
     else:
       rootImageURL = None
+      
+    userDataOptions = self.machinetypes[machinetypeName].options
+    
+    if self.machinetypes[machinetypeName].cvmfsProxyMachinetype:
+      # If we define a cvmfs_proxy_machinetype, then use the IPs of heartbeat producing
+      # machines of that machinetype to create the user_data_option_cvmfs_proxy
+      # Any existing value for that option is appended to the list, using the semicolon syntax
+      
+      if self.machinetypes[machinetypeName].cvmfsProxyMachinetype not in self.machinetypes:
+        raise VcycleError('Machinetype %s (cvmfs_proxy_machinetype) does not exist!'
+                               % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
+                               
+      ipList = []
+      for machineName in self.machinetypes[self.machinetypes[machinetypeName].cvmfsProxyMachinetype].heartbeatMachines:
+        ipList.append('http://' + self.machines[machineName].ip + ':3128')
 
+      if ipList:
+        # We only change any existing value if we found machines of cvmfs_proxy_machinetype
+        if 'user_data_option_cvmfs_proxy' not in userDataOptions:
+          userDataOptions['user_data_option_cvmfs_proxy'] = ''
+        else:
+          userDataOptions['user_data_option_cvmfs_proxy'] = ';' + userDataOptions['user_data_option_cvmfs_proxy']
+
+        userDataOptions['user_data_option_cvmfs_proxy'] = '|'.join(ipList) + userDataOptions['user_data_option_cvmfs_proxy']
+      else:
+        vcycle.vacutils.logLine('No machines found in machinetype %s (cvmfs_proxy_machinetype) - using defaults'
+                                 % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
+        
     try:
       userDataContents = vcycle.vacutils.createUserData(shutdownTime       = int(time.time() +
                                                                               self.machinetypes[machinetypeName].max_wallclock_seconds),
                                                         machinetypePath    = '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + machinetypeName,
-                                                        options            = self.machinetypes[machinetypeName].options,
+                                                        options            = userDataOptions,
                                                         versionString      = 'Vcycle ' + vcycleVersion,
                                                         spaceName          = self.spaceName,
                                                         machinetypeName    = machinetypeName,
@@ -1807,12 +1838,10 @@ class BaseSpace(object):
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
       
-    if 'proxies' in self.machinetypes:
-      # This triggers creation of the proxies.cfg/proxies.dat
-      try:
-        self.createProxiesFiles()
-      except Exception as e:
-        vcycle.vacutils.logLine('Creating proxies files for ' + self.spaceName + ' fails: ' + str(e))
+    try:
+       self.createHeartbeatMachineLists()
+    except Exception as e:
+      vcycle.vacutils.logLine('Creating machinetype heartbeat lists for ' + self.spaceName + ' fails: ' + str(e))
       
     try:
       self.makeMachines()

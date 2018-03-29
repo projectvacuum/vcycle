@@ -65,12 +65,11 @@ DocumentRoot "/var/lib/vcycle/machines"
 
 CustomLog logs/http--vcycle.log combined
 
-Alias          /machines/                     /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/proxies\.cfg$  /var/lib/vcycle/spaces/$1/proxies.cfg
-AliasMatch    ^/spaces/([^/]*)/proxies\.dat$  /var/lib/vcycle/spaces/$1/proxies.dat
+Alias          /machines/ /var/lib/vcycle/machines/
+AliasMatch    ^/spaces/([^/]*)/machinetypelists/([^/]*) /var/lib/vcycle/spaces/$1/machinetypelists/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/glue2.json">
+<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/machinetypelists/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
@@ -94,12 +93,11 @@ CustomLog logs/https-vcycle.log combined
 ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
 
-Alias          /machines/                  /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/proxies\.cfg$  /var/lib/vcycle/spaces/$1/proxies.cfg
-AliasMatch    ^/spaces/([^/]*)/proxies\.dat$  /var/lib/vcycle/spaces/$1/proxies.dat
+Alias          /machines/ /var/lib/vcycle/machines/
+AliasMatch    ^/spaces/([^/]*)/machinetypelists/([^/]*) /var/lib/vcycle/spaces/$1/machinetypelists/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/glue2.json">
+<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/machinetypelists/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
