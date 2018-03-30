@@ -261,6 +261,8 @@ is 0, then only the existence of the file will be checked. Default 0.
 gives the name of another machinetype consisting of HTTP caching proxies
 suitable for cvmfs running inside the VMs. The list of proxies is made
 available to VMs via the ##user_data_option_cvmfs_proxy## substitution.
+If :PORTNUMBER is appended to the name of the machinetype, then that 
+port number will be used in the cvmfs proxy lists Vcycle generates.
 See 
 .B USER_DATA SUBSTITUTIONS
 for more details.
@@ -384,9 +386,12 @@ caching proxies suitable for cvmfs. The list of proxies is made
 available to VMs via the normal ##user_data_option_cvmfs_proxy## 
 substitution.
 Only machines with a valid heartbeat are included, and they are 
-identified by IP address in the format http://xxx.xxx.xxx.xxx:3128 and 
+identified by IP address in the format http://xxx.xxx.xxx.xxx:ppp and 
 separated by pipe ('|')
-characters so they are used in round-robin mode by cvmfs. 
+characters so they are used in round-robin mode by cvmfs. For
+security reasons, these proxies are accessed on port 280 by default 
+not 3128. This port number may be changed by appending :PORTNUMBER 
+to the given machinetype name. 
 If user_data_option_cvmfs_proxy is also given, then a semicolon
 separator and the option's value are appended to
 the list of proxies obtained from the machinetype's list. This allows
@@ -416,9 +421,8 @@ within the VM.
 is the HTTP(S) URL from which a list of the machines in this space with
 the same machinetype as this machine can be found. Only machines with a
 current heartbeat are included. The list consists of the heartbeat time
-in Unix seconds, 
-the machine FQDN, and the local IP address of the machine within the remote
-cloud.
+in Unix seconds, the machine name, and the local IP address of the machine 
+within the remote cloud.
 .br
 .B ##user_data_machinetype##
 is the name of the machinetype of this VM.

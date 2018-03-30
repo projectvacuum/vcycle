@@ -48,7 +48,7 @@ write_files:
         icp_access deny all
 
         # One cache_peer line with the IP address of the other Squids with peer with
-        #cache_peer IPADDR sibling 3128 3130 default
+        #cache_peer IPADDR sibling 80 3130 default
 
         acl SSL_ports port 443
         acl Safe_ports port 80		# http
@@ -95,7 +95,9 @@ write_files:
         http_access deny all
 
         # Squid normally listens to port 3128
-        http_port ##HTTP_PORT##
+        http_port 80
+        http_port 280
+        http_port 3128
 
         # We recommend you to use at least the following line.
         hierarchy_stoplist cgi-bin ?
@@ -143,11 +145,12 @@ Content-Disposition: attachment; filename="user_data_script"
 
   ipnet=$(($ipaddr1 & $ipmask1)).$(($ipaddr2 & $ipmask2)).$(($ipaddr3 & $ipmask3)).$(($ipaddr4 & $ipmask4))
 
+  iptables -I INPUT -s $ipnet/$ipmask -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+  iptables -I INPUT -s $ipnet/$ipmask -p tcp -m state --state NEW -m tcp --dport 280 -j ACCEPT
   iptables -I INPUT -s $ipnet/$ipmask -p tcp -m state --state NEW -m tcp --dport 3128 -j ACCEPT
   iptables -I INPUT -s $ipnet/$ipmask -p udp -m state --state NEW -m udp --dport 3130 -j ACCEPT
 
-  sed -e 's/##HTTP_PORT##/3128/' \
-      -e "s/##HOSTNAME##/`hostname`/" \
+  sed -e "s/##HOSTNAME##/`hostname`/" \
       -e "s^##LOCALNET##^$ipnet/$ipmask^" \
       /etc/squid/squid.conf.template > /etc/squid/squid.conf
 

@@ -748,9 +748,20 @@ class Machinetype:
       raise VcycleError('Failed to parse heartbeat_seconds in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
     try:
-      self.cvmfsProxyMachinetype = parser.get(machinetypeSectionName, 'cvmfs_proxy_machinetype')
+      s = parser.get(machinetypeSectionName, 'cvmfs_proxy_machinetype')
     except:
-      self.cvmfsProxyMachinetype = None
+      self.cvmfsProxyMachinetype     = None
+      self.cvmfsProxyMachinetypePort = None
+    else:
+      if ':' in s:
+        try:
+          self.cvmfsProxyMachinetype = s.split(':')[0]
+          self.cvmfsProxyMachinetypePort = int(s.split(':')[1])
+        except: 
+          raise VcycleError('Failed to parse cmvfs_proxy_machinetype = ' + s + ' in [' + machinetypeSectionName + '] (' + str(e) + ')')
+      else:
+        self.cvmfsProxyMachinetype     = s
+        self.cvmfsProxyMachinetypePort = 280
 
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
                parser.get(machinetypeSectionName, 'log_machineoutputs').lower() == 'true':
@@ -978,7 +989,15 @@ class Machinetype:
   def makeMachineName(self):
     """Construct a machine name including the machinetype"""
 
-    return 'vcycle-' + self.machinetypeName + '-' + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
+    while True:
+      machineName = 'vcycle-' + self.machinetypeName + '-' + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))      
+
+      if not os.path.exists('/var/lib/vcycle/machines/' + machineName):
+        break
+  
+      vcycle.vacutils.logLine('New random machine name ' + machineName + ' already exists! Trying another name ...')
+
+    return machineName
 
 class BaseSpace(object):
 
@@ -1628,9 +1647,9 @@ class BaseSpace(object):
         vcycle.vacutils.logLine('Free capacity found for ' + bestMachinetypeName + ' within ' + self.spaceName + ' ... creating')
 
         # This tracks creation attempts, whether successful or not
-        creationsThisCycle += self.machinetypes[machinetypeName].processors
-        self.machinetypes[machinetypeName].startingProcessors += self.machinetypes[machinetypeName].processors
-        self.machinetypes[machinetypeName].notPassedFizzle += 1
+        creationsThisCycle += self.machinetypes[bestMachinetypeName].processors
+        self.machinetypes[bestMachinetypeName].startingProcessors += self.machinetypes[bestMachinetypeName].processors
+        self.machinetypes[bestMachinetypeName].notPassedFizzle += 1
 
         try:
           self._createMachine(bestMachinetypeName)
@@ -1697,8 +1716,8 @@ class BaseSpace(object):
                                % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
                                
       ipList = []
-      for machineName in self.machinetypes[self.machinetypes[machinetypeName].cvmfsProxyMachinetype].heartbeatMachines:
-        ipList.append('http://' + self.machines[machineName].ip + ':3128')
+      for heartbeatMachineName in self.machinetypes[self.machinetypes[machinetypeName].cvmfsProxyMachinetype].heartbeatMachines:
+        ipList.append('http://%s:%d' % (self.machines[heartbeatMachineName].ip, self.machinetypes[machinetypeName].cvmfsProxyMachinetypePort))
 
       if ipList:
         # We only change any existing value if we found machines of cvmfs_proxy_machinetype
@@ -1742,7 +1761,7 @@ class BaseSpace(object):
     try:
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
-      vcycle.vacutils.logLine('Machine creation fails with: ' + str(e))
+      vcycle.vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
 
     # MJF. Some values may be set by self.createMachine() from the API!
 
