@@ -651,11 +651,13 @@ class Machinetype:
       self.lastAbortTime = int(f.read().strip())
       f.close()
 
-    if parser.has_option(machinetypeSectionName, 'vacuum_pipe_url'):
-      self.vacuum_pipe_url = parser.get(machinetypeSectionName, 'vacuum_pipe_url')
-      self._vacuumInit(parser, machinetypeSectionName)
-    else:
-      self.vacuum_pipe_url = None
+###
+### THIS GETS REMOVED WHEN WE ADD vacuum_pipe SECTIONS IN THE CONFIG!!!!
+#    if parser.has_option(machinetypeSectionName, 'vacuum_pipe_url'):
+#      self.vacuum_pipe_url = parser.get(machinetypeSectionName, 'vacuum_pipe_url')
+#      self._vacuumInit(parser, machinetypeSectionName)
+#    else:
+#      self.vacuum_pipe_url = None
 
     try:
       self.root_image = parser.get(machinetypeSectionName, 'root_image')
@@ -882,96 +884,6 @@ class Machinetype:
     self.weightedMachines   = 0.0
     self.notPassedFizzle    = 0
 
-  def _vacuumInit(self, parser, machinetypeSectionName):
-    """ Read configuration settings from a vacuum pipe """
-
-    try:
-      vacuumPipe = vcycle.vacutils.readPipe(
-          '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/'
-          + self.machinetypeName + '/vacuum.pipe',
-          self.vacuum_pipe_url,
-          'vcycle ' + vcycleVersion,
-          updatePipes = True)
-    except Exception as e:
-      # If a vacuum pipe is given but cannot be read disable the machinetype
-      vcycle.vacutils.logLine("Cannot read vacuum_pipe_url ("
-          + self.vacuum_pipe_url + ": " + str(e) + ") - machinetype disabled!")
-      parser.set(machinetypeSectionName, 'target_share', '0.0')
-      return
-
-    acceptedOptions = [
-        'accounting_fqan',
-        'backoff_seconds',
-        'cache_seconds',
-        'container_command',
-        'cvmfs_repositories',
-        'fizzle_seconds',
-        'disk_gb_per_processor',
-        'heartbeat_file',
-        'heartbeat_seconds',
-        'image_signing_dn',
-        'legacy_proxy',
-        'machine_model',
-        'max_processors',
-        'max_wallclock_seconds',
-        'min_processors',
-        'min_wallclock_seconds',
-        'root_device',
-        'root_image',
-        'scratch_device',
-        'tmp_binds',
-        'user_data',
-        'user_data_proxy'
-        ]
-
-    # Go through vacuumPipe adding options if not already present from configuration files
-    for optionRaw in vacuumPipe:
-      option = str(optionRaw)
-      value  = str(vacuumPipe[optionRaw])
-
-      # Skip if option already exists - configuration files take precedence
-      if parser.has_option(machinetypeSectionName, option):
-        continue
-
-      # Check option is one we accept
-      if not option.startswith('user_data_file_' ) and \
-         not option.startswith('user_data_option_' ) and \
-         not option in acceptedOptions:
-        vcycle.vacutils.logLine('Option %s is not accepted from vacuum pipe - ignoring!' % option)
-        continue
-
-      # Any options which specify filenames on the hypervisor must be checked here
-      if (option.startswith('user_data_file_' )  or
-          option ==         'cvmfs_repositories' or
-          option ==         'heartbeat_file'   ) and '/' in value:
-        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" - ignoring!'
-            % (option, self.vacuum_pipe_url))
-        continue
-
-      elif (option == 'user_data' or option == 'root_image') and '/../' in value:
-        vcycle.vacutils.logLine('Option %s in %s cannot contain "/../" - ignoring!'
-            % (option, machinetype['vacuum_pipe_url']))
-        continue
-
-      elif option == 'user_data' and '/' in value and \
-         not value.startswith('http://') and \
-         not value.startswith('https://'):
-        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
-            % (option, machinetype['vacuum_pipe_url']))
-        continue
-
-      elif option == 'root_image' and '/' in value and \
-         not value.startswith('docker://') and \
-         not value.startswith('/cvmfs/') and \
-         not value.startswith('http://') and \
-         not value.startswith('https://'):
-        vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... or /cvmfs/... or docker://... - ignoring!'
-            % (option, machinetype['vacuum_pipe_url']))
-        continue
-
-      # if all OK, then can set value as if from configuration files
-      parser.set(machinetypeSectionName, option, value)
-
   def setLastAbortTime(self, abortTime):
 
     if abortTime > self.lastAbortTime:
@@ -1038,6 +950,24 @@ class BaseSpace(object):
         raise VcycleError('Failed to check parse shutdown_time in ['
             + spaceSectionName + '] (' + str(e) + ')')
 
+    # First go through the vacuum_pipe sections for this space, creating
+    # machinetype sections in the configuration on the fly
+    for vacuumPipeSectionName in parser.sections():
+      try:
+        (sectionType, spaceTemp, machinetypeNamePrefix) = vacuumPipeSectionName.lower().split(None,2)
+      except:
+        continue
+
+      if spaceTemp != spaceName or sectionType != 'vacuum_pipe':
+        continue
+
+      try:
+        self._expandVacuumPipe(parser, vacuumPipeSectionName, machinetypeNamePrefix)
+      except Exception as e:
+        raise VcycleError('Failed expanding vacuum pipe [' + vacuumPipeSectionName + ']: ' + str(e))
+
+    # Now go through the machinetypes for this space in the configuration,
+    # possibly including ones created from vacuum pipes
     self.machinetypes = {}
 
     for machinetypeSectionName in parser.sections():
@@ -1069,6 +999,126 @@ class BaseSpace(object):
 
     # all the Vcycle-created VMs in this space
     self.machines = {}
+
+  def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix):
+    """ Read configuration settings from a vacuum pipe """
+
+    acceptedOptions = [
+        'accounting_fqan',
+        'backoff_seconds',
+        'cache_seconds',
+        'cvmfs_repositories',
+        'fizzle_seconds',
+        'heartbeat_file',
+        'heartbeat_seconds',
+        'image_signing_dn',
+        'legacy_proxy',
+        'max_processors',
+        'max_wallclock_seconds',
+        'min_processors',
+        'min_wallclock_seconds',
+        'root_device',
+        'root_image',
+        'scratch_device',
+        'user_data',
+        'user_data_proxy'
+        ]
+
+    try:
+      vacuumPipeURL = parser.get(vacuumPipeSectionName, 'vacuum_pipe_url')
+    except:
+      raise VcycleError('Section vacuum_pipe ' + machinetypeNamePrefix + ' in space ' + spaceName + ' has no vacuum_pipe_url option!')
+
+    # This is the total in the local configuation, for this pipe and its machinetypes
+    try:
+      totalTargetShare = float(parser.get(vacuumPipeSectionName, 'target_share').strip())
+    except:
+      totalTargetShare = 0.0
+
+    try:
+      vacuumPipe = vcycle.vacutils.readPipe(
+          '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/'
+          + machinetypeNamePrefix + '/vacuum.pipe',
+          vacuumPipeURL,
+          'vcycle ' + vcycleVersion,
+          updatePipes = True)
+    except Exception as e:
+      raise VcycleError(vacuumPipeURL + ' given but failed reading/updating the pipe: ' + str(e))
+
+    # This is the total in the remote pipe file, for the machinetypes it defines
+    totalPipeTargetShare = 0.0
+              
+    # First pass to get total target shares in the remote vacuum pipe
+    for pipeMachinetype in vacuumPipe['machinetypes']:
+      try:
+        totalPipeTargetShare += float(pipeMachinetype['target_share'])
+      except:
+        pass
+
+    # Second pass to add options to the relevant machinetype sections
+    for pipeMachinetype in vacuumPipe['machinetypes']:
+
+      try:
+        suffix = str(pipeMachinetype['suffix'])
+      except:
+        print "suffix is missing from one machinetype within " + vacuumPipeURL + " - skipping!"
+        continue
+                
+      try:
+        parser.add_section('machinetype ' + self.spaceName + ' ' + machinetypeNamePrefix + '-' + suffix)
+      except:
+        # Ok if it already exists
+        pass
+                
+      # Record path to machinetype used to find the files on local disk
+      parser.set('machinetype ' + self.spaceName + ' ' + machinetypeNamePrefix + '-' + suffix,
+                 'machinetype_path', '/var/lib/vcycle/spaces/' + self.spaceName + '/' +  machinetypeNamePrefix)
+
+      # Go through vacuumPipe adding options if not already present from configuration files
+      for optionRaw in pipeMachinetype:
+        option = str(optionRaw)
+        value  = str(pipeMachinetype[optionRaw])
+
+        # Skip if option already exists - configuration files take precedence
+        if parser.has_option(vacuumPipeeSectionName, option):
+          continue
+
+        # Check option is one we accept
+        if not option.startswith('user_data_file_' ) and \
+           not option.startswith('user_data_option_' ) and \
+           not option in acceptedOptions:
+          vcycle.vacutils.logLine('Option %s is not accepted from vacuum pipe - ignoring!' % option)
+          continue
+
+        # Any options which specify filenames on the hypervisor must be checked here
+        if (option.startswith('user_data_file_' )  or
+            option ==         'heartbeat_file'   ) and '/' in value:
+          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" - ignoring!'
+             % (option, vacuumPipeURL))
+          continue
+
+        elif (option == 'user_data' or option == 'root_image') and '/../' in value:
+          vcycle.vacutils.logLine('Option %s in %s cannot contain "/../" - ignoring!'
+             % (option, vacuumPipeURL))
+          continue
+
+        elif option == 'user_data' and '/' in value and \
+           not value.startswith('http://') and \
+           not value.startswith('https://'):
+          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
+             % (option, vacuumPipeURL))
+          continue
+
+        elif option == 'root_image' and '/' in value and \
+           not value.startswith('http://') and \
+           not value.startswith('https://'):
+          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
+             % (option, vacuumPipeURL))
+          continue
+
+        # if all OK, then can set value as if from configuration files
+        parser.set('machinetype ' + self.spaceName + ' ' + machinetypeNamePrefix + '-' + suffix, 
+                   option, value)
 
   def findMachinesWithFile(self, fileName):
     # Return a list of machine names that have the given fileName
@@ -1962,10 +2012,10 @@ def readConf():
       else:
         spaces[spaceName].https_port = 443
 
-    elif sectionType != 'machinetype':
+    elif sectionType != 'machinetype' and sectionType != 'vacuum_pipe':
       raise VcycleError('Section type ' + sectionType + 'not recognised')
 
-  # else: Skip over machinetype sections, which are parsed during the class initialization
+  # else: Skip over vacuum_pipe and machinetype sections, which are parsed during the space class initialization
 
 def cleanupMachines():
   """ Go through /var/lib/vcycle/machines deleting/saved expired directory trees """
@@ -2106,3 +2156,4 @@ def cleanupJoboutputs():
             vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/joboutputs/' + spaceDir + '/' +
                                     machinetypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
 
+localhost.work: 
