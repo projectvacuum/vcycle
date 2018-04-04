@@ -72,8 +72,8 @@ class GoogleSpace(vcycle.BaseSpace):
     # Google-specific initialization
 
     # Always has to be an explicit maximum, so default 1 if not given in [space ...] or [machinetype ...]
-    if self.max_processors is None:
-      self.max_processors = 1
+    if self.processors_limit is None:
+      self.processors_limit = 1
 
     try:
       self.project_id = parser.get(spaceSectionName, 'project_id')
@@ -156,7 +156,7 @@ class GoogleSpace(vcycle.BaseSpace):
 
     for machinetypeName in self.machinetypes:
       try:
-        self.machinetypes[machinetypeName].processors = self._googleMachineTypeProcessors(self.machinetypes[machinetypeName].flavor_name)
+        self.machinetypes[machinetypeName].processors = self._googleMachineTypeProcessors(self.machinetypes[machinetypeName].flavor_names[0])
       except:
         pass
 
@@ -472,7 +472,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
         disk_gb_per_processor = self.machinetypes[machinetypeName].disk_gb_per_processor
 
       request = { 'name'        : machineName,
-                  'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_name),
+                  'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_names[0]),
                   'disks' : [
                               {
                                 'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].processors,

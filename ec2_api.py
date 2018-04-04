@@ -347,7 +347,7 @@ class Ec2Space(vcycle.BaseSpace):
                       'MaxCount'     : '1',
                       'UserData'     : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                       'ImageId'      : self.getImageID(machinetypeName),
-                      'InstanceType' : self.machinetypes[machinetypeName].flavor_name }
+                      'InstanceType' : self.machinetypes[machinetypeName].flavor_names[0] }
 
       if self.machinetypes[machinetypeName].root_public_key:
         formRequest['KeyName'] = self.getKeyPairName(machinetypeName)

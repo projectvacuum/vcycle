@@ -2,8 +2,9 @@
 #
 #  openstack_api.py - an OpenStack plugin for Vcycle
 #
-#  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-7. All rights reserved.
+#  Andrew McNab, Raoul Hidalgo Charman,
+#  University of Manchester.
+#  Copyright (c) 2013-8. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -169,30 +170,13 @@ class OpenstackSpace(vcycle.BaseSpace):
     processorsLimit =  self._getProcessorsLimit()
 
     # Try to use it for this space
-    if self.max_processors is None:
+    if self.processors_limit is None:
       vcycle.vacutils.logLine('No limit on processors set in Vcycle configuration')
       if processorsLimit is not None:
         vcycle.vacutils.logLine('Processors limit set to %d from OpenStack' % processorsLimit)
-        self.max_processors = processorsLimit
+        self.processors_limit = processorsLimit
     else:
-      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.max_processors)
-
-    # Try to update processors and rss_bytes_per_processor from flavor definitions
-    for machinetypeName in self.machinetypes:
-      try:
-        flavorID = self.getFlavorID(self.machinetypes[machinetypeName].flavor_name)
-      except:
-        continue
-
-      try:
-        self.machinetypes[machinetypeName].processors = self.flavors[flavorID]['processors']
-      except:
-        pass
-
-      try:
-        self.machinetypes[machinetypeName].rss_bytes_per_processor = (self.flavors[flavorID]['mb'] * 1048576) / self.machinetypes[machinetypeName].processors
-      except:
-        pass
+      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.processors_limit)
 
   def _connectV2(self):
   # Connect to the OpenStack service with Identity v2
@@ -296,16 +280,12 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     for oneFlavor in result['response']['flavors']:
 
-#      print str(oneFlavor)
-
       flavor = {}
       flavor['mb']          = oneFlavor['ram']
-      flavor['flavor_name'] = oneFlavor['name']
       flavor['processors']  = oneFlavor['vcpus']
+      flavor['id']          = oneFlavor['id']
 
-      self.flavors[oneFlavor['id']] = flavor
-
-#    print str(self.flavors)
+      self.flavors[oneFlavor['name']] = flavor
 
   def _getProcessorsLimit(self):
     """Query OpenStack to get processor limit for this project"""
@@ -348,7 +328,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         processors = 1
       else:
         try:
-          processors = self.flavors[flavorID]['processors']
+          processors = self.flavors[self.getFlavorName(flavorID)]['processors']
         except:
           processors = 1
 
@@ -382,6 +362,9 @@ class OpenstackSpace(vcycle.BaseSpace):
         machinetypeName = str(oneServer['metadata']['machinetype'])
       except:
         machinetypeName = None
+      else:
+        if machinetypeName not in self.machinetypes:
+          machinetypeName = None
 
       try:
         zone = str(oneServer['OS-EXT-AZ:availability_zone'])
@@ -414,14 +397,14 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                          machinetypeName  = machinetypeName,
                                                          zone             = zone)
 
-  def getFlavorID(self, flavorName):
+  def getFlavorName(self, flavorID):
     """Get the "flavor" ID"""
 
-    for flavorID in self.flavors:
-      if self.flavors[flavorID]['flavor_name'] == flavorName:
-        return flavorID
+    for flavorName in self.flavors:
+      if self.flavors[flavorName]['id'] == flavorID:
+        return flavorName
 
-    raise OpenstackError('Flavor "' + flavorName + '" not available!')
+    raise OpenstackError('Flavor "' + flavorID + '" not available!')
 
   def getImageID(self, machinetypeName):
     """ Get the image ID """
@@ -610,8 +593,21 @@ class OpenstackSpace(vcycle.BaseSpace):
     return self.machinetypes[machinetypeName]._keyPairName
 
   def createMachine(self, machineName, machinetypeName, zone = None):
-
     # OpenStack-specific machine creation steps
+    
+    # Find the first flavor matching min_processors:max_processors
+    flavorName = None
+    
+    for fn in self.machinetypes[machinetypeName].flavor_names:
+      if fn in self.flavors:
+        if self.machinetypes[machinetypeName].min_processors <= self.flavors[fn]['processors'] and \
+           (self.machinetypes[machinetypeName].max_processors is None or \
+            self.machinetypes[machinetypeName].max_processors >= self.flavors[fn]['processors']):
+          flavorName = fn
+          break
+    
+    if not flavorName:
+      raise OpenstackError('No flavor suitable for machinetype ' + machinetypeName)
 
     try:
       if self.machinetypes[machinetypeName].remote_joboutputs_url:
@@ -623,16 +619,13 @@ class OpenstackSpace(vcycle.BaseSpace):
                   { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(machinetypeName),
-                    'flavorRef' : self.getFlavorID(self.machinetypes[machinetypeName].flavor_name),
+                    'flavorRef' : self.flavors[flavorName]['id'],
                     'metadata'  : { 'cern-services'   : 'false',
                                     'name'	      : machineName,
                                     'machinetype'     : machinetypeName,
                                     'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
                                     'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'machineoutputs'  : joboutputsURL,
                                     'joboutputs'      : joboutputsURL  }
-                    # Changing over from machineoutputs to joboutputs, so we set both in the metadata for now,
-                    # but point them both to the joboutputs directory that we now provide
                   }
                 }
 
