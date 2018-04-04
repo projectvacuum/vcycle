@@ -1,4 +1,4 @@
-.TH vcycle.conf 5 "Jan 2016" "vcycle.conf" "vcycle Manual"
+.TH vcycle.conf 5 "Apr 2018" "vcycle.conf" "vcycle Manual"
 .SH NAME
 .B vcycle.conf
 \- vcycle configuration file
@@ -40,9 +40,13 @@ is optional and requests a particular version of the API understood by its
 plugin. API versions can consist of lowercase letters, numbers, hyphens,
 periods, and underscores.
 
-.B max_processors
+.B processors_limit
 prevents new machines from being created if the number of processors for
 this space in any state exceeds the given limit.
+
+.B flavor_names
+gives a space-separated list of one or more names of flavors defined
+by the cloud system, which may be used by machinetypes within this space.
 
 .B gocdb_sitename
 gives the GOCDB site name to use when writing APEL
@@ -172,9 +176,23 @@ Each of these sections contain option=value pairs that are specific to
 that machinetype. The same machinetype name can appear in different spaces and will
 be managed separately.
 
-.B flavor_name
-gives the name of a flavor previously defined in the cloud system which
-represents a particular CPU, memory, and disk geometry.
+.B flavor_names
+gives a space-separated list of one or more names of flavors defined
+by the cloud system which represent particular combinations of CPU, memory, and
+disk geometry. This option overrides any flavors list given in the space
+section. Subject to any constraints imposed by
+.B min_processors
+and
+.B max_processors
+the first allowed flavor in the list is used.
+
+.B min_processors 
+and
+.B max_processors
+give the minimum and maximum number of logical processors which can be allocated
+to LMs of this type when they are created. Vcycle will attempt to select a 
+flavor from the flavor_name list matching these constraints. The default
+minimum is 1 and the default is no maximum.
 
 .B hs06_per_processor
 gives the HEPSPEC06 power of each processor in the virtual machines created
@@ -235,7 +253,7 @@ has passed.
 is used to specify a FQAN to include when writing APEL accounting
 records, to associate usage with particular experiments.
 
-.B max_processors
+.B processors_limit
 prevents new machines from being created if the number of processors for
 this machinetype in any state exceeds the given limit.
 

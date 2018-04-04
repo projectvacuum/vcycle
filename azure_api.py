@@ -177,7 +177,7 @@ class AzureSpace(vcycle.BaseSpace):
             self.__create_service(name=machineName, location=self.location)
             fingerprint, path = self.__add_certificate_to_service(name=machineName, pfx=self.pfx)
             self.__create_vm(name=machineName,
-                             flavor=self.machinetypes[machinetypeName].flavor_name,
+                             flavor=self.machinetypes[machinetypeName].flavor_names[0],
                              image=self.machinetypes[machinetypeName].root_image,
                              username= self.username,
                              password= self.password,

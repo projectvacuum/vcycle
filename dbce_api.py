@@ -172,7 +172,7 @@ class DbceSpace(vcycle.BaseSpace):
                 'id': self.machinetypes[machinetypeName].root_image
             },
             'configuration': {
-                'id': self.machinetypes[machinetypeName].flavor_name,
+                'id': self.machinetypes[machinetypeName].flavor_names[0],
             },
             'network': {
                 'id': self.network,

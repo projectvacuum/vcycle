@@ -21,6 +21,8 @@
 - Add cvmfs_proxy_machinetype option which constructs the proxies list 
   user_data_option_cvmfs_proxy from the IP addresses of machines of the
   given machinetype with a current heartbeat (ie a Squid machinetype)
+- processors_limit replaces max_processors to limit processors per space
+  or per machinetype
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
