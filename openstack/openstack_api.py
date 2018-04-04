@@ -2,7 +2,8 @@
 #
 #  openstack_api.py - an OpenStack plugin for Vcycle
 #
-#  Andrew McNab, University of Manchester.
+#  Andrew McNab, Raoul Hidalgo Charman,
+#  University of Manchester.
 #  Copyright (c) 2013-8. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or

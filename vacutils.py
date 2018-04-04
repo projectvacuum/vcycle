@@ -4,7 +4,7 @@
 ## THE DEFINITIVE SOURCE OF THIS FILE IS THE Vac GIT REPOSITORY ##
 ## UNMODIFIED VERSIONS ARE COPIED TO THE Vcycle REPO AS NEEDED  ##
 #
-#  Andrew McNab, University of Manchester.
+#  Andrew McNab, Raoul Hidalgo Charman, University of Manchester.
 #  Copyright (c) 2013-8. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
