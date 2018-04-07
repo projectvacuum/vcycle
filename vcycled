@@ -115,7 +115,7 @@ if __name__ == '__main__':
           vcycle.vacutils.logLine('=============== Start cycle ===============')
 
           try:
-            vcycle.shared.readConf()
+            vcycle.shared.readConf(printConf = True)
           except Exception as e:
             print 'readConf() fails with "' + str(e) + '", skipping cycle'
           else:

@@ -37,6 +37,10 @@ import sys
 
 import vcycle
 
+# Tell logLine to write to sys.stderr to avoid corrupting the
+# stdout stream we return to the web server
+vcycle.vacutils.logToStderr()
+
 try:
   vcycle.shared.readConf()
 except:

@@ -191,8 +191,12 @@ and
 .B max_processors
 give the minimum and maximum number of logical processors which can be allocated
 to LMs of this type when they are created. Vcycle will attempt to select a 
-flavor from the flavor_name list matching these constraints. The default
-minimum is 1 and the default is no maximum.
+flavor from the flavor_name list matching these constraints. If the API plugin
+cannot determine the number of processors allocated to a VM, then Vcycle will use 
+.B min_processors
+in its calculations and limits, and when setting the values of 
+$MACHINEFEATURES/total_cpu and $JOBFEATURES/allocated_cpu supplied to the VM.
+The default minimum is 1 and the default is no maximum.
 
 .B hs06_per_processor
 gives the HEPSPEC06 power of each processor in the virtual machines created
@@ -201,13 +205,6 @@ $MACHINEFEATURES/hs06 and $JOBFEATURES/hs06_job
 supplied to the VM. It is also used when calculating target shares and
 when writing APEL accounting records, and for both of these a default of 1.0
 is used if not set explicitly.
-
-.B processors_per_machine
-gives the number of processors of each virtual machine created for this flavor
-in this machinetype. This is used as the value of $MACHINEFEATURES/total_cpu
-and $JOBFEATURES/allocated_cpu supplied to the VM. If the api plugin can
-positively determine the number from metadata about the flavor, it will be
-used in preference to the value given here. Default 1.
 
 .B mb_per_processor
 gives the number MB of each virtual machine created for this flavor

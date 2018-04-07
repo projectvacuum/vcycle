@@ -156,7 +156,7 @@ class GoogleSpace(vcycle.BaseSpace):
 
     for machinetypeName in self.machinetypes:
       try:
-        self.machinetypes[machinetypeName].processors = self._googleMachineTypeProcessors(self.machinetypes[machinetypeName].flavor_names[0])
+        self.machinetypes[machinetypeName].min_processors = self._googleMachineTypeProcessors(self.machinetypes[machinetypeName].flavor_names[0])
       except:
         pass
 
@@ -475,7 +475,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                   'machineType' : 'zones/%s/machineTypes/%s' % (zone, self.machinetypes[machinetypeName].flavor_names[0]),
                   'disks' : [
                               {
-                                'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].processors,
+                                'initializeParams' : { 'diskSizeGb'  : disk_gb_per_processor * self.machinetypes[machinetypeName].min_processors,
                                                        'sourceImage' : 'global/images/' + self._getImageName(machinetypeName) },
                                 'boot'             : True,
                                 'autoDelete'       : True
