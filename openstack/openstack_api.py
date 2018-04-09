@@ -60,11 +60,11 @@ class OpenstackError(Exception):
 
 class OpenstackSpace(vcycle.BaseSpace):
 
-  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
   # Initialize data structures from configuration files
 
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName)
+    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     # OpenStack-specific initialization
     try:
@@ -395,7 +395,8 @@ class OpenstackSpace(vcycle.BaseSpace):
                                                          updatedTime      = updatedTime,
                                                          uuidStr          = uuidStr,
                                                          machinetypeName  = machinetypeName,
-                                                         zone             = zone)
+                                                         zone             = zone,
+                                                         processors       = processors)
 
   def getFlavorName(self, flavorID):
     """Get the "flavor" ID"""
@@ -657,15 +658,16 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
-                                                       spaceName   = self.spaceName,
-                                                       state       = vcycle.MachineState.starting,
-                                                       ip          = '0.0.0.0',
-                                                       createdTime = int(time.time()),
-                                                       startedTime = None,
-                                                       updatedTime = int(time.time()),
-                                                       uuidStr     = uuidStr,
-                                                       machinetypeName  = machinetypeName)
+    self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+                                                       spaceName        = self.spaceName,
+                                                       state            = vcycle.MachineState.starting,
+                                                       ip               = '0.0.0.0',
+                                                       createdTime      = int(time.time()),
+                                                       startedTime      = None,
+                                                       updatedTime      = int(time.time()),
+                                                       uuidStr          = uuidStr,
+                                                       machinetypeName  = machinetypeName,
+                                                       processors       = self.flavors[flavorName]['processors'])
 
   def deleteOneMachine(self, machineName):
 

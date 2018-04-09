@@ -116,6 +116,17 @@ write_files:
         refresh_pattern /repodata/	0	0%	0
         refresh_pattern .		0	20%	4320
 
+  - owner: root:root
+    path: /usr/local/sbin/check-squid
+    permissions: '0755'
+    content: |
+        #!/bin/sh
+        ( curl --proxy ##IPADDR##:280 --output /tmp/curl.out http://cern.ch
+        if [ $? == 0 ] ; then
+          echo 0.0 0.0 0.0 0.0 0.0 > /tmp/heartbeat
+          curl --insecure --capath /etc/grid-security/certificates/ --cert /root/keycert.pem --cacert /root/keycert.pem --location --upload-file /tmp/heartbeat "##user_data_joboutputs_url##/heartbeat"
+        fi ) >/var/log/check-squid.log 2>&1
+
 --===============3141592653589793238==
 MIME-Version: 1.0
 Content-Type: text/x-shellscript; charset="us-ascii"
@@ -125,10 +136,16 @@ Content-Disposition: attachment; filename="user_data_script"
 #!/bin/bash
 
 (
+  cat <<X5_EOF >/root/keycert.pem
+##user_data_file_hostkey##
+##user_data_file_hostcert##
+X5_EOF
+  chmod 0400 /root/keycert.pem
+
   # Needed for YANDEX.ru  Not sure about other sites?
   ethtool -K eth0 gso off gro off tso off
 
-  yum -y install squid nano
+  yum -y install squid nano 
 
   ipaddr=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*inet addr://' | cut -d' ' -f1`
   ipmask=`/sbin/ifconfig eth0 | grep 'inet addr:' | sed 's/.*Mask://'`
@@ -156,6 +173,9 @@ Content-Disposition: attachment; filename="user_data_script"
 
   chkconfig squid on
   service squid restart
+
+  sed -i "s/##IPADDR##/$ipaddr/" /usr/local/sbin/check-squid
+  echo '0,5,10,15,20,25,30,35,40,45,50,55 * * * * root /usr/local/sbin/check-squid' >/etc/cron.d/check-squid
 
 ) >/var/log/user_data_script.log 2>&1 &
 --===============3141592653589793238==--

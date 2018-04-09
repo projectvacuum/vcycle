@@ -83,7 +83,7 @@ class MachineState:
 
 class Machine:
 
-  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName, zone = None):
+  def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName, zone = None, processors = None):
 
     # Store values from api-specific calling function
     self.name            = name
@@ -135,7 +135,7 @@ class Machine:
         self.machinetypeName = f.read().strip()
         f.close()
         
-        if self.machinetypeName not in self.machinetypes:
+        if self.machinetypeName not in spaces[self.spaceName].machinetypes:
           self.machinetypeName = None
 
 #    if not zone:
@@ -148,10 +148,16 @@ class Machine:
 #        self.machinetypeName = f.read().strip()
 #        f.close()
 
-    try:
-      self.processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
-    except:
-      self.processors = 1
+    if processors:
+      self.processors = processors
+    else:
+      try:
+        self.processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
+      except:
+        try:
+          self.processors = spaces[self.spaceName].machinetypes[self.machinetypeName].min_processors
+        except:
+          self.processors = 1
 
     try:
       self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/hs06_job', 'r').read().strip())
@@ -458,7 +464,7 @@ class Machine:
                 'created_time'          : self.createdTime,
                 'started_time'          : self.startedTime,
                 'heartbeat_time'        : self.heartbeatTime,
-                'num_processors'        : spaces[self.spaceName].machinetypes[self.machinetypeName].processors,
+                'num_processors'        : self.processors,
                 'cpu_seconds'           : cpuSeconds,
                 'cpu_percentage'        : 100.0,
                 'machinetype'           : self.machinetypeName
@@ -501,7 +507,7 @@ class Machine:
      self.shutdownMessageTime = None
 
      # Easy if a local file rather than remote
-     if not spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url:
+     if not self.machinetypeName or not spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url:
        try:
          self.shutdownMessage = open('/var/lib/vcycle/machines/' + self.name + '/joboutputs/shutdown_message', 'r').read().strip()
          self.shutdownMessageTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/joboutputs/shutdown_message').st_ctime)
@@ -697,6 +703,20 @@ class Machinetype:
         self.flavor_names = spaceFlavorNames
 
     try:
+      self.min_processors = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
+    except:
+      pass
+    else:
+      vcycle.vacutils.logLine('cpu_per_machine is deprecated - please use min_processors')
+
+    try:
+      self.min_processors = int(parser.get(machinetypeSectionName, 'processors_per_machine'))
+    except:
+      pass
+    else:
+      vcycle.vacutils.logLine('processors_per_machine is deprecated - please use min_processors')
+
+    try:
       self.min_processors = int(parser.get(machinetypeSectionName, 'min_processors'))
     except Exception as e:
       self.min_processors = 1
@@ -795,7 +815,7 @@ class Machinetype:
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
                parser.get(machinetypeSectionName, 'log_machineoutputs').lower() == 'true':
       self.log_joboutputs = True
-      print 'log_machineoutputs is deprecated. Please use log_joboutputs'
+      vcycle.vacutils.logLine('log_machineoutputs is deprecated. Please use log_joboutputs')
     elif parser.has_option(machinetypeSectionName, 'log_joboutputs') and \
                parser.get(machinetypeSectionName, 'log_joboutputs').lower() == 'true':
       self.log_joboutputs = True
@@ -803,7 +823,7 @@ class Machinetype:
       self.log_joboutputs = False
 
     if parser.has_option(machinetypeSectionName, 'machineoutputs_days'):
-      print 'machineoutputs_days is deprecated. Please use joboutputs_days'
+      vcycle.vacutils.logLine('machineoutputs_days is deprecated. Please use joboutputs_days')
 
     try:
       if parser.has_option(machinetypeSectionName, 'joboutputs_days'):
@@ -834,17 +854,6 @@ class Machinetype:
 
     if parser.has_option(machinetypeSectionName, 'accounting_fqan'):
       self.accounting_fqan = parser.get(machinetypeSectionName, 'accounting_fqan')
-
-    try:
-      self.processors = int(parser.get(machinetypeSectionName, 'cpu_per_machine'))
-    except:
-      try:
-        self.processors = int(parser.get(machinetypeSectionName, 'processors_per_machine'))
-      except:
-        # If not set explicitly, defaults to 1. Plugin may be able to determine from API
-        self.processors = 1
-    else:
-      vcycle.vacutils.logLine('cpu_per_machine is deprecated - please use processors_per_machine')
 
     try:
       self.rss_bytes_per_processor = 1048576 * int(parser.get(machinetypeSectionName, 'mb_per_processor'))
@@ -888,7 +897,7 @@ class Machinetype:
 
     if parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') or \
        parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
-      print 'user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!'
+      vcycle.vacutils.logLine('user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!')
 
     if parser.has_option(machinetypeSectionName, 'user_data_proxy') and \
        parser.get(machinetypeSectionName,'user_data_proxy').lower() == 'true':
@@ -940,12 +949,12 @@ class Machinetype:
 
 class BaseSpace(object):
 
-  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
     self.api        = api
     self.apiVersion = apiVersion
     self.spaceName  = spaceName
 
-    self.processors_limit     = None
+    self.processors_limit   = None
     self.totalMachines      = 0
     # totalProcessors includes ones Vcycle doesn't manage
     self.totalProcessors    = 0
@@ -994,7 +1003,7 @@ class BaseSpace(object):
         continue
 
       try:
-        self._expandVacuumPipe(parser, vacuumPipeSectionName, machinetypeNamePrefix)
+        self._expandVacuumPipe(parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes)
       except Exception as e:
         raise VcycleError('Failed expanding vacuum pipe [' + vacuumPipeSectionName + ']: ' + str(e))
 
@@ -1032,7 +1041,7 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix):
+  def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes):
     """ Read configuration settings from a vacuum pipe """
 
     acceptedOptions = [
@@ -1076,7 +1085,7 @@ class BaseSpace(object):
           + machinetypeNamePrefix + '/vacuum.pipe',
           vacuumPipeURL,
           'vcycle ' + vcycleVersion,
-          updatePipes = True)
+          updatePipes = updatePipes)
     except Exception as e:
       raise VcycleError(vacuumPipeURL + ' given but failed reading/updating the pipe: ' + str(e))
 
@@ -1093,14 +1102,14 @@ class BaseSpace(object):
     # Second pass to add options to the relevant machinetype sections
     for pipeMachinetype in vacuumPipe['machinetypes']:
     
-      if 'machine_model' in pipeMachinetype and str(pipeMachinetype['machine_model']) not in ['cernvm3']:
-        print "Not a supported machine_model: %s - skipping!" % str(pipeMachinetype['machine_model'])
+      if 'machine_model' in pipeMachinetype and str(pipeMachinetype['machine_model']) not in ['cernvm3','vm-raw']:
+        vcycle.vacutils.logLine("Not a supported machine_model: %s - skipping!" % str(pipeMachinetype['machine_model']))
         continue    
 
       try:
         suffix = str(pipeMachinetype['suffix'])
       except:
-        print "suffix is missing from one machinetype within " + vacuumPipeURL + " - skipping!"
+        vcycle.vacutils.logLine("suffix is missing from one machinetype within " + vacuumPipeURL + " - skipping!")
         continue
                 
       try:
@@ -1125,6 +1134,11 @@ class BaseSpace(object):
         option = str(optionRaw)
         value  = str(pipeMachinetype[optionRaw])
 
+        # Skip if option already exists for this machinetype - configuration 
+        # file sections take precedence
+        if parser.has_option('machinetype ' + self.spaceName + ' ' + machinetypeNamePrefix + '-' + suffix, option):
+          continue
+        
         # Deal with subdividing the total target share for this vacuum pipe here
         # Each machinetype gets a share based on its target_share within the pipe
         # We do the normalisation of the pipe target_shares here
@@ -1138,10 +1152,6 @@ class BaseSpace(object):
                      'target_share', str(targetShare))
           continue
 
-        # Skip if option already exists - configuration files take precedence
-        if parser.has_option(vacuumPipeSectionName, option):
-          continue
-        
         # Silently skip some options processed already
         if option == 'machine_model':
           continue
@@ -1642,13 +1652,19 @@ class BaseSpace(object):
     except:
       shutdowntime_job = None
 
-    # if shutdown time is none
-    if (shutdowntime_job is None and self.shutdownTime is not None) or \
-        shutdowntime_job > self.shutdownTime:
+    # use space shutdownTime if shutdowntime_job is None
+    # or shutdowntime_job has passed
+    if self.shutdownTime is not None and \
+       (shutdowntime_job is None or \
+        shutdowntime_job > self.shutdownTime):
       machine.setFileContents('jobfeatures/shutdowntime_job', str(self.shutdownTime))
       shutdowntime_job = self.shutdownTime
 
     return shutdowntime_job
+
+  def updateGOCDB(self):
+
+    return
 
   def sendVacMon(self):
 
@@ -1725,7 +1741,7 @@ class BaseSpace(object):
           continue
 
         if self.machinetypes[machinetypeName].processors_limit is not None and self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].processors_limit:
-          vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].totalProcessors) + ') on number of processors to allocate for machinetype ' + machinetypeName)
+          vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].processors_limit) + ') on number of processors to allocate for machinetype ' + machinetypeName)
           continue
 
         if self.machinetypes[machinetypeName].max_starting_processors is not None and self.machinetypes[machinetypeName].startingProcessors >= self.machinetypes[machinetypeName].max_starting_processors:
@@ -1760,8 +1776,8 @@ class BaseSpace(object):
         vcycle.vacutils.logLine('Free capacity found for ' + bestMachinetypeName + ' within ' + self.spaceName + ' ... creating')
 
         # This tracks creation attempts, whether successful or not
-        creationsThisCycle += self.machinetypes[bestMachinetypeName].processors
-        self.machinetypes[bestMachinetypeName].startingProcessors += self.machinetypes[bestMachinetypeName].processors
+        creationsThisCycle += self.machinetypes[bestMachinetypeName].min_processors
+        self.machinetypes[bestMachinetypeName].startingProcessors += self.machinetypes[bestMachinetypeName].min_processors
         self.machinetypes[bestMachinetypeName].notPassedFizzle += 1
 
         try:
@@ -1817,7 +1833,7 @@ class BaseSpace(object):
     else:
       rootImageURL = None    
       
-    userDataOptions = self.machinetypes[machinetypeName].options
+    userDataOptions = self.machinetypes[machinetypeName].options.copy()
     
     if self.machinetypes[machinetypeName].cvmfsProxyMachinetype:
       # If we define a cvmfs_proxy_machinetype, then use the IPs of heartbeat producing
@@ -1835,11 +1851,11 @@ class BaseSpace(object):
       if ipList:
         # We only change any existing value if we found machines of cvmfs_proxy_machinetype
         if 'user_data_option_cvmfs_proxy' not in userDataOptions:
-          userDataOptions['user_data_option_cvmfs_proxy'] = ''
+          existingProxyOption = ''
         else:
-          userDataOptions['user_data_option_cvmfs_proxy'] = ';' + userDataOptions['user_data_option_cvmfs_proxy']
+          existingProxyOption = ';' + userDataOptions['user_data_option_cvmfs_proxy']
 
-        userDataOptions['user_data_option_cvmfs_proxy'] = '|'.join(ipList) + userDataOptions['user_data_option_cvmfs_proxy']
+        userDataOptions['user_data_option_cvmfs_proxy'] = '|'.join(ipList) + existingProxyOption
       else:
         vcycle.vacutils.logLine('No machines found in machinetype %s (cvmfs_proxy_machinetype) - using defaults'
                                  % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
@@ -1966,6 +1982,12 @@ class BaseSpace(object):
       vcycle.vacutils.logLine('Sending VacMon messages fails: ' + str(e))
 
     try:
+      # The update is only every hour as there is a heartbeat file
+      self.updateGOCDB()
+    except Exception as e:
+      vcycle.vacutils.logLine('Updating GOCDB fails: ' + str(e))
+
+    try:
       self.deleteMachines()
     except Exception as e:
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
@@ -1981,7 +2003,7 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
 
-def readConf():
+def readConf(printConf = False, updatePipes = True):
 
   global vcycleVersion, spaces
 
@@ -2044,7 +2066,7 @@ def readConf():
       for subClass in BaseSpace.__subclasses__():
         if subClass.__name__ == api.capitalize() + 'Space':
           try:
-            spaces[spaceName] = subClass(api, apiVersion, spaceName, parser, spaceSectionName)
+            spaces[spaceName] = subClass(api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
           except Exception as e:
             raise VcycleError('Failed to initialise space ' + spaceName + ' (' + str(e) + ')')
           else:
@@ -2079,6 +2101,12 @@ def readConf():
       raise VcycleError('Section type ' + sectionType + 'not recognised')
 
   # else: Skip over vacuum_pipe and machinetype sections, which are parsed during the space class initialization
+
+  if printConf:
+    print 'Configuration including any machinetypes from Vacuum Pipes:'
+    print
+    parser.write(sys.stdout)
+    print
 
 def cleanupMachines():
   """ Go through /var/lib/vcycle/machines deleting/saved expired directory trees """
