@@ -80,7 +80,7 @@ class MachineState:
   # random OpenStack unreliability can require transition to failed at any time
   # stopped file created when machine first seen in shutdown, deleting, or failed state
   #
-  unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
+  unknown, shutdown, starting, stopping, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Stopping', 'Running', 'Deleting', 'Failed')
 
 class Machine:
 

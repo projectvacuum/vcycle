@@ -379,6 +379,8 @@ class OpenstackSpace(vcycle.BaseSpace):
 
       if taskState == 'Deleting':
         state = vcycle.MachineState.deleting
+      elif status == 'ACTIVE' and taskState == 'powering-off':
+        state = vcycle.MachineState.stopping
       elif status == 'ACTIVE' and powerState == 1:
         state = vcycle.MachineState.running
       elif status == 'BUILD' or status == 'ACTIVE':
