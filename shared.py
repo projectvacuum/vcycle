@@ -949,12 +949,12 @@ class Machinetype:
 
 class BaseSpace(object):
 
-  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+  def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
     self.api        = api
     self.apiVersion = apiVersion
     self.spaceName  = spaceName
 
-    self.processors_limit     = None
+    self.processors_limit   = None
     self.totalMachines      = 0
     # totalProcessors includes ones Vcycle doesn't manage
     self.totalProcessors    = 0
@@ -1003,7 +1003,7 @@ class BaseSpace(object):
         continue
 
       try:
-        self._expandVacuumPipe(parser, vacuumPipeSectionName, machinetypeNamePrefix)
+        self._expandVacuumPipe(parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes)
       except Exception as e:
         raise VcycleError('Failed expanding vacuum pipe [' + vacuumPipeSectionName + ']: ' + str(e))
 
@@ -1041,7 +1041,7 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
-  def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix):
+  def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes):
     """ Read configuration settings from a vacuum pipe """
 
     acceptedOptions = [
@@ -1085,7 +1085,7 @@ class BaseSpace(object):
           + machinetypeNamePrefix + '/vacuum.pipe',
           vacuumPipeURL,
           'vcycle ' + vcycleVersion,
-          updatePipes = True)
+          updatePipes = updatePipes)
     except Exception as e:
       raise VcycleError(vacuumPipeURL + ' given but failed reading/updating the pipe: ' + str(e))
 
@@ -1652,13 +1652,19 @@ class BaseSpace(object):
     except:
       shutdowntime_job = None
 
-    # if shutdown time is none
-    if (shutdowntime_job is None and self.shutdownTime is not None) or \
-        shutdowntime_job > self.shutdownTime:
+    # use space shutdownTime if shutdowntime_job is None
+    # or shutdowntime_job has passed
+    if self.shutdownTime is not None and \
+       (shutdowntime_job is None or \
+        shutdowntime_job > self.shutdownTime):
       machine.setFileContents('jobfeatures/shutdowntime_job', str(self.shutdownTime))
       shutdowntime_job = self.shutdownTime
 
     return shutdowntime_job
+
+  def updateGOCDB(self):
+
+    return
 
   def sendVacMon(self):
 
@@ -1735,7 +1741,7 @@ class BaseSpace(object):
           continue
 
         if self.machinetypes[machinetypeName].processors_limit is not None and self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].processors_limit:
-          vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].totalProcessors) + ') on number of processors to allocate for machinetype ' + machinetypeName)
+          vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].processors_limit) + ') on number of processors to allocate for machinetype ' + machinetypeName)
           continue
 
         if self.machinetypes[machinetypeName].max_starting_processors is not None and self.machinetypes[machinetypeName].startingProcessors >= self.machinetypes[machinetypeName].max_starting_processors:
@@ -1976,6 +1982,12 @@ class BaseSpace(object):
       vcycle.vacutils.logLine('Sending VacMon messages fails: ' + str(e))
 
     try:
+      # The update is only every hour as there is a heartbeat file
+      self.updateGOCDB()
+    except Exception as e:
+      vcycle.vacutils.logLine('Updating GOCDB fails: ' + str(e))
+
+    try:
       self.deleteMachines()
     except Exception as e:
       vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
@@ -1991,7 +2003,7 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
 
-def readConf(printConf = False):
+def readConf(printConf = False, updatePipes = True):
 
   global vcycleVersion, spaces
 
@@ -2054,7 +2066,7 @@ def readConf(printConf = False):
       for subClass in BaseSpace.__subclasses__():
         if subClass.__name__ == api.capitalize() + 'Space':
           try:
-            spaces[spaceName] = subClass(api, apiVersion, spaceName, parser, spaceSectionName)
+            spaces[spaceName] = subClass(api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
           except Exception as e:
             raise VcycleError('Failed to initialise space ' + spaceName + ' (' + str(e) + ')')
           else:

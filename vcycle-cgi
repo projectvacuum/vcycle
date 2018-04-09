@@ -42,7 +42,7 @@ import vcycle
 vcycle.vacutils.logToStderr()
 
 try:
-  vcycle.shared.readConf()
+  vcycle.shared.readConf(updatePipes = False)
 except:
   print 'Status: 500 Internal Server Error (1)'
   print
