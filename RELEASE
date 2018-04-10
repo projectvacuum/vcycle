@@ -1,0 +1,50 @@
+We are pleased to announce the release of Vcycle 01.00.00
+
+RPMs for CentOS 7 and the Admin Guide are available from the 01.00
+subdirectory of
+
+https://repo.gridpp.ac.uk/vacproject/vcycle/
+
+This version introduces CentOS 7 support, mulitpart Vacuum Pipes, capacity
+publishing to GOCDB, as described in the man pages and Admin Guide.
+
+If upgrading from a version before 01.00.00 (including prereleases) please
+drain the projects of VMs first. 
+
+A significant change to the configuration file format is that the number 
+of VMs per space or per machinetype is limited by processors_limit if given
+(it's usually better to use target_shares). max_processors is now used to
+give the maximum number of processors for a single VM in machinetypes rather
+than being a space-wide or machinetype-wide limit. This change has been
+introduced for consistency with Vacuum Pipes and Vac.
+
+The improvements listed in CHANGES are:
+
+==================== Changes in Vcycle version 01.00.00 =====================
+- Create 1024bit GSI proxies
+- Update MJF for HSF-TN-2016-02
+- Remove GLUE2.0/JSON status publishing
+- Include admin-guide.html and update example.vcycle.conf
+- Update vacutils with ##user_data_url## set to remote user_data URL
+- Vacutils supports Vacuum Pipes.
+- user_data_proxy_cert/_key replaced by user_data_proxy True/False with
+  fixed x509cert.pem/x509key.pem file names.
+- user_data and root image URLs in user_data templates
+- Send VacMon factory_status and machinetype_status messages every cycle,
+  and machine_status when each machine finishes
+- Identity V3 and Glance V2 support in OpenStack plugin, 
+  tenancy_name -> project_name, and add domain_name option.
+- hs06 -> hs06_per_processor; cpu_per_machine -> min_processors
+- running_hs06 isn't published to VacMon if no hs06_per_processor
+- Add region and zones options to OpenStack plugin
+- Create /var/lib/vcycle/SPACENAME/machinetypelists/MACHINETYPENAME lists
+  of machines for each machinetype with current heartbeats
+- Add cvmfs_proxy_machinetype option which constructs the proxies list 
+  user_data_option_cvmfs_proxy from the IP addresses of machines of the
+  given machinetype with a current heartbeat (ie a Squid machinetype)
+- processors_limit replaces max_machines or max_processors to limit 
+  processors per space or per machinetype
+- Add gocdb_cert_file/gocdb_key_file options to publish space information
+  to GOCDB
+
+For more information about Vcycle please see https://www.gridpp.ac.uk/vcycle/

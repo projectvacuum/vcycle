@@ -10,10 +10,9 @@
 - user_data and root image URLs in user_data templates
 - Send VacMon factory_status and machinetype_status messages every cycle,
   and machine_status when each machine finishes
-- Identity V3 support in OpenStack plugin, tenancy_name -> project_name,
-  and add domain_name option.
-- max_machines -> max_processors in spaces and machinetypes;
-  hs06 -> hs06_per_processor; cpu_per_machine -> min_processors
+- Identity V3 and Glance V2 support in OpenStack plugin, 
+  tenancy_name -> project_name, and add domain_name option.
+- hs06 -> hs06_per_processor; cpu_per_machine -> min_processors
 - running_hs06 isn't published to VacMon if no hs06_per_processor
 - Add region and zones options to OpenStack plugin
 - Create /var/lib/vcycle/SPACENAME/machinetypelists/MACHINETYPENAME lists
@@ -21,8 +20,10 @@
 - Add cvmfs_proxy_machinetype option which constructs the proxies list 
   user_data_option_cvmfs_proxy from the IP addresses of machines of the
   given machinetype with a current heartbeat (ie a Squid machinetype)
-- processors_limit replaces max_processors to limit processors per space
-  or per machinetype
+- processors_limit replaces max_machines or max_processors to limit 
+  processors per space or per machinetype
+- Add gocdb_cert_file/gocdb_key_file options to publish space information
+  to GOCDB
 ==================== Changes in Vcycle version 0.8.0 =====================
 - Use spaceDir not spaceName in cleanupJoboutputs()
 - machinetypes directories are now under /var/lib/vcycle/spaces/
