@@ -51,6 +51,7 @@ import pycurl
 import urllib
 import random
 import base64
+import datetime
 import StringIO
 import tempfile
 import calendar
@@ -1664,6 +1665,83 @@ class BaseSpace(object):
 
   def updateGOCDB(self):
 
+    # Skip if gocdb_cert_file or gocdb_key_file not given
+    if self.gocdb_cert_file is None or self.gocdb_key_file is None:
+      return
+      
+    # Skip if we've already sent updates in the last 24 hours
+    if os.path.exists('/var/lib/vcycle/gocdb-updated') and \
+       time.time() < (os.stat('/var/lib/vcycle/gocdb-updated').st_ctime + 86400):
+      return
+
+    vcycle.vacutils.createFile('/var/lib/vcycle/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
+
+    voShares = {}
+    policyRules = ''
+    sharesTotal = 0.0
+
+    for machinetypeName in spaces[self.spaceName].machinetypes:
+      if hasattr(spaces[self.spaceName].machinetypes[machinetypeName], 'accounting_fqan'):
+        policyRules += 'VOMS:' + spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan + ','
+
+        try:
+          targetShare = float(spaces[self.spaceName].machinetypes[machinetypeName].target_share)
+        except:
+          targetShare = 0.0
+
+        if targetShare:
+          try:
+            voName = spaces[self.spaceName].machinetypes[machinetypeName].accounting_fqan.split('/')[1]
+          except:
+            pass
+          else:
+            if voName in voShares:
+              voShares[voName] += targetShare
+            else:
+              voShares[voName] = targetShare
+
+            sharesTotal += targetShare
+
+    otherInfo = ''
+
+    for voName in voShares:
+      otherInfo += 'Share=%s:%d,' % (voName, int(0.5 + (100 * voShares[voName]) / sharesTotal))
+
+    spaceValues = {
+       'ComputingManagerCreationTime':          datetime.datetime.utcnow().replace(microsecond = 0).isoformat() + 'Z',
+       'ComputingManagerProductName':           'Vcycle',
+       'ComputingManagerProductVersion':        vcycleVersion,
+       'ComputingManagerTotalLogicalCPUs':      self.processors_limit
+     }
+
+    if otherInfo:
+      spaceValues['ComputingManagerOtherInfo'] = otherInfo.strip(',')
+     
+    if policyRules:
+      spaceValues['PolicyRule'] = policyRules.strip(',')
+      spaceValues['PolicyScheme'] = 'org.glite.standard'
+
+    vcycle.vacutils.logLine('Space info for Vcycle space %s in GOCDB site %s: %s' 
+                          % (self.spaceName, self.gocdb_sitename, str(spaceValues)))
+
+    try:
+      vcycle.vacutils.updateSpaceInGOCDB(
+        self.gocdb_sitename,
+        self.spaceName,
+        'uk.ac.gridpp.vcycle',
+        self.gocdb_cert_file,
+        self.gocdb_key_file,
+        '/etc/grid-security/certificates',
+        'Vcycle ' + vcycleVersion,
+        spaceValues,
+        None # ONCE GOCDB ALLOWS API CREATION OF ENDPOINTS WE CAN PUT MORE INFO (eg wallclock limits) THERE
+             # ONE ENDPOINT OF THE VAC SERVICE PER MACHINETYPE
+        )
+    except Exception as e:
+      vcycle.vacutils.logLine('Failed to update space info in GOCDB: ' + str(e))
+    else:
+      vcycle.vacutils.logLine('Successfully updated space info in GOCDB')
+
     return
 
   def sendVacMon(self):
@@ -2079,6 +2157,22 @@ def readConf(printConf = False, updatePipes = True):
         spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename')
       else:
         spaces[spaceName].gocdb_sitename = None
+
+      if parser.has_option(spaceSectionName, 'gocdb_cert_file'):
+        spaces[spaceName].gocdb_cert_file = parser.get(spaceSectionName,'gocdb_cert_file')
+      else:
+        spaces[spaceName].gocdb_cert_file = None
+
+      if parser.has_option(spaceSectionName, 'gocdb_key_file'):
+        spaces[spaceName].gocdb_key_file = parser.get(spaceSectionName,'gocdb_key_file')
+      else:
+        spaces[spaceName].gocdb_key_file = None
+        
+      if spaces[spaceName].gocdb_cert_file and spaces[spaceName].gocdb_key_file is None:
+        raise VcycleError('gocdb_cert_file given but gocdb_key_file is missing!')
+
+      if spaces[spaceName].gocdb_cert_file is None and spaces[spaceName].gocdb_key_file:
+        raise VcycleError('gocdb_key_file given but gocdb_cert_file is missing!')
 
       if parser.has_option(spaceSectionName, 'vacmon_hostport'):
         try:
