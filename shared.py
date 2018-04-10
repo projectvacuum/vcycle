@@ -1670,11 +1670,11 @@ class BaseSpace(object):
       return
       
     # Skip if we've already sent updates in the last 24 hours
-    if os.path.exists('/var/lib/vcycle/gocdb-updated') and \
-       time.time() < (os.stat('/var/lib/vcycle/gocdb-updated').st_ctime + 86400):
+    if os.path.exists('/var/lib/vcycle/spaces/' + self.spaceName + '/gocdb-updated') and \
+       time.time() < (os.stat('/var/lib/vcycle/spaces/' + self.spaceName + '/gocdb-updated').st_ctime + 86400):
       return
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
 
     voShares = {}
     policyRules = ''
