@@ -13,7 +13,7 @@ drain the projects of VMs first.
 
 A significant change to the configuration file format is that the number 
 of VMs per space or per machinetype is limited by processors_limit if given
-(it's usually better to use target_shares). max_processors is now used to
+(it's usually better to use target shares). max_processors is now used to
 give the maximum number of processors for a single VM in machinetypes rather
 than being a space-wide or machinetype-wide limit. This change has been
 introduced for consistency with Vacuum Pipes and Vac.
