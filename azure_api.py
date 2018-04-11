@@ -63,10 +63,10 @@ class AzureError(Exception):
 
 class AzureSpace(vcycle.BaseSpace):
 
-    def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+    def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
         # Initialize data structures from configuration files
         # Generic initialization
-        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName)
+        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
         # Azure-specific initialization
         try:
@@ -177,7 +177,7 @@ class AzureSpace(vcycle.BaseSpace):
             self.__create_service(name=machineName, location=self.location)
             fingerprint, path = self.__add_certificate_to_service(name=machineName, pfx=self.pfx)
             self.__create_vm(name=machineName,
-                             flavor=self.machinetypes[machinetypeName].flavor_name,
+                             flavor=self.machinetypes[machinetypeName].flavor_names[0],
                              image=self.machinetypes[machinetypeName].root_image,
                              username= self.username,
                              password= self.password,

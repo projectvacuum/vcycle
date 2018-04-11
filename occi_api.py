@@ -52,11 +52,11 @@ ca_path = '/etc/grid-security/occi.ca-certs'
 
 class OcciSpace(vcycle.BaseSpace):
 
-    def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName):
+    def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
         # Initialize data structures from configuration files
 
         # Generic initialization
-        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName)
+        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
         # OCCI-specific initialization
         try:
@@ -181,7 +181,7 @@ class OcciSpace(vcycle.BaseSpace):
         image = self.machinetypes[machinetypeName].root_image[6:].strip()
         data = 'Category: compute;scheme="http://schemas.ogf.org/occi/infrastructure#";class="kind";location="/compute/";title="Compute Resource"\n'
         data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (image, self.categories[image]['scheme'], image)
-        data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (self.machinetypes[machinetypeName].flavor_name, self.categories[self.machinetypes[machinetypeName].flavor_name]['scheme'], self.machinetypes[machinetypeName].flavor_name)
+        data += 'Category: %s;%s;class="mixin";location="/%s"\n' % (self.machinetypes[machinetypeName].flavor_names[0], self.categories[self.machinetypes[machinetypeName].flavor_names[0]]['scheme'], self.machinetypes[machinetypeName].flavor_names[0])
         data += 'Category: user_data;"%s";class="mixin";location="%s";title="OS contextualization mixin"\n' % (self.categories['user_data']['scheme'], self.categories['user_data']['location']);
         data += 'X-OCCI-Attribute: occi.core.id="%s"\n' % str(uuid.uuid4())
         data += 'X-OCCI-Attribute: occi.core.title="%s"\n' % machineName

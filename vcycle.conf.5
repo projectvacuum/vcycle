@@ -1,10 +1,10 @@
-.TH vcycle.conf 5 "Jan 2016" "vcycle.conf" "vcycle Manual"
+.TH vcycle.conf 5 "Apr 2018" "vcycle.conf" "vcycle Manual"
 .SH NAME
 .B vcycle.conf
 \- vcycle configuration file
 .SH DESCRIPTION
 .B vcycled
-is a daemon  which implements VM lifecycle management on IaaS Cloud systems
+is a daemon  which implements VM lifecycle management on IaaS cloud systems
 in a way inspired by Vac. vcycled reads its configuration from
 .B /etc/vcycle.conf
 and .conf files in
@@ -32,7 +32,7 @@ a virtual CE elsewhere in the system.
 
 .B api
 is required and specifies the lowercase name of the API to use when contacting
-the IaaS service associted with this space. API names can consist of letters,
+the cloud service associted with this space. API names can consist of letters,
 numbers, and underscores.
 
 .B api_version
@@ -40,9 +40,13 @@ is optional and requests a particular version of the API understood by its
 plugin. API versions can consist of lowercase letters, numbers, hyphens,
 periods, and underscores.
 
-.B max_processors
+.B processors_limit
 prevents new machines from being created if the number of processors for
 this space in any state exceeds the given limit.
+
+.B flavor_names
+gives a space-separated list of one or more names of flavors defined
+by the cloud system, which may be used by machinetypes within this space.
 
 .B gocdb_sitename
 gives the GOCDB site name to use when writing APEL
@@ -52,6 +56,20 @@ the risk of misnamed records getting into the central APEL database.
 If gocdb_sitename is not given, then records are only written to
 apel-archive and the Vcycle space name is used as a placeholder in the
 files.
+
+.B gocdb_cert_file
+and
+.B gocdb_key_file
+are the absolute paths of an X.509 certificate and private key which
+are authorized to update the GOCDB capacity and VO information for this
+space. The space must already exist in GOCDB as part of the site with name
+given by 
+.B gocdb_sitename.
+The list of VOs with machinetypes in this space is taken from the Vcycle
+configuration with FQANs given by
+.B accounting_fqan.
+Both machinetypes defined locally and those from remote vacuum pipes are
+included. Updates are sent to GOCDB once every 24 hours.
 
 .B vacmon_hostport
 If set, this option gives a space-separated list of HOST:PORT to send
@@ -157,6 +175,11 @@ In addition, if x509dn is set for the VM's machinetype, then the script vcycle-c
 will allow the VM to write heartbeat, logging, and shutdown_message files
 to the VM's $JOBOUTPUTS directory.
 
+This server also publishes the heartbeat machines lists of the machines with
+a current heartbeat for each machinetype in each space described in the
+.B USER_DATA SUBSTITUTIONS
+section.
+
 .SH [MACHINETYPE ... ...] SECTIONS
 
 One [machinetype ... ...] section must exist for each machinetype in each space, with
@@ -167,9 +190,27 @@ Each of these sections contain option=value pairs that are specific to
 that machinetype. The same machinetype name can appear in different spaces and will
 be managed separately.
 
-.B flavor_name
-gives the name of a flavor previously defined in the IaaS system which
-represents a particular CPU, memory, and disk geometry.
+.B flavor_names
+gives a space-separated list of one or more names of flavors defined
+by the cloud system which represent particular combinations of CPU, memory, and
+disk geometry. This option overrides any flavors list given in the space
+section. Subject to any constraints imposed by
+.B min_processors
+and
+.B max_processors
+the first allowed flavor in the list is used.
+
+.B min_processors 
+and
+.B max_processors
+give the minimum and maximum number of logical processors which can be allocated
+to LMs of this type when they are created. Vcycle will attempt to select a 
+flavor from the flavor_name list matching these constraints. If the API plugin
+cannot determine the number of processors allocated to a VM, then Vcycle will use 
+.B min_processors
+in its calculations and limits, and when setting the values of 
+$MACHINEFEATURES/total_cpu and $JOBFEATURES/allocated_cpu supplied to the VM.
+The default minimum is 1 and the default is no maximum.
 
 .B hs06_per_processor
 gives the HEPSPEC06 power of each processor in the virtual machines created
@@ -178,13 +219,6 @@ $MACHINEFEATURES/hs06 and $JOBFEATURES/hs06_job
 supplied to the VM. It is also used when calculating target shares and
 when writing APEL accounting records, and for both of these a default of 1.0
 is used if not set explicitly.
-
-.B processors_per_machine
-gives the number of processors of each virtual machine created for this flavor
-in this machinetype. This is used as the value of $MACHINEFEATURES/total_cpu
-and $JOBFEATURES/allocated_cpu supplied to the VM. If the api plugin can
-positively determine the number from metadata about the flavor, it will be
-used in preference to the value given here. Default 1.
 
 .B mb_per_processor
 gives the number MB of each virtual machine created for this flavor
@@ -230,7 +264,7 @@ has passed.
 is used to specify a FQAN to include when writing APEL accounting
 records, to associate usage with particular experiments.
 
-.B max_processors
+.B processors_limit
 prevents new machines from being created if the number of processors for
 this machinetype in any state exceeds the given limit.
 
@@ -251,6 +285,16 @@ gives the frequency at which the heartbeat_file must be updated after
 fizzle_seconds has passed. If the file is not updated for
 heartbeat_seconds then the VM will be destroyed. If heartbeat_seconds
 is 0, then only the existence of the file will be checked. Default 0.
+
+.B cvmfs_proxy_machinetype
+gives the name of another machinetype consisting of HTTP caching proxies
+suitable for cvmfs running inside the VMs. The list of proxies is made
+available to VMs via the ##user_data_option_cvmfs_proxy## substitution.
+If :PORTNUMBER is appended to the name of the machinetype, then that 
+port number will be used in the cvmfs proxy lists Vcycle generates.
+See 
+.B USER_DATA SUBSTITUTIONS
+for more details.
 
 .B x509dn
 is an optional X.509 DN which will be used by the vcycle-cgi script to
@@ -329,7 +373,7 @@ to be used. As of 2016, CernVM images are signed with a DN matching
 the regular expression /CN=cvm-sign01\\.cern\\.ch$
 
 .B root_public_key
-is the file name of a public key which Vcycle will set up on the IaaS
+is the file name of a public key which Vcycle will set up on the cloud
 system and supply to the VMs to allow root ssh access. Setting this
 option to /root/.ssh/id_rsa.pub will give access from the factory machine.
 
@@ -360,8 +404,28 @@ the files given to user_data_file_XXX options also replace patterns of the
 form ##user_data_option_XXX##. In both cases XXX are arbitrary strings
 consisting of letters, numbers, and underscores.
 
-The pattern ##user_data_x509_proxy## is replaced by the proxy created if the
-user_data_proxy_cert and user_data_proxy_key options are given.
+The pattern ##user_data_x509_proxy## is replaced by the X.509 proxy 
+created if the user_data_proxy_cert and user_data_proxy_key options
+are given.
+
+.B cvmfs_proxy_machinetype
+may be given in a machinetype definition 
+with the name of another machinetype consisting of HTTP 
+caching proxies suitable for cvmfs. The list of proxies is made
+available to VMs via the normal ##user_data_option_cvmfs_proxy## 
+substitution.
+Only machines with a valid heartbeat are included, and they are 
+identified by IP address in the format http://xxx.xxx.xxx.xxx:ppp and 
+separated by pipe ('|')
+characters so they are used in round-robin mode by cvmfs. For
+security reasons, these proxies are accessed on port 280 by default 
+not 3128. This port number may be changed by appending :PORTNUMBER 
+to the given machinetype name. 
+If user_data_option_cvmfs_proxy is also given, then a semicolon
+separator and the option's value are appended to
+the list of proxies obtained from the machinetype's list. This allows
+a static choice of backup proxies to be given, which will benefit from
+cvmfs's failover feature if none of the machinetype proxies are usable.
 
 In addition, the following substitutions are performed automatically by
 Vcycle using data it holds internally:
@@ -370,29 +434,36 @@ Vcycle using data it holds internally:
 .B ##user_data_space##
 is the Vcycle space name.
 .br
-.B ##user_data_machinetype##
+.B ##user_data_url##
+is the HTTP(S) URL from which the user_data template was obtained. Only given if
+the template was retrieved by HTTP(S) rather from a local path.
+.br
+.B ##user_data_machinefeatures_url##
 and
-.B ##user_data_vmtype##
-(deprecated)
-are the name of the machinetype of this VM.
+.B ##user_data_jobfeatures_url##
+and
+.B ##user_data_joboutputs_url##
+are the values of $MACHINEFEATURES, $JOBFEATURES, and $JOBOUTPUTS to set
+within the VM.
+.br
+.B ##user_data_heartbeat_machines_url##
+is the HTTP(S) URL from which a list of the machines in this space with
+the same machinetype as this machine can be found. Only machines with a
+current heartbeat are included. The list consists of the heartbeat time
+in Unix seconds, the machine name, and the local IP address of the machine 
+within the remote cloud.
+.br
+.B ##user_data_machinetype##
+is the name of the machinetype of this VM.
 .br
 .B ##user_data_machine_hostname##
-and
-.B ##user_data_vm_hostname##
-(deprecated)
-are the hostname given to the VM by Vcycle.
+is the hostname given to the VM by Vcycle.
 .br
 .B ##user_data_manager_version##
-and
-.B ##user_data_vmlm_version##
-(deprecated)
-have the form "Vcycle v.v.v" where v.v.v is the Vcycle version.
+has the form "Vcycle v.v.v" where v.v.v is the Vcycle version.
 .br
 .B ##user_data_manager_hostname##
-and
-.B ##user_data_vmlm_hostname##
-(deprecated)
-are the hostname of the machine on which the Vcycle daemon is running.
+is the hostname of the machine on which the Vcycle daemon is running.
 
 .SH AUTHOR
 Andrew McNab <Andrew.McNab@cern.ch>
