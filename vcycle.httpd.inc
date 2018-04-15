@@ -37,7 +37,7 @@
 #
 #  This file should be copied to /etc/httpd/includes/vcycle.httpd.inc
 #  where it will be loaded by the common Vac Project httpd.conf
-#  The hostnames and perhaps portn numbers in this file must be replaced
+#  The hostnames and perhaps port numbers in this file must be replaced
 #  with the correct values for your Vcycle service.
 #
 #  Place vcycle.cert.pem and vcycle.key.pem in /etc/grid-security
