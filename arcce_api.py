@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#  creamce_api.py - an CREAM CE plugin for Vcycle
+#  arcce_api.py - an ARC CE plugin for Vcycle
 #
 #  Andrew McNab, University of Manchester.
 #  Copyright (c) 2013-8. All rights reserved.
@@ -54,10 +54,10 @@ import subprocess
 
 import vcycle.vacutils
 
-class CreamceError(Exception):
+class ArcceError(Exception):
   pass
 
-class CreamceSpace(vcycle.BaseSpace):
+class ArcceSpace(vcycle.BaseSpace):
 
   def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
   # Initialize data structures from configuration files
@@ -70,21 +70,22 @@ class CreamceSpace(vcycle.BaseSpace):
     try:
       self.url = parser.get(spaceSectionName, 'url')
     except Exception as e:
-      raise CreamceError('url is required in CREAM CE [space ' + spaceName + '] (' + str(e) + ')')
+      raise ArcceError('url is required in ARC CE [space ' + spaceName + '] (' + str(e) + ')')
 
   def connect(self):
     pass
 
   def scanMachines(self):
-    """Query Cream CE compute service for details of machines in this space"""
+    """Query ARC CE compute service for details of machines in this space"""
 
     # For each job found in the space, this method is responsible for
-    # either (a) ignorning non-Vcycle jobss but updating self.totalProcessors
+    # either (a) ignorning non-Vcycle jobs but updating self.totalProcessors
     # or (b) creating a Machine object for the job in self.spaces
+    
+    # arcstat may not see recently submitted jobs for several minutes 
+    # Hopefully this doesn't matter
 
     fd,path = tempfile.mkstemp()
-
-    os.write(fd, '##CREAMJOBS##\n')
 
     for jobidEncoded in os.listdir('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/'):
       try:
@@ -94,12 +95,12 @@ class CreamceSpace(vcycle.BaseSpace):
 
     os.close(fd)
 
-    with subprocess.Popen('glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
+    with subprocess.Popen('arcstat %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
       rawStatuses = p.read()
 
     os.remove(path)
 
-    for oneStatus in self.parseGliteCeJobStatus(rawStatuses):
+    for oneStatus in self.parseArcceJobStatus(rawStatuses):
 
       try:
         with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(oneStatus['JobID'], '')) as f:
@@ -116,14 +117,14 @@ class CreamceSpace(vcycle.BaseSpace):
         vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
         continue
 
-      # Map CREAM Status to Vcycle state
-      if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):
+      # Map ARC CE Status to Vcycle state
+      if oneStatus['State'] in ('Accepted','Preparing','Submitting','Queuing'):
         state = vcycle.MachineState.starting
-      elif oneStatus['Status'] in ('RUNNING','REALLY-RUNNING'):
+      elif oneStatus['State'] in ('Running','Finishing'):
         state = vcycle.MachineState.running
-      elif oneStatus['Status'] in ('DONE-FAILED','ABORTED'):
+      elif oneStatus['State'] in ('Failed','Hold','Deleted','Killed'):
         state = vcycle.MachineState.failed
-      elif oneStatus['Status'] in ('DONE-OK','CANCELLED'):
+      elif oneStatus['State'] in ('Finished','Other'):
         state = vcycle.MachineState.shutdown
       else:
         state = vcycle.MachineState.unknown
@@ -139,8 +140,8 @@ class CreamceSpace(vcycle.BaseSpace):
                                                          machinetypeName  = machinetypeName,
                                                          zone             = None)
 
-  def parseGliteCeJobStatus(self, rawStatuses):
-    # State machine to go through rawStatuses from glite-ce-job-status
+  def parseArcceJobStatus(self, rawStatuses):
+    # State machine to go through rawStatuses from arcstat
     # output, populating jobs list with status information
 
     jobs = []
@@ -148,17 +149,17 @@ class CreamceSpace(vcycle.BaseSpace):
 
     for line in rawStatuses.split('\n'):
 
-      if line.startswith('******  JobID=['):
-        job = { 'JobID': line.split('[')[1].split(']')[0] }
+      if line.startswith('Job: '):
+        job = { 'JobID': line.split()[1] }
 
-      elif line.strip().startswith('Status        = ['):
-        job['Status'] = line.split('[')[1].split(']')[0]
+      elif line.strip().startswith(' State: '):
+        job['State'] = line.split()[1]
 
-      elif line.strip().startswith('ExitCode      = ['):
-        job['ExitCode'] = line.split('[')[1].split(']')[0]
+      elif line.strip().startswith(' Exit Code: '):
+        job['ExitCode'] = line.split()[2]
 
       elif job and line.strip() == '':
-        if 'JobID' in job and 'Status' in job:
+        if 'JobID' in job and 'State' in job:
           # Add properly formed job items to the jobs list
           jobs.append(job)
 
@@ -167,43 +168,34 @@ class CreamceSpace(vcycle.BaseSpace):
     return jobs
 
   def createMachine(self, machineName, machinetypeName, zone = None):
-    # Cream CE-specific job submission
+    # ARC CE-specific job submission
 
-
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl',
-                               '''[
-Type = "Job";
-JobType = "Normal";
-Executable = "user_data";
-StdOutput = "stdout.log";
-StdError = "stderr.log";
-InputSandbox = {"/var/lib/vcycle/machines/''' + machineName + '''/user_data"};
-OutputSandbox = {"stdout.log", "stderr.log"};
-OutputSandboxBaseDestURI = "gsiftp://localhost";
-]
+# queue "medium" is still hardcoded below!
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/rsl',
+                               '''&( executable = "user_data" )
+( stdout = "stdout" )
+( stderr = "stderr" )
+( inputfiles = ( "''' + machineName + '''/user_data" "" ) )
+( outputfiles = ( "stdout" "" ) ( "stderr" "" ) )
+( queue = "medium" )
+( jobname = "RSL Testing job" )
 ''',
                                0600, '/var/lib/vcycle/tmp')
 
-    if self.url.startswith('https://'):
-      endpoint = self.url[8:]
-    else:
-      endpoint = self.url
-
     try:
-      with subprocess.Popen('glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' %
-                          (endpoint, '/var/lib/vcycle/machines/' + machineName + '/jdl'),
-                          shell=True, stdout=subprocess.PIPE).stdout as p:
-        jobID = p.read().strip()
-
+     subprocess.call('arcsub --cluster=%s --jobids-to-file=%s %s' %
+                        (self.url, 
+                        '/var/lib/vcycle/machines/' + machineName + '/jobid',
+                        '/var/lib/vcycle/machines/' + machineName + '/rsl'),
+                     shell=True)
 
     except Exception as e:
-      raise CreamceError('Failed to submit new job %s: %s' % (machineName, str(e)))
+      raise ArcceError('Failed to submit new job %s: %s' % (machineName, str(e)))
 
-
-    if not jobID:
-      raise CreamceError('Could not get Job ID from %s job submission response' % machineName)
-
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobid', jobID, 0600, '/var/lib/vcycle/tmp')
+    try:
+      jobID = open('/var/lib/vcycle/machines/' + machineName + '/jobid', 'r').read()
+    except:
+      raise ArcceError('Could not get Job ID saved by %s job submission' % machineName)
 
     vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID,''), machineName, 0600, '/var/lib/vcycle/tmp')
 
