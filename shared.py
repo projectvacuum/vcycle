@@ -2219,16 +2219,9 @@ def cleanupMachines():
     except:
       spaceName = None
     else:
-      if spaceName not in spaces:
-        # An orphaned machine from a space that is no longer configured
-        # >>> We should add a proper cleanup of these machines! <<<
-        continue
-      elif machineName in spaces[spaceName].machines:
+      if spaceName in spaces and machineName in spaces[spaceName].machines:
         # We never delete/log directories for machines that are still listed
         continue
-      else:
-        # If in a current space, but not listed, then delete immediately
-        expireTime = 0
 
     # Get the time beyond which this machine shouldn't be here
     try:
