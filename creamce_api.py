@@ -94,7 +94,9 @@ class CreamceSpace(vcycle.BaseSpace):
 
     os.close(fd)
 
-    with subprocess.Popen('glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
+    with subprocess.Popen('X509_USER_PROXY=%s glite-ce-job-status --donot-verify-ac-sign --level 0 --input %s' % 
+                          ('/var/lib/vcycle/spaces/' + self.spaceName + '/x509proxy.pem', path),
+                          shell=True, stdout=subprocess.PIPE).stdout as p:
       rawStatuses = p.read()
 
     os.remove(path)
@@ -190,8 +192,9 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
       endpoint = self.url
 
     try:
-      with subprocess.Popen('glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' %
-                          (endpoint, '/var/lib/vcycle/machines/' + machineName + '/jdl'),
+      with subprocess.Popen('X509_USER_PROXY=%s glite-ce-job-submit --autm-delegation --donot-verify-ac-sign --resource %s %s' %
+                          ('/var/lib/vcycle/spaces/' + self.spaceName + '/x509proxy.pem', 
+                           endpoint, '/var/lib/vcycle/machines/' + machineName + '/jdl'),
                           shell=True, stdout=subprocess.PIPE).stdout as p:
         jobID = p.read().strip()
 

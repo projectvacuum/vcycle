@@ -72,6 +72,11 @@ class ArcceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise ArcceError('url is required in ARC CE [space ' + spaceName + '] (' + str(e) + ')')
 
+    try:
+      self.queue = parser.get(spaceSectionName, 'queue')
+    except Exception as e:
+      raise ArcceError('queue is required in ARC CE [space ' + spaceName + '] (' + str(e) + ')')
+
   def connect(self):
     pass
 
@@ -82,51 +87,69 @@ class ArcceSpace(vcycle.BaseSpace):
     # either (a) ignorning non-Vcycle jobs but updating self.totalProcessors
     # or (b) creating a Machine object for the job in self.spaces
     
-    # arcstat may not see recently submitted jobs for several minutes 
-    # Hopefully this doesn't matter
-
+    allJobIDs = {}
+    recentJobIDs = []
+    now = time.time()
     fd,path = tempfile.mkstemp()
 
     for jobidEncoded in os.listdir('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/'):
+  
+      jobID = urllib.unquote(jobidEncoded)
+          
+      with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + jobidEncoded) as f:
+        machineName = f.read().strip()
+        
+      allJobIDs[jobID] = machineName
+
+      if os.stat('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + jobidEncoded).st_ctime > now - 3600:
+        recentJobIDs.append(jobID)
+    
       try:
-        os.write(fd, urllib.unquote(jobidEncoded) + '\n')
+        os.write(fd, jobID + '\n')
       except Exception as e:
         print str(e)
 
     os.close(fd)
 
-    with subprocess.Popen('arcstat %s' % path, shell=True, stdout=subprocess.PIPE).stdout as p:
+    with subprocess.Popen('X509_USER_PROXY=%s arcstat --jobids-from-file=%s' % 
+                          ('/var/lib/vcycle/spaces/' + self.spaceName + '/x509proxy.pem', path),
+                          shell=True, stdout=subprocess.PIPE).stdout as p:
       rawStatuses = p.read()
 
     os.remove(path)
 
-    for oneStatus in self.parseArcceJobStatus(rawStatuses):
-
-      try:
-        with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(oneStatus['JobID'], '')) as f:
-          machineName = f.read().strip()
-      except:
-        vcycle.vacutils.logLine('Failed to read jobid file for %s!' % oneStatus['JobID'])
-        continue
+    allJobStatuses = self.parseArcceJobStatus(rawStatuses)
+    
+    for jobID in allJobIDs:
+    
+      machineName = allJobIDs[jobID]
 
       # Collect values saved in machine's directory
-
       try:
         machinetypeName = open('/var/lib/vcycle/machines/%s/machinetype_name' % machineName, 'r').readline().strip()
       except:
         vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
         continue
 
-      # Map ARC CE Status to Vcycle state
-      if oneStatus['State'] in ('Accepted','Preparing','Submitting','Queuing'):
+      if jobID in allJobStatuses:
+        # Map ARC CE Status to Vcycle state
+        if allJobStatuses[jobID]['State'] in ('Accepted','Preparing','Submitting','Queuing'):
+          state = vcycle.MachineState.starting
+        elif allJobStatuses[jobID]['State'] in ('Running','Finishing'):
+          state = vcycle.MachineState.running
+        elif allJobStatuses[jobID]['State'] in ('Failed','Hold','Deleted','Killed'):
+          state = vcycle.MachineState.failed
+        elif allJobStatuses[jobID]['State'] in ('Finished','Other'):
+          state = vcycle.MachineState.shutdown
+        else:
+          state = vcycle.MachineState.unknown
+
+      elif jobID in recentJobIDs:
+        # If not yet in the arcstat output then starting
         state = vcycle.MachineState.starting
-      elif oneStatus['State'] in ('Running','Finishing'):
-        state = vcycle.MachineState.running
-      elif oneStatus['State'] in ('Failed','Hold','Deleted','Killed'):
-        state = vcycle.MachineState.failed
-      elif oneStatus['State'] in ('Finished','Other'):
-        state = vcycle.MachineState.shutdown
+        
       else:
+        # Do not understand what is going on
         state = vcycle.MachineState.unknown
 
       self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
@@ -136,7 +159,7 @@ class ArcceSpace(vcycle.BaseSpace):
                                                          createdTime      = None,
                                                          startedTime      = None,
                                                          updatedTime      = None,
-                                                         uuidStr          = oneStatus['JobID'],
+                                                         uuidStr          = jobID,
                                                          machinetypeName  = machinetypeName,
                                                          zone             = None)
 
@@ -144,56 +167,59 @@ class ArcceSpace(vcycle.BaseSpace):
     # State machine to go through rawStatuses from arcstat
     # output, populating jobs list with status information
 
-    jobs = []
-    job  = None
+    jobs  = {}
+    job   = {}
+    jobID = None
 
     for line in rawStatuses.split('\n'):
 
       if line.startswith('Job: '):
-        job = { 'JobID': line.split()[1] }
+        jobID = line.split()[1] 
+        job   = {}
 
-      elif line.strip().startswith(' State: '):
+      elif line.strip().startswith('State: '):
         job['State'] = line.split()[1]
 
-      elif line.strip().startswith(' Exit Code: '):
+      elif line.strip().startswith('Exit Code: '):
         job['ExitCode'] = line.split()[2]
 
-      elif job and line.strip() == '':
-        if 'JobID' in job and 'State' in job:
+      elif jobID and line.strip() == '':
+        if 'State' in job:
           # Add properly formed job items to the jobs list
-          jobs.append(job)
+          jobs[jobID] = job
 
-        job = None
+        job   = {}
+        jobID = None
 
     return jobs
 
   def createMachine(self, machineName, machinetypeName, zone = None):
     # ARC CE-specific job submission
 
-# queue "medium" is still hardcoded below!
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/rsl',
                                '''&( executable = "user_data" )
 ( stdout = "stdout" )
 ( stderr = "stderr" )
-( inputfiles = ( "''' + machineName + '''/user_data" "" ) )
+( inputfiles = ( "user_data" "/var/lib/vcycle/machines/''' + machineName + '''/user_data" ) )
 ( outputfiles = ( "stdout" "" ) ( "stderr" "" ) )
-( queue = "medium" )
-( jobname = "RSL Testing job" )
+( queue = "''' + self.queue + '''" )
+( jobname = "''' + machineName + '''" )
 ''',
                                0600, '/var/lib/vcycle/tmp')
 
     try:
-     subprocess.call('arcsub --cluster=%s --jobids-to-file=%s %s' %
-                        (self.url, 
-                        '/var/lib/vcycle/machines/' + machineName + '/jobid',
-                        '/var/lib/vcycle/machines/' + machineName + '/rsl'),
+     subprocess.call('X509_USER_PROXY=%s arcsub --direct --cluster=%s --jobids-to-file=%s %s' %
+                        ('/var/lib/vcycle/spaces/' + self.spaceName + '/x509proxy.pem',
+                         self.url, 
+                         '/var/lib/vcycle/machines/' + machineName + '/jobid',
+                         '/var/lib/vcycle/machines/' + machineName + '/rsl'),
                      shell=True)
 
     except Exception as e:
       raise ArcceError('Failed to submit new job %s: %s' % (machineName, str(e)))
 
     try:
-      jobID = open('/var/lib/vcycle/machines/' + machineName + '/jobid', 'r').read()
+      jobID = open('/var/lib/vcycle/machines/' + machineName + '/jobid', 'r').read().strip()
     except:
       raise ArcceError('Could not get Job ID saved by %s job submission' % machineName)
 
