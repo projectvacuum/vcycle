@@ -59,15 +59,18 @@ import collections
 import ConfigParser
 import xml.etree.cElementTree
 
-import vcycle.vacutils
+from vcycle.core import vacutils
+
 
 class VcycleError(Exception):
   pass
+
 
 vcycleVersion       = None
 vacQueryVersion     = '01.02' # Has to match shared.py in Vac
 spaces              = None
 maxWallclockSeconds = 0
+
 
 class MachineState:
   #
@@ -81,6 +84,7 @@ class MachineState:
   # stopped file created when machine first seen in shutdown, deleting, or failed state
   #
   unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
+
 
 class Machine:
 
@@ -230,8 +234,8 @@ class Machine:
 
     # Record when the machine started (rather than just being created)
     if self.startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(self.startedTime), 0600, '/var/lib/vcycle/tmp')
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
+      vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(self.startedTime), 0600, '/var/lib/vcycle/tmp')
+      vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
 
     try:
       self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
@@ -251,16 +255,16 @@ class Machine:
         # This is certainly a better estimate than using time.time() if available (ie OpenStack)
         if not self.updatedTime:
           self.updatedTime = int(time.time())
-          vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
+          vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
 
         self.stoppedTime = self.updatedTime
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
+        vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
 
         # Record the shutdown message if available
         self.setShutdownMessage()
 
         if self.shutdownMessage:
-          vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
+          vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
           try:
             shutdownCode = int(self.shutdownMessage.split(' ')[0])
           except:
@@ -274,7 +278,7 @@ class Machine:
              (shutdownCode >= 300) and \
              (shutdownCode <= 699) and \
              (self.stoppedTime > spaces[self.spaceName].machinetypes[self.machinetypeName].lastAbortTime):
-            vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + self.machinetypeName + ' lastAbortTime ' + str(self.stoppedTime) +
+            vacutils.logLine('Set ' + self.spaceName + ' ' + self.machinetypeName + ' lastAbortTime ' + str(self.stoppedTime) +
                                     ' due to ' + name + ' shutdown message')
             spaces[self.spaceName].machinetypes[self.machinetypeName].setLastAbortTime(self.stoppedTime)
 
@@ -283,12 +287,12 @@ class Machine:
                ((self.stoppedTime - self.startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds):
 
             # Store last abort time for stopped machines, based on fizzle_seconds
-            vcycle.vacutils.logLine('Set ' + self.spaceName + ' ' + self.machinetypeName + ' lastAbortTime ' + str(self.stoppedTime) +
+            vacutils.logLine('Set ' + self.spaceName + ' ' + self.machinetypeName + ' lastAbortTime ' + str(self.stoppedTime) +
                                     ' due to ' + name + ' fizzle')
             spaces[self.spaceName].machinetypes[self.machinetypeName].setLastAbortTime(self.stoppedTime)
 
           if self.startedTime and shutdownCode and (shutdownCode / 100) == 3:
-            vcycle.vacutils.logLine('For ' + self.spaceName + ':' + self.machinetypeName + ' minimum fizzle_seconds=' +
+            vacutils.logLine('For ' + self.spaceName + ':' + self.machinetypeName + ' minimum fizzle_seconds=' +
                                       str(self.stoppedTime - self.startedTime) + ' ?')
 
           # Machine finished messages for APEL and VacMon
@@ -317,7 +321,7 @@ class Machine:
     else:
       logHeartbeatTimeStr = '-'
 
-    vcycle.vacutils.logLine('= ' + name + ' in ' +
+    vacutils.logLine('= ' + name + ' in ' +
                             str(self.spaceName) + ':' +
                             (self.zone if self.zone else '') + ':' +
                             str(self.machinetypeName) + ' ' +
@@ -410,9 +414,9 @@ class Machine:
       pass
 
     try:
-      vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+      vacutils.createFile(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
     except:
-      vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
+      vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
       return
 
     if spaces[self.spaceName].gocdb_sitename:
@@ -423,9 +427,9 @@ class Machine:
         pass
 
       try:
-        vcycle.vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+        vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
       except:
-        vcycle.vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
+        vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
         return
 
   def sendMachineMessage(self, cookie = '0'):
@@ -496,7 +500,7 @@ class Machine:
     for vacmonHostPort in spaces[self.spaceName].vacmons:
       (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
 
-      vcycle.vacutils.logLine('Sending VacMon machine finished message to %s:%s' % (vacmonHost, vacmonPort))
+      vacutils.logLine('Sending VacMon machine finished message to %s:%s' % (vacmonHost, vacmonPort))
 
       sock.sendto(messageJSON, (vacmonHost,int(vacmonPort)))
 
@@ -551,12 +555,12 @@ class Machine:
        if os.path.isdir('/etc/grid-security/certificates'):
          spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
        else:
-         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+         vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
 
        try:
          spaces[self.spaceName].curl.perform()
        except Exception as e:
-         vcycle.vacutils.logLine('Failed to read ' + self.remote_joboutputs_url + self.name + '/shutdown_message (' + str(e) + ')')
+         vacutils.logLine('Failed to read ' + self.remote_joboutputs_url + self.name + '/shutdown_message (' + str(e) + ')')
          self.shutdownMessage = None
          return
 
@@ -570,7 +574,7 @@ class Machine:
 
        return
 
-     vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+     vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
 
   def setHeartbeatTime(self):
      # No valid machinetype (probably removed from configuration)
@@ -589,7 +593,7 @@ class Machine:
 
      # Remote URL must be https://
      if spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url[0:8] != 'https://':
-       vcycle.vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
+       vacutils.logLine('Problem with remote_joboutputs_url = ' + self.remote_joboutputs_url)
      else:
        buffer = StringIO.StringIO()
        url = str(spaces[self.spaceName].machinetypes[self.machinetypeName].remote_joboutputs_url + self.name + '/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file)
@@ -624,12 +628,12 @@ class Machine:
        if os.path.isdir('/etc/grid-security/certificates'):
          spaces[self.spaceName].curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
        else:
-         vcycle.vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
+         vacutils.logLine('/etc/grid-security/certificates directory does not exist - relying on curl bundle of commercial CAs')
 
        try:
          spaces[self.spaceName].curl.perform()
        except Exception as e:
-         vcycle.vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
+         vacutils.logLine('Failed to read ' + url + ' (' + str(e) + ')')
        else:
 
          if spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 200:
@@ -646,16 +650,17 @@ class Machine:
              pass
 
          elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) == 0:
-             vcycle.vacutils.logLine('Fetching ' + url + ' fails with curl error ' + str(spaces[self.spaceName].curl.errstr()))
+             vacutils.logLine('Fetching ' + url + ' fails with curl error ' + str(spaces[self.spaceName].curl.errstr()))
 
          elif spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE) != 404:
-             vcycle.vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
+             vacutils.logLine('Fetching ' + url + ' fails with HTTP response code ' + str(spaces[self.spaceName].curl.getinfo(pycurl.RESPONSE_CODE)))
 
      try:
        # Use the last saved time, possibly from a previous call to this method
        self.heartbeatTime = int(os.stat('/var/lib/vcycle/machines/' + self.name + '/vm-heartbeat').st_mtime)
      except:
        self.heartbeatTime = None
+
 
 class Machinetype:
 
@@ -692,7 +697,7 @@ class Machinetype:
       self.cernvm_signing_dn = None
 
     if parser.has_option(machinetypeSectionName, 'flavor_name'):
-      vcycle.vacutils.logLine('Option flavor_name is deprecated, please use flavor_names!')
+      vacutils.logLine('Option flavor_name is deprecated, please use flavor_names!')
       try:
         self.flavor_names = parser.get(machinetypeSectionName, 'flavor_name').strip().split()
       except:
@@ -708,14 +713,14 @@ class Machinetype:
     except:
       pass
     else:
-      vcycle.vacutils.logLine('cpu_per_machine is deprecated - please use min_processors')
+      vacutils.logLine('cpu_per_machine is deprecated - please use min_processors')
 
     try:
       self.min_processors = int(parser.get(machinetypeSectionName, 'processors_per_machine'))
     except:
       pass
     else:
-      vcycle.vacutils.logLine('processors_per_machine is deprecated - please use min_processors')
+      vacutils.logLine('processors_per_machine is deprecated - please use min_processors')
 
     try:
       self.min_processors = int(parser.get(machinetypeSectionName, 'min_processors'))
@@ -816,7 +821,7 @@ class Machinetype:
     if parser.has_option(machinetypeSectionName, 'log_machineoutputs') and \
                parser.get(machinetypeSectionName, 'log_machineoutputs').lower() == 'true':
       self.log_joboutputs = True
-      vcycle.vacutils.logLine('log_machineoutputs is deprecated. Please use log_joboutputs')
+      vacutils.logLine('log_machineoutputs is deprecated. Please use log_joboutputs')
     elif parser.has_option(machinetypeSectionName, 'log_joboutputs') and \
                parser.get(machinetypeSectionName, 'log_joboutputs').lower() == 'true':
       self.log_joboutputs = True
@@ -824,7 +829,7 @@ class Machinetype:
       self.log_joboutputs = False
 
     if parser.has_option(machinetypeSectionName, 'machineoutputs_days'):
-      vcycle.vacutils.logLine('machineoutputs_days is deprecated. Please use joboutputs_days')
+      vacutils.logLine('machineoutputs_days is deprecated. Please use joboutputs_days')
 
     try:
       if parser.has_option(machinetypeSectionName, 'joboutputs_days'):
@@ -898,7 +903,7 @@ class Machinetype:
 
     if parser.has_option(machinetypeSectionName, 'user_data_proxy_cert') or \
        parser.has_option(machinetypeSectionName, 'user_data_proxy_key') :
-      vcycle.vacutils.logLine('user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!')
+      vacutils.logLine('user_data_proxy_cert and user_data_proxy_key are deprecated. Please use user_data_proxy = True and create x509cert.pem and x509key.pem!')
 
     if parser.has_option(machinetypeSectionName, 'user_data_proxy') and \
        parser.get(machinetypeSectionName,'user_data_proxy').lower() == 'true':
@@ -932,7 +937,7 @@ class Machinetype:
       except:
         pass
 
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time',
+      vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time',
                                  str(abortTime), tmpDir = '/var/lib/vcycle/tmp')
 
   def makeMachineName(self):
@@ -944,9 +949,10 @@ class Machinetype:
       if not os.path.exists('/var/lib/vcycle/machines/' + machineName):
         break
   
-      vcycle.vacutils.logLine('New random machine name ' + machineName + ' already exists! Trying another name ...')
+      vacutils.logLine('New random machine name ' + machineName + ' already exists! Trying another name ...')
 
     return machineName
+
 
 class BaseSpace(object):
 
@@ -967,7 +973,7 @@ class BaseSpace(object):
     self.shutdownTime  = None
 
     if parser.has_option(spaceSectionName, 'max_processors'):
-      vcycle.vacutils.logLine('max_processors (in space ' + spaceName + ') is deprecated - please use processors_limit')
+      vacutils.logLine('max_processors (in space ' + spaceName + ') is deprecated - please use processors_limit')
       try:
         self.processors_limit = int(parser.get(spaceSectionName, 'max_processors'))
       except:
@@ -1081,7 +1087,7 @@ class BaseSpace(object):
       totalTargetShare = 0.0
 
     try:
-      vacuumPipe = vcycle.vacutils.readPipe(
+      vacuumPipe = vacutils.readPipe(
           '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/'
           + machinetypeNamePrefix + '/vacuum.pipe',
           vacuumPipeURL,
@@ -1104,13 +1110,13 @@ class BaseSpace(object):
     for pipeMachinetype in vacuumPipe['machinetypes']:
     
       if 'machine_model' in pipeMachinetype and str(pipeMachinetype['machine_model']) not in ['cernvm3','vm-raw']:
-        vcycle.vacutils.logLine("Not a supported machine_model: %s - skipping!" % str(pipeMachinetype['machine_model']))
+        vacutils.logLine("Not a supported machine_model: %s - skipping!" % str(pipeMachinetype['machine_model']))
         continue    
 
       try:
         suffix = str(pipeMachinetype['suffix'])
       except:
-        vcycle.vacutils.logLine("suffix is missing from one machinetype within " + vacuumPipeURL + " - skipping!")
+        vacutils.logLine("suffix is missing from one machinetype within " + vacuumPipeURL + " - skipping!")
         continue
                 
       try:
@@ -1161,32 +1167,32 @@ class BaseSpace(object):
         if not option.startswith('user_data_file_' ) and \
            not option.startswith('user_data_option_' ) and \
            not option in acceptedOptions:
-          vcycle.vacutils.logLine('Option %s is not accepted from vacuum pipe - ignoring!' % option)
+          vacutils.logLine('Option %s is not accepted from vacuum pipe - ignoring!' % option)
           continue
 
         # Any options which specify filenames on the hypervisor must be checked here
         if (option.startswith('user_data_file_' )  or
             option ==         'heartbeat_file'   ) and '/' in value:
-          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" - ignoring!'
+          vacutils.logLine('Option %s in %s cannot contain a "/" - ignoring!'
              % (option, vacuumPipeURL))
           continue
 
         elif (option == 'user_data' or option == 'root_image') and '/../' in value:
-          vcycle.vacutils.logLine('Option %s in %s cannot contain "/../" - ignoring!'
+          vacutils.logLine('Option %s in %s cannot contain "/../" - ignoring!'
              % (option, vacuumPipeURL))
           continue
 
         elif option == 'user_data' and '/' in value and \
            not value.startswith('http://') and \
            not value.startswith('https://'):
-          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
+          vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
              % (option, vacuumPipeURL))
           continue
 
         elif option == 'root_image' and '/' in value and \
            not value.startswith('http://') and \
            not value.startswith('https://'):
-          vcycle.vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
+          vacutils.logLine('Option %s in %s cannot contain a "/" unless http(s)://... - ignoring!'
              % (option, vacuumPipeURL))
           continue
           
@@ -1403,7 +1409,7 @@ class BaseSpace(object):
     # If not a 2xx code then raise an exception unless anyStatus option given
     if not anyStatus and self.curl.getinfo(pycurl.RESPONSE_CODE) / 100 != 2:
       try:
-        vcycle.vacutils.logLine('Query raw response: ' + str(outputBuffer.getvalue()))
+        vacutils.logLine('Query raw response: ' + str(outputBuffer.getvalue()))
       except:
         pass
 
@@ -1413,15 +1419,15 @@ class BaseSpace(object):
 
   def _deleteOneMachine(self, machineName, shutdownMessage = None):
 
-    vcycle.vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
+    vacutils.logLine('Deleting ' + machineName + ' in ' + self.spaceName + ':' +
                             str(self.machines[machineName].machinetypeName) + ', in state ' + str(self.machines[machineName].state))
 
     # record when this was tried (not when done, since don't want to overload service with failing deletes)
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
 
     if shutdownMessage and not os.path.exists('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message'):
       try:
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600, '/var/lib/vcycle/tmp')
+        vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600, '/var/lib/vcycle/tmp')
       except:
         pass
 
@@ -1431,7 +1437,7 @@ class BaseSpace(object):
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
 
-    for machineName,machine in self.machines.iteritems():
+    for machineName, machine in self.machines.iteritems():
 
       if not machine.managedHere:
         # We do not delete machines that are not managed by this Vcycle instance
@@ -1459,7 +1465,7 @@ class BaseSpace(object):
            machine.machinetypeName in self.machinetypes and \
            machine.startedTime and \
            (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].max_wallclock_seconds)):
-        vcycle.vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
+        vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
         self._deleteOneMachine(machineName, '700 Exceeded max_wallclock_seconds')
 
       elif machine.state == MachineState.running and \
@@ -1473,7 +1479,7 @@ class BaseSpace(object):
             (machine.heartbeatTime is None) or
             (machine.heartbeatTime < (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
            ):
-        vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
+        vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName, '700 Heartbeat file not updated')
 
       # Check shutdown times
@@ -1483,11 +1489,11 @@ class BaseSpace(object):
         if shutdowntime is not None and int(time.time()) > shutdowntime:
           # log what has passed
           if self.shutdownTime == shutdowntime:
-            vcycle.vacutils.logLine(
+            vacutils.logLine(
                 'shutdown time ({}) for space {} has passed'
                 .format(shutdowntime, self.spaceName))
           else:
-            vcycle.vacutils.logLine(
+            vacutils.logLine(
                 'shutdown time ({}) for machine {} has passed'
                 .format(shutdowntime, machineName))
           self._deleteOneMachine(machineName, '700 Passed shutdowntime')
@@ -1527,7 +1533,7 @@ class BaseSpace(object):
 
       # Sort the list by heartbeat time, newest first, then write as a file
       fileContents.sort(reverse=True)
-      vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
+      vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
       
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
@@ -1547,7 +1553,7 @@ class BaseSpace(object):
     daemonDiskStatFS  = os.statvfs('/var/lib/vcycle')
     rootDiskStatFS = os.statvfs('/tmp')
 
-    memory = vcycle.vacutils.memInfo()
+    memory = vacutils.memInfo()
 
     try:
       osIssue = open('/etc/issue.vac','r').readline().strip()
@@ -1557,8 +1563,8 @@ class BaseSpace(object):
       except:
         osIssue = os.uname()[2]
 
-    if spaces[self.spaceName].gocdb_sitename:
-      tmpGocdbSitename = spaces[self.spaceName].gocdb_sitename
+    if self.gocdb_sitename:
+      tmpGocdbSitename = self.gocdb_sitename
     else:
       tmpGocdbSitename = '.'.join(self.spaceName.split('.')[1:]) if '.' in self.spaceName else self.spaceName
 
@@ -1584,7 +1590,7 @@ class BaseSpace(object):
                 'daemon_disk_avail_kb'      : (daemonDiskStatFS.f_bavail *  daemonDiskStatFS.f_frsize) / 1024,
                 'daemon_disk_avail_inodes'  : daemonDiskStatFS.f_favail,
 
-                'load_average'             : vcycle.vacutils.loadAvg(2),
+                'load_average'             : vacutils.loadAvg(2),
                 'kernel_version'           : os.uname()[2],
                 'os_issue'                 : osIssue,
                 'boot_time'                : bootTime,
@@ -1674,7 +1680,7 @@ class BaseSpace(object):
        time.time() < (os.stat('/var/lib/vcycle/gocdb-updated').st_ctime + 86400):
       return
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
 
     voShares = {}
     policyRules = ''
@@ -1721,11 +1727,11 @@ class BaseSpace(object):
       spaceValues['PolicyRule'] = policyRules.strip(',')
       spaceValues['PolicyScheme'] = 'org.glite.standard'
 
-    vcycle.vacutils.logLine('Space info for Vcycle space %s in GOCDB site %s: %s' 
+    vacutils.logLine('Space info for Vcycle space %s in GOCDB site %s: %s' 
                           % (self.spaceName, self.gocdb_sitename, str(spaceValues)))
 
     try:
-      vcycle.vacutils.updateSpaceInGOCDB(
+      vacutils.updateSpaceInGOCDB(
         self.gocdb_sitename,
         self.spaceName,
         'uk.ac.gridpp.vcycle',
@@ -1738,9 +1744,9 @@ class BaseSpace(object):
              # ONE ENDPOINT OF THE VAC SERVICE PER MACHINETYPE
         )
     except Exception as e:
-      vcycle.vacutils.logLine('Failed to update space info in GOCDB: ' + str(e))
+      vacutils.logLine('Failed to update space info in GOCDB: ' + str(e))
     else:
-      vcycle.vacutils.logLine('Successfully updated space info in GOCDB')
+      vacutils.logLine('Successfully updated space info in GOCDB')
 
     return
 
@@ -1757,7 +1763,7 @@ class BaseSpace(object):
     for vacmonHostPort in self.vacmons:
       (vacmonHost, vacmonPort) = vacmonHostPort.split(':')
 
-      vcycle.vacutils.logLine('Sending VacMon status messages to %s:%s' % (vacmonHost, vacmonPort))
+      vacutils.logLine('Sending VacMon status messages to %s:%s' % (vacmonHost, vacmonPort))
 
       sock.sendto(factoryMessage, (vacmonHost,int(vacmonPort)))
 
@@ -1769,24 +1775,24 @@ class BaseSpace(object):
   def makeMachines(self):
 
     if self.shutdownTime is not None and self.shutdownTime < time.time():
-      vcycle.vacutils.logLine('Space {} has shutdown time in the past ({}), '\
+      vacutils.logLine('Space {} has shutdown time in the past ({}), '\
           'not allocating any more machines'.format(
             self.spaceName, self.shutdownTime))
       return
 
-    vcycle.vacutils.logLine('Space ' + self.spaceName +
+    vacutils.logLine('Space ' + self.spaceName +
                             ' has ' + str(self.runningProcessors) +
                             ' processor(s) found allocated to running Vcycle VMs out of ' + str(self.totalProcessors) +
                             ' found in any state for any machinetype or none.')
 
     if self.processors_limit is None:
-      vcycle.vacutils.logLine('The limit for the number of processors which may be allocated is not known to Vcycle.')
+      vacutils.logLine('The limit for the number of processors which may be allocated is not known to Vcycle.')
     else:
-      vcycle.vacutils.logLine('Vcycle knows the limit on the number of processors is %d, either from its configuration or from the infrastructure.' % self.processors_limit)
+      vacutils.logLine('Vcycle knows the limit on the number of processors is %d, either from its configuration or from the infrastructure.' % self.processors_limit)
 
 
     for machinetypeName,machinetype in self.machinetypes.iteritems():
-      vcycle.vacutils.logLine('machinetype ' + machinetypeName +
+      vacutils.logLine('machinetype ' + machinetypeName +
                               ' has ' + str(machinetype.startingProcessors) +
                               ' starting and ' + str(machinetype.runningProcessors) +
                               ' running processors out of ' + str(machinetype.totalProcessors) +
@@ -1800,11 +1806,11 @@ class BaseSpace(object):
     # Keep making passes through the machinetypes until limits exhausted
     while True:
       if self.processors_limit is not None and self.totalProcessors >= self.processors_limit:
-        vcycle.vacutils.logLine('Reached limit (%d) on number of processors to allocate for space %s' % (self.processors_limit, self.spaceName))
+        vacutils.logLine('Reached limit (%d) on number of processors to allocate for space %s' % (self.processors_limit, self.spaceName))
         return
 
       if creationsThisCycle >= creationsPerCycle:
-        vcycle.vacutils.logLine('Already reached limit of %d processor allocations this cycle' % creationsThisCycle )
+        vacutils.logLine('Already reached limit of %d processor allocations this cycle' % creationsThisCycle )
         return
 
       # For each pass, machinetypes are visited in a random order
@@ -1819,15 +1825,15 @@ class BaseSpace(object):
           continue
 
         if self.machinetypes[machinetypeName].processors_limit is not None and self.machinetypes[machinetypeName].totalProcessors >= self.machinetypes[machinetypeName].processors_limit:
-          vcycle.vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].processors_limit) + ') on number of processors to allocate for machinetype ' + machinetypeName)
+          vacutils.logLine('Reached limit (' + str(self.machinetypes[machinetypeName].processors_limit) + ') on number of processors to allocate for machinetype ' + machinetypeName)
           continue
 
         if self.machinetypes[machinetypeName].max_starting_processors is not None and self.machinetypes[machinetypeName].startingProcessors >= self.machinetypes[machinetypeName].max_starting_processors:
-          vcycle.vacutils.logLine('Reached limit (%d) on processors that can be in starting state for machinetype %s' % (self.machinetypes[machinetypeName].max_starting_processors, machinetypeName))
+          vacutils.logLine('Reached limit (%d) on processors that can be in starting state for machinetype %s' % (self.machinetypes[machinetypeName].max_starting_processors, machinetypeName))
           continue
 
         if int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime + self.machinetypes[machinetypeName].backoff_seconds):
-          vcycle.vacutils.logLine('Free capacity found for %s ... but only %d seconds after last abort'
+          vacutils.logLine('Free capacity found for %s ... but only %d seconds after last abort'
                                   % (machinetypeName, int(time.time()) - self.machinetypes[machinetypeName].lastAbortTime) )
           continue
 
@@ -1835,7 +1841,7 @@ class BaseSpace(object):
                                 self.machinetypes[machinetypeName].backoff_seconds +
                                 self.machinetypes[machinetypeName].fizzle_seconds)) and \
            (self.machinetypes[machinetypeName].notPassedFizzle > 0):
-          vcycle.vacutils.logLine('Free capacity found for ' +
+          vacutils.logLine('Free capacity found for ' +
                                   machinetypeName +
                                   ' ... but still within fizzle_seconds+backoff_seconds(' +
                                   str(int(self.machinetypes[machinetypeName].backoff_seconds + self.machinetypes[machinetypeName].fizzle_seconds)) +
@@ -1851,7 +1857,7 @@ class BaseSpace(object):
           bestMachinetypeName = machinetypeName
 
       if bestMachinetypeName:
-        vcycle.vacutils.logLine('Free capacity found for ' + bestMachinetypeName + ' within ' + self.spaceName + ' ... creating')
+        vacutils.logLine('Free capacity found for ' + bestMachinetypeName + ' within ' + self.spaceName + ' ... creating')
 
         # This tracks creation attempts, whether successful or not
         creationsThisCycle += self.machinetypes[bestMachinetypeName].min_processors
@@ -1861,10 +1867,10 @@ class BaseSpace(object):
         try:
           self._createMachine(bestMachinetypeName)
         except Exception as e:
-          vcycle.vacutils.logLine('Failed creating machine with machinetype ' + bestMachinetypeName + ' in ' + self.spaceName + ' (' + str(e) + ')')
+          vacutils.logLine('Failed creating machine with machinetype ' + bestMachinetypeName + ' in ' + self.spaceName + ' (' + str(e) + ')')
 
       else:
-        vcycle.vacutils.logLine('No more free capacity and/or suitable machinetype found within ' + self.spaceName)
+        vacutils.logLine('No more free capacity and/or suitable machinetype found within ' + self.spaceName)
         return
 
   def _createMachine(self, machinetypeName):
@@ -1873,11 +1879,11 @@ class BaseSpace(object):
     try:
       machineName = self.machinetypes[machinetypeName].makeMachineName()
     except Exception as e:
-      vcycle.vacutils.logLine('Failed construction new machine name (' + str(e) + ')')
+      vacutils.logLine('Failed construction new machine name (' + str(e) + ')')
 
     try:
       shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
-      vcycle.vacutils.logLine('Found and deleted left over /var/lib/vcycle/machines/' + machineName)
+      vacutils.logLine('Found and deleted left over /var/lib/vcycle/machines/' + machineName)
     except:
       pass
 
@@ -1890,14 +1896,14 @@ class BaseSpace(object):
                 stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP +
                 stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/created', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/created', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
 
     if self.zones:
       zone = random.choice(self.zones)
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/zone',  zone,   0644, '/var/lib/vcycle/tmp')
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/zone',  zone,   0644, '/var/lib/vcycle/tmp')
     else:
       zone = None
 
@@ -1935,11 +1941,11 @@ class BaseSpace(object):
 
         userDataOptions['user_data_option_cvmfs_proxy'] = '|'.join(ipList) + existingProxyOption
       else:
-        vcycle.vacutils.logLine('No machines found in machinetype %s (cvmfs_proxy_machinetype) - using defaults'
+        vacutils.logLine('No machines found in machinetype %s (cvmfs_proxy_machinetype) - using defaults'
                                  % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
         
     try:
-      userDataContents = vcycle.vacutils.createUserData(shutdownTime         = int(time.time() +
+      userDataContents = vacutils.createUserData(shutdownTime         = int(time.time() +
                                                                                    self.machinetypes[machinetypeName].max_wallclock_seconds),
                                                         machinetypePath      = self.machinetypes[machinetypeName].machinetype_path,
                                                         options              = userDataOptions,
@@ -1959,7 +1965,7 @@ class BaseSpace(object):
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
     try:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/user_data',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/user_data',
                                  userDataContents, 0600, '/var/lib/vcycle/tmp')
     except:
       raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
@@ -1968,31 +1974,31 @@ class BaseSpace(object):
     try:
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
-      vcycle.vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
+      vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
 
     # MJF. Some values may be set by self.createMachine() from the API!
 
     # $MACHINEFEATURES first
 
     # We maintain the fiction that this is a single-VM hypervisor, as we don't know the hypervisor details
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots',
                                "1", 0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/total_cpu',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/total_cpu',
                                str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # phys_cores and log_cores keys are deprecated
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores',
                                str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores',
                                str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
     if self.machinetypes[machinetypeName].hs06_per_processor:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06',
                                  str(self.machinetypes[machinetypeName].hs06_per_processor * self.machines[machineName].processors),
                                  0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     # Then $JOBFEATURES
@@ -2000,41 +2006,41 @@ class BaseSpace(object):
     # check for existence of shutdownTime and whether wallclock limit is closer
     if (self.shutdownTime is None or
         int(time.time()) + self.machinetypes[machinetypeName].maxWallclockSeconds < self.shutdownTime):
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
                                 str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
     else:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
                                 str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs',
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     # We assume worst case that CPU usage is limited by wallclock limit
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     # Calculate MB for this VM ("job")
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/max_rss_bytes',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/max_rss_bytes',
                                str(self.machinetypes[machinetypeName].rss_bytes_per_processor *
                                    self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # All the cpus are allocated to this one VM ("job")
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_cpu',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_cpu',
                                str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
     # allocated_CPU key name is deprecated
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU',
                                str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs',
                                str(int(time.time())), 0644, '/var/lib/vcycle/tmp')
 
     if self.machines[machineName].uuidStr is not None:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
                                  self.machines[machineName].uuidStr, 0644, '/var/lib/vcycle/tmp')
 
     if self.machinetypes[machinetypeName].hs06_per_processor:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job',
+      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job',
                                  str(self.machinetypes[machinetypeName].hs06_per_processor *
                                      self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
@@ -2045,41 +2051,41 @@ class BaseSpace(object):
     try:
       self.connect()
     except Exception as e:
-      vcycle.vacutils.logLine('Skipping ' + self.spaceName + ' this cycle: ' + str(e))
+      vacutils.logLine('Skipping ' + self.spaceName + ' this cycle: ' + str(e))
       return
 
     try:
       self.scanMachines()
     except Exception as e:
-      vcycle.vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
+      vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
 
     try:
       self.sendVacMon()
     except Exception as e:
-      vcycle.vacutils.logLine('Sending VacMon messages fails: ' + str(e))
+      vacutils.logLine('Sending VacMon messages fails: ' + str(e))
 
     try:
       # The update is only every hour as there is a heartbeat file
       self.updateGOCDB()
     except Exception as e:
-      vcycle.vacutils.logLine('Updating GOCDB fails: ' + str(e))
+      vacutils.logLine('Updating GOCDB fails: ' + str(e))
 
     try:
       self.deleteMachines()
     except Exception as e:
-      vcycle.vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
+      vacutils.logLine('Deleting old machines in ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
       
     try:
        self.createHeartbeatMachines()
     except Exception as e:
-      vcycle.vacutils.logLine('Creating heartbeat machine lists for ' + self.spaceName + ' fails: ' + str(e))
+      vacutils.logLine('Creating heartbeat machine lists for ' + self.spaceName + ' fails: ' + str(e))
       
     try:
       self.makeMachines()
     except Exception as e:
-      vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
+      vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
 
 def readConf(printConf = False, updatePipes = True):
 
@@ -2107,7 +2113,7 @@ def readConf(printConf = False, updatePipes = True):
         try:
           parser.read('/etc/vcycle.d/' + oneFile)
         except Exception as e:
-          vcycle.vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
+          vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
 
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
@@ -2251,15 +2257,15 @@ def cleanupMachines():
          spaceName in spaces and \
          machinetypeName in spaces[spaceName].machinetypes and \
          spaces[spaceName].machinetypes[machinetypeName].log_joboutputs:
-        vcycle.vacutils.logLine('Saving joboutputs to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
+        vacutils.logLine('Saving joboutputs to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
         logJoboutputs(spaceName, machinetypeName, machineName)
 
       # Always delete the working copies
       try:
         shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
-        vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
+        vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
       except:
-        vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
+        vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
 
 def logJoboutputs(spaceName, machinetypeName, machineName):
 
@@ -2271,14 +2277,14 @@ def logJoboutputs(spaceName, machinetypeName, machineName):
     os.makedirs('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
   except:
-    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
+    vacutils.logLine('Failed creating /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
     return
 
   try:
     # Get the list of files that the VM wrote in its /etc/joboutputs
     outputs = os.listdir('/var/lib/vcycle/machines/' + machineName + '/joboutputs')
   except:
-    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/joboutputs')
+    vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/joboutputs')
     return
 
   if outputs:
@@ -2295,7 +2301,7 @@ def logJoboutputs(spaceName, machinetypeName, machineName):
           shutil.copyfile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput,
                             '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
         except:
-          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput +
+          vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput +
                                   ' to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
 
 def cleanupJoboutputs():
@@ -2335,10 +2341,14 @@ def cleanupJoboutputs():
         if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
           try:
             shutil.rmtree('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
-            vcycle.vacutils.logLine('Deleted /var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir +
+            vacutils.logLine('Deleted /var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir +
                                     '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
           except:
-            vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/joboutputs/' + spaceDir + '/' +
+            vacutils.logLine('Failed deleting /var/lib/vcycle/joboutputs/' + spaceDir + '/' +
                                     machinetypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
+
+def getSpaces():
+  global spaces
+  return spaces
 
 ### END ###

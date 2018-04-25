@@ -55,18 +55,19 @@ import StringIO
 import tempfile
 import calendar
 
-import vcycle.vacutils
+from vcycle.core import shared
+from vcycle.core import vacutils
 
 class Ec2Error(Exception):
   pass
 
-class Ec2Space(vcycle.BaseSpace):
+class Ec2Space(shared.BaseSpace):
 
   def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
   # Initialize data structures from configuration files
 
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+    shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     # EC2-specific initialization
     try:
@@ -145,7 +146,7 @@ class Ec2Space(vcycle.BaseSpace):
     authorizationHeaderValue = 'AWS4-HMAC-SHA256 Credential=' + self.access_key + '/' + credentialScope + ', SignedHeaders=' + signedHeaderNames + ', Signature=' + signature
     headersList.append('Authorization: ' + authorizationHeaderValue)
 
-    return vcycle.BaseSpace.httpRequest(self, self.url, formRequest = formRequestBody, headers = headersList, verbose = verbose, method = 'POST', anyStatus = anyStatus)
+    return shared.BaseSpace.httpRequest(self, self.url, formRequest = formRequestBody, headers = headersList, verbose = verbose, method = 'POST', anyStatus = anyStatus)
 
   def scanMachines(self):
     """Query EC2 service for details of machines in this space"""
@@ -220,26 +221,26 @@ class Ec2Space(vcycle.BaseSpace):
         startedTime = None
 
       if instanceState == 'running':
-        state = vcycle.MachineState.running
+        state = shared.MachineState.running
       elif instanceState == 'pending':
-        state = vcycle.MachineState.starting
+        state = shared.MachineState.starting
       elif instanceState == 'stopping' or instanceState == 'stopped':
-        state = vcycle.MachineState.shutdown
+        state = shared.MachineState.shutdown
       elif instanceState == 'shutting-down' or instanceState == 'terminated':
-        state = vcycle.MachineState.deleting
+        state = shared.MachineState.deleting
       elif instanceState == 'error':
-        state = vcycle.MachineState.failed
+        state = shared.MachineState.failed
       else:
-        state = vcycle.MachineState.unknown
+        state = shared.MachineState.unknown
 
-      if state == vcycle.MachineState.running and ('tagSet' not in oneServer or 'item' not in oneServer['tagSet'][0]):
+      if state == shared.MachineState.running and ('tagSet' not in oneServer or 'item' not in oneServer['tagSet'][0]):
         # Running but no tags yet, so try creating
         try:
           self.createTags(instanceId, machineName, machinetypeName)
         except Exception as e:
-          vcycle.vacutils.logLine('Adding tags fails with ' + str(e))
+          vacutils.logLine('Adding tags fails with ' + str(e))
 
-      self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
+      self.machines[machineName] = shared.Machine(name            = machineName,
                                                          spaceName       = self.spaceName,
                                                          state           = state,
                                                          ip              = ip,
@@ -289,7 +290,7 @@ class Ec2Space(vcycle.BaseSpace):
 
       if line[:8] == 'ssh-rsa ':
         sshPublicKey = line.split(' ')[1]
-        sshFingerprint = vcycle.vacutils.makeSshFingerprint(line)
+        sshFingerprint = vacutils.makeSshFingerprint(line)
         break
 
     # Check if public key is there already
@@ -326,7 +327,7 @@ class Ec2Space(vcycle.BaseSpace):
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
+    vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
 
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
@@ -375,11 +376,11 @@ class Ec2Space(vcycle.BaseSpace):
     else:
       self.setFileContents(machineName, 'private_dns_name', privateDnsName)
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' ( ' + str(instanceId) + ' / ' + str(privateDnsName) + ' ) for ' + machinetypeName + ' within ' + self.spaceName)
+    vacutils.logLine('Created ' + machineName + ' ( ' + str(instanceId) + ' / ' + str(privateDnsName) + ' ) for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+    self.machines[machineName] = shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
-                                                       state       = vcycle.MachineState.starting,
+                                                       state       = shared.MachineState.starting,
                                                        ip          = '0.0.0.0',
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
@@ -436,6 +437,6 @@ class Ec2Space(vcycle.BaseSpace):
 
     if result['status'] == 200:
       # For EC2, we want to log the instanceId as well as the machineName
-      vcycle.vacutils.logLine('Deleted ' + machineName + ' (' + instanceId + ')')
+      vacutils.logLine('Deleted ' + machineName + ' (' + instanceId + ')')
     else:
-      vcycle.vacutils.logLine('Deletion of ' + machineName + ' (' + instanceId + ') fails with code ' + str(result['status']))
+      vacutils.logLine('Deletion of ' + machineName + ' (' + instanceId + ') fails with code ' + str(result['status']))

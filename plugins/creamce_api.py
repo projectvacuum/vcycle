@@ -52,18 +52,19 @@ import tempfile
 import calendar
 import subprocess
 
-import vcycle.vacutils
+from vcycle.core import shared
+from vcycle.core import vacutils
 
 class CreamceError(Exception):
   pass
 
-class CreamceSpace(vcycle.BaseSpace):
+class CreamceSpace(shared.BaseSpace):
 
   def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
   # Initialize data structures from configuration files
 
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+    shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     self.maxStartingSeconds = None # no limit
 
@@ -105,7 +106,7 @@ class CreamceSpace(vcycle.BaseSpace):
         with open('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(oneStatus['JobID'], '')) as f:
           machineName = f.read().strip()
       except:
-        vcycle.vacutils.logLine('Failed to read jobid file for %s!' % oneStatus['JobID'])
+        vacutils.logLine('Failed to read jobid file for %s!' % oneStatus['JobID'])
         continue
 
       # Collect values saved in machine's directory
@@ -113,22 +114,22 @@ class CreamceSpace(vcycle.BaseSpace):
       try:
         machinetypeName = open('/var/lib/vcycle/machines/%s/machinetype_name' % machineName, 'r').readline().strip()
       except:
-        vcycle.vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
+        vacutils.logLine('Failed to read machinetype_name file for %s!' % machineName)
         continue
 
       # Map CREAM Status to Vcycle state
       if oneStatus['Status'] in ('REGISTERED','PENDING','IDLE'):
-        state = vcycle.MachineState.starting
+        state = shared.MachineState.starting
       elif oneStatus['Status'] in ('RUNNING','REALLY-RUNNING'):
-        state = vcycle.MachineState.running
+        state = shared.MachineState.running
       elif oneStatus['Status'] in ('DONE-FAILED','ABORTED'):
-        state = vcycle.MachineState.failed
+        state = shared.MachineState.failed
       elif oneStatus['Status'] in ('DONE-OK','CANCELLED'):
-        state = vcycle.MachineState.shutdown
+        state = shared.MachineState.shutdown
       else:
-        state = vcycle.MachineState.unknown
+        state = shared.MachineState.unknown
 
-      self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+      self.machines[machineName] = shared.Machine(name             = machineName,
                                                          spaceName        = self.spaceName,
                                                          state            = state,
                                                          ip               = '0.0.0.0',
@@ -170,7 +171,7 @@ class CreamceSpace(vcycle.BaseSpace):
     # Cream CE-specific job submission
 
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl',
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jdl',
                                '''[
 Type = "Job";
 JobType = "Normal";
@@ -203,15 +204,15 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
     if not jobID:
       raise CreamceError('Could not get Job ID from %s job submission response' % machineName)
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobid', jobID, 0600, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobid', jobID, 0600, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID,''), machineName, 0600, '/var/lib/vcycle/tmp')
+    vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID,''), machineName, 0600, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + jobID + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    vacutils.logLine('Created ' + machineName + ' (' + jobID + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
+    self.machines[machineName] = shared.Machine(name        = machineName,
                                                        spaceName   = self.spaceName,
-                                                       state       = vcycle.MachineState.starting,
+                                                       state       = shared.MachineState.starting,
                                                        ip          = '0.0.0.0',
                                                        createdTime = int(time.time()),
                                                        startedTime = None,
@@ -227,4 +228,4 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
       # All we do is remove it from the list of jobids to ignore it from now on
       os.remove('/var/lib/vcycle/spaces/' + self.spaceName + '/jobids/' + urllib.quote(jobID, ''))
     except Exception as e:
-      vcycle.vacutils.logLine('Failed deleting %s (%s)' % (machineName, str(e)))
+      vacutils.logLine('Failed deleting %s (%s)' % (machineName, str(e)))

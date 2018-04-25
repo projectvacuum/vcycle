@@ -35,6 +35,20 @@ Requires: vcycle
 %description dbce
 DBCE plugin for Vcycle, contributed by CERN/IT
 
+%package creamce
+Summary: CREAM plugin for vcycle
+Requires: vcycle
+
+%description creamce
+CREAM plugin for vcycle
+
+%package google
+Summary: Google plugin for vcycle
+Requires: vcycle
+
+%description google
+Google plugin for vcycle
+
 %prep
 
 %setup -n vcycle
@@ -61,11 +75,14 @@ fi
 /usr/sbin/*
 /usr/share/doc/vcycle-%{version}
 %{python_sitelib}/vcycle/__init__.py*
-%{python_sitelib}/vcycle/shared.py*
-%{python_sitelib}/vcycle/vacutils.py*
-%{python_sitelib}/vcycle/openstack/openstack_api.py*
-%{python_sitelib}/vcycle/ec2_api.py*
-%{python_sitelib}/vcycle/openstack/*.py*
+%{python_sitelib}/vcycle/core/__init__.py*
+%{python_sitelib}/vcycle/core/shared.py*
+%{python_sitelib}/vcycle/core/vacutils.py*
+%{python_sitelib}/vcycle/plugins/__init__.py*
+%{python_sitelib}/vcycle/plugins/openstack/__init__.py*
+%{python_sitelib}/vcycle/plugins/openstack/openstack_api.py*
+%{python_sitelib}/vcycle/plugins/openstack/image_api.py*
+%{python_sitelib}/vcycle/plugins/ec2_api.py*
 /var/lib/vcycle
 /etc/rc.d/init.d/vcycled
 /etc/logrotate.d/vcycled
@@ -77,10 +94,16 @@ fi
 pip install azure-servicemanagement-legacy
 
 %files azure
-%{python_sitelib}/vcycle/azure_api.py*
+%{python_sitelib}/vcycle/plugins/azure_api.py*
 
 %files occi
-%{python_sitelib}/vcycle/occi_api.py*
+%{python_sitelib}/vcycle/plugins/occi_api.py*
 
 %files dbce
-%{python_sitelib}/vcycle/dbce_api.py*
+%{python_sitelib}/vcycle/plugins/dbce_api.py*
+
+%files creamce
+%{python_sitelib}/vcycle/plugins/creamce_api.py*
+
+%files google
+%{python_sitelib}/vcycle/plugins/google_api.py*

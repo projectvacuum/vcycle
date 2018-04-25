@@ -52,19 +52,19 @@ import StringIO
 import tempfile
 import calendar
 
-import vcycle.vacutils
-import vcycle.openstack.image_api
+from vcycle.core import shared
+from vcycle.core import vacutils
+from vcycle.plugins import openstack
 
 class OpenstackError(Exception):
   pass
 
-class OpenstackSpace(vcycle.BaseSpace):
+class OpenstackSpace(shared.BaseSpace):
 
   def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
-  # Initialize data structures from configuration files
-
+    # Initialize data structures from configuration files
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+    shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     # OpenStack-specific initialization
     try:
@@ -75,7 +75,7 @@ class OpenstackSpace(vcycle.BaseSpace):
       except Exception as e:
         raise OpenstackError('project_name is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
     else:
-      vcycle.vacutils.logLine('tenancy_name in [space ' + self.spaceName + '] is deprecated - please use project_name')
+      vacutils.logLine('tenancy_name in [space ' + self.spaceName + '] is deprecated - please use project_name')
 
     try:
       self.domain_name = parser.get(spaceSectionName, 'domain_name')
@@ -160,11 +160,11 @@ class OpenstackSpace(vcycle.BaseSpace):
     # initialise glance api (has to be here as we don't have imageURL until
     # after connecting)
     if self.glanceAPIVersion == '2':
-      self.imageAPI = vcycle.openstack.image_api.GlanceV2(self.token, self.imageURL)
+      self.imageAPI = openstack.image_api.GlanceV2(self.token, self.imageURL)
       # update image additional properties
       self.imageAPI.updateShutdownTimeout(self.osShutdownTimeout)
     elif self.glanceAPIVersion == '1':
-      self.imageAPI = vcycle.openstack.image_api.GlanceV1(self.token, self.imageURL)
+      self.imageAPI = openstack.image_api.GlanceV1(self.token, self.imageURL)
     else:
       raise OpenstackError('glanceAPIVersion %s not recongnised'
           % self.glanceAPIVersion)
@@ -177,12 +177,12 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     # Try to use it for this space
     if self.processors_limit is None:
-      vcycle.vacutils.logLine('No limit on processors set in Vcycle configuration')
+      vacutils.logLine('No limit on processors set in Vcycle configuration')
       if processorsLimit is not None:
-        vcycle.vacutils.logLine('Processors limit set to %d from OpenStack' % processorsLimit)
+        vacutils.logLine('Processors limit set to %d from OpenStack' % processorsLimit)
         self.processors_limit = processorsLimit
     else:
-      vcycle.vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.processors_limit)
+      vacutils.logLine('Processors limit set to %d in Vcycle configuration' % self.processors_limit)
 
   def _connectV2(self):
   # Connect to the OpenStack service with Identity v2
@@ -214,9 +214,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     if not self.imageURL:
       raise OpenstackError('No image service URL found from ' + self.identityURL)
 
-    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
-    vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
-    vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
+    vacutils.logLine('computeURL = ' + self.computeURL)
+    vacutils.logLine('imageURL   = ' + self.imageURL)
 
   def _connectV3(self):
   # Connect to the OpenStack service with Identity v3
@@ -269,9 +269,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     if not self.imageURL:
       raise OpenstackError('No image service URL found from ' + self.identityURL)
 
-    vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
-    vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
-    vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
+    vacutils.logLine('computeURL = ' + self.computeURL)
+    vacutils.logLine('imageURL   = ' + self.imageURL)
 
   def _getFlavors(self):
     """Query OpenStack to get details of flavors defined for this project"""
@@ -378,31 +378,32 @@ class OpenstackSpace(vcycle.BaseSpace):
         zone = None
 
       if taskState == 'Deleting':
-        state = vcycle.MachineState.deleting
+        state = shared.MachineState.deleting
       elif status == 'ACTIVE' and powerState == 1:
-        state = vcycle.MachineState.running
+        state = shared.MachineState.running
       elif status == 'BUILD' or status == 'ACTIVE':
-        state = vcycle.MachineState.starting
+        state = shared.MachineState.starting
       elif status == 'SHUTOFF':
-        state = vcycle.MachineState.shutdown
+        state = shared.MachineState.shutdown
       elif status == 'ERROR':
-        state = vcycle.MachineState.failed
+        state = shared.MachineState.failed
       elif status == 'DELETED':
-        state = vcycle.MachineState.deleting
+        state = shared.MachineState.deleting
       else:
-        state = vcycle.MachineState.unknown
+        state = shared.MachineState.unknown
 
-      self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
-                                                         spaceName        = self.spaceName,
-                                                         state            = state,
-                                                         ip               = ip,
-                                                         createdTime      = createdTime,
-                                                         startedTime      = startedTime,
-                                                         updatedTime      = updatedTime,
-                                                         uuidStr          = uuidStr,
-                                                         machinetypeName  = machinetypeName,
-                                                         zone             = zone,
-                                                         processors       = processors)
+      self.machines[machineName] = shared.Machine(
+          name             = machineName,
+          spaceName        = self.spaceName,
+          state            = state,
+          ip               = ip,
+          createdTime      = createdTime,
+          startedTime      = startedTime,
+          updatedTime      = updatedTime,
+          uuidStr          = uuidStr,
+          machinetypeName  = machinetypeName,
+          zone             = zone,
+          processors       = processors)
 
   def getFlavorName(self, flavorID):
     """Get the "flavor" ID"""
@@ -451,10 +452,10 @@ class OpenstackSpace(vcycle.BaseSpace):
          self.machinetypes[machinetypeName].root_image[:8] == 'https://':
 
         try:
-          imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
+          imageFile = vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
                                          '/var/lib/vcycle/imagecache',
                                          '/var/lib/vcycle/tmp',
-                                         'Vcycle ' + vcycle.shared.vcycleVersion)
+                                         'Vcycle ' + shared.vcycleVersion)
 
           imageLastModified = int(os.stat(imageFile).st_mtime)
         except Exception as e:
@@ -508,7 +509,7 @@ class OpenstackSpace(vcycle.BaseSpace):
         except:
           pass
 
-    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
+    vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in image service, so uploading')
 
     if self.machinetypes[machinetypeName].cernvm_signing_dn:
       cernvmDict = vac.vacutils.getCernvmImageData(self.machinetypes[machinetypeName]._imageFile)
@@ -594,7 +595,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
+    vacutils.logLine('Created key pair ' + keyName + ' for ' + self.machinetypes[machinetypeName].root_public_key + ' in ' + self.spaceName)
 
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
@@ -638,11 +639,11 @@ class OpenstackSpace(vcycle.BaseSpace):
 
       if self.network_uuid:
         request['server']['networks'] = [{"uuid": self.network_uuid}]
-        vcycle.vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
+        vacutils.logLine('Will use network %s for %s' % (self.network_uuid, machineName))
 
       if zone:
         request['server']['availability_zone'] = zone
-        vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, zone, self.spaceName))
+        vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, zone, self.spaceName))
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)
@@ -662,11 +663,11 @@ class OpenstackSpace(vcycle.BaseSpace):
     except:
       raise OpenstackError('Could not get VM UUID from VM creation response (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
+    self.machines[machineName] = shared.Machine(name             = machineName,
                                                        spaceName        = self.spaceName,
-                                                       state            = vcycle.MachineState.starting,
+                                                       state            = shared.MachineState.starting,
                                                        ip               = '0.0.0.0',
                                                        createdTime      = int(time.time()),
                                                        startedTime      = None,
@@ -682,4 +683,4 @@ class OpenstackSpace(vcycle.BaseSpace):
                        method = 'DELETE',
                        headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
-      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+      raise shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')

@@ -41,7 +41,8 @@ import StringIO
 from abc import ABCMeta, abstractmethod
 from six import add_metaclass
 
-import vcycle.vacutils
+from vcycle.core import shared
+from vcycle.core import vacutils
 
 # TODO: Figure a way to have this in one place
 class OpenstackError(Exception):
@@ -71,7 +72,7 @@ class GlanceV2(GlanceBase):
 
   def __init__(self, token, imageURL):
     super(GlanceV2, self).__init__(token, imageURL)
-    vcycle.vacutils.logLine('Using Glance v2 api')
+    vacutils.logLine('Using Glance v2 api')
 
   def uploadImage(self, imageFile, imageName, imageLastModified,
                   verbose = False):
@@ -79,7 +80,7 @@ class GlanceV2(GlanceBase):
     imageID = self._createImage(imageFile, imageName, imageLastModified,
                                 verbose)
     self._uploadImageData(imageFile, imageID, verbose)
-    vcycle.vacutils.logLine('Uploaded image file to Glance')
+    vacutils.logLine('Uploaded image file to Glance')
     return imageID
 
   def _createImage(self, imageFile, imageName,
@@ -93,7 +94,7 @@ class GlanceV2(GlanceBase):
     # Create image
     self.curl.setopt(pycurl.CUSTOMREQUEST, 'POST')
     self.curl.setopt(pycurl.URL, self.imageURL + '/v2/images')
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -151,7 +152,7 @@ class GlanceV2(GlanceBase):
     self.curl.setopt(pycurl.UPLOAD, True)
     self.curl.setopt(pycurl.READFUNCTION, f.read)
 
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -178,7 +179,7 @@ class GlanceV2(GlanceBase):
   def getImageDetails(self):
     """ Get the existing images details """
     self.curl.setopt(pycurl.URL, self.imageURL + '/v2/images')
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -233,7 +234,7 @@ class GlanceV2(GlanceBase):
 
     self.curl.setopt(pycurl.CUSTOMREQUEST, 'PATCH')
     self.curl.setopt(pycurl.URL, str(self.imageURL + '/v2/images/' + imageID))
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -257,7 +258,7 @@ class GlanceV2(GlanceBase):
     try:
       self.curl.perform()
     except Exception as e:
-      vcycle.vacutils.logLine('Failed to get replace image porperties ('
+      vacutils.logLine('Failed to get replace image porperties ('
           + str(e) + ')')
 
 class GlanceV1(GlanceBase):
@@ -265,7 +266,7 @@ class GlanceV1(GlanceBase):
 
   def __init__(self, token, imageURL):
     super(GlanceV1, self).__init__(token, imageURL)
-    vcycle.vacutils.logLine('Using Glance v1 api')
+    vacutils.logLine('Using Glance v1 api')
 
   def uploadImage(self, imageFile, imageName, imageLastModified,
                   verbose = False):
@@ -279,7 +280,7 @@ class GlanceV1(GlanceBase):
     self.curl.setopt(pycurl.UPLOAD, True)
     self.curl.setopt(pycurl.CUSTOMREQUEST, 'POST')
     self.curl.setopt(pycurl.URL, self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -325,7 +326,7 @@ class GlanceV1(GlanceBase):
       raise OpenstackError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
 
     try:
-      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
+      vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
       return str(response['image']['id'])
     except:
       raise OpenstackError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
@@ -334,7 +335,7 @@ class GlanceV1(GlanceBase):
     """ Get image details using glance v1 API """
 
     self.curl.setopt(pycurl.URL, self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT, 30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)

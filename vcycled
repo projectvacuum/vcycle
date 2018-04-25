@@ -37,7 +37,8 @@ import sys
 import time
 import random
 
-import vcycle
+from vcycle.core import vacutils
+from vcycle.core import shared
 
 sleepSeconds = 60
 
@@ -112,24 +113,24 @@ if __name__ == '__main__':
         random.seed()
 
         if cyclePid == 0:
-          vcycle.vacutils.logLine('=============== Start cycle ===============')
+          vacutils.logLine('=============== Start cycle ===============')
 
           try:
-            vcycle.shared.readConf(printConf = True, updatePipes = True)
+            shared.readConf(printConf = False, updatePipes = True)
           except Exception as e:
             print 'readConf() fails with "' + str(e) + '", skipping cycle'
           else:
-            for spaceName, space in vcycle.shared.spaces.iteritems():
-              vcycle.vacutils.logLine('--- Space ' + spaceName + ' ---------------------------')
+            for spaceName, space in shared.getSpaces().iteritems():
+              vacutils.logLine('--- Space ' + spaceName + ' ---------------------------')
               try:
                 space.oneCycle()
               except Exception as e:
                 print 'Processing space ' + spaceName + ' fails with exception ' + str(e)
 
-          vcycle.vacutils.logLine('----------------- Cleanup -----------------')
-          vcycle.shared.cleanupMachines()
-          vcycle.shared.cleanupJoboutputs()
-          vcycle.vacutils.logLine('================ End cycle ================')
+          vacutils.logLine('----------------- Cleanup -----------------')
+          shared.cleanupMachines()
+          shared.cleanupJoboutputs()
+          vacutils.logLine('================ End cycle ================')
           sys.exit(0)
 
         # wait for cyclePid subprocess to finish
