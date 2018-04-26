@@ -166,64 +166,8 @@ class Machine:
 
     try:
       self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/hs06_job', 'r').read().strip())
-      hs06Weight = self.hs06
     except:
       self.hs06 = None
-      hs06Weight = float(self.processors)
-
-    spaces[self.spaceName].totalMachines += 1
-    spaces[self.spaceName].totalProcessors += self.processors
-
-    try:
-      spaces[self.spaceName].machinetypes[self.machinetypeName].totalMachines += 1
-      spaces[self.spaceName].machinetypes[self.machinetypeName].totalProcessors += self.processors
-
-      if spaces[self.spaceName].machinetypes[self.machinetypeName].target_share > 0.0:
-         spaces[self.spaceName].machinetypes[self.machinetypeName].weightedMachines += (hs06Weight / spaces[self.spaceName].machinetypes[self.machinetypeName].target_share)
-    except:
-      pass
-
-    if self.state == MachineState.starting:
-      try:
-        spaces[self.spaceName].machinetypes[self.machinetypeName].startingProcessors += self.processors
-      except:
-        pass
-
-    if self.state == MachineState.running:
-      try:
-        if not self.startedTime:
-          self.startedTime = int(time.time())
-          self.updatedTime = self.startedTime
-
-        spaces[self.spaceName].runningMachines += 1
-        spaces[self.spaceName].runningProcessors += self.processors
-
-        try:
-          spaces[self.spaceName].machinetypes[self.machinetypeName].runningMachines += 1
-          spaces[self.spaceName].machinetypes[self.machinetypeName].runningProcessors += self.processors
-        except:
-          pass
-
-        if self.hs06 is not None:
-          # We check runningHS06 first in case hs06_per_processor removed from machinetype in config
-          if spaces[self.spacename].runningHS06 is not None:
-            spaces[self.spacename].runningHS06 += self.hs06
-
-          try:
-            spaces[self.spaceName].machinetypes[self.machinetypeName].runningHS06 += self.hs06
-          except:
-            pass
-
-      except:
-        pass
-
-    try:
-      if self.state == MachineState.starting or \
-         (self.state == MachineState.running and \
-          ((int(time.time()) - startedTime) < spaces[self.spaceName].machinetypes[self.machinetypeName].fizzle_seconds)):
-        spaces[self.spaceName].machinetypes[self.machinetypeName].notPassedFizzle += 1
-    except:
-      pass
 
     if os.path.isdir('/var/lib/vcycle/machines/' + name):
       self.managedHere = True
@@ -1945,22 +1889,22 @@ class BaseSpace(object):
                                  % self.machinetypes[machinetypeName].cvmfsProxyMachinetype)
         
     try:
-      userDataContents = vacutils.createUserData(shutdownTime         = int(time.time() +
-                                                                                   self.machinetypes[machinetypeName].max_wallclock_seconds),
-                                                        machinetypePath      = self.machinetypes[machinetypeName].machinetype_path,
-                                                        options              = userDataOptions,
-                                                        versionString        = 'Vcycle ' + vcycleVersion,
-                                                        spaceName            = self.spaceName,
-                                                        machinetypeName      = machinetypeName,
-                                                        userDataPath         = self.machinetypes[machinetypeName].user_data,
-                                                        rootImageURL         = rootImageURL,
-                                                        hostName             = machineName,
-                                                        uuidStr              = None,
-                                                        machinefeaturesURL   = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                                        jobfeaturesURL       = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                                        joboutputsURL        = joboutputsURL,
-                                                        heartbeatMachinesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/spaces/' + self.spaceName + '/heartbeatmachines'
-                                                       )
+      userDataContents = vacutils.createUserData(
+          shutdownTime         = int(time.time() +
+            self.machinetypes[machinetypeName].max_wallclock_seconds),
+          machinetypePath      = self.machinetypes[machinetypeName].machinetype_path,
+          options              = userDataOptions,
+          versionString        = 'Vcycle ' + vcycleVersion,
+          spaceName            = self.spaceName,
+          machinetypeName      = machinetypeName,
+          userDataPath         = self.machinetypes[machinetypeName].user_data,
+          rootImageURL         = rootImageURL,
+          hostName             = machineName,
+          uuidStr              = None,
+          machinefeaturesURL   = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+          jobfeaturesURL       = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
+          joboutputsURL        = joboutputsURL,
+          heartbeatMachinesURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/spaces/' + self.spaceName + '/heartbeatmachines')
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
@@ -1975,7 +1919,7 @@ class BaseSpace(object):
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
       vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
-
+    
     # MJF. Some values may be set by self.createMachine() from the API!
 
     # $MACHINEFEATURES first
@@ -2046,6 +1990,48 @@ class BaseSpace(object):
 
     # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
 
+  def updateMachineTotals(self):
+    """ Run through the machines and update various totals """
+
+    for machineName, machine in self.machines.iteritems():
+
+      # Update overall spaces totals for newly created machine
+      self.totalMachines += 1
+      self.totalProcessors += machine.processors
+
+      if machine.state == MachineState.running:
+        self.runningMachines += 1
+        self.runningProcessors += machine.processors
+
+        if machine.hs06:
+          if self.runningHS06:
+            self.runningHS06 += machine.hs06
+
+      # update machinetypes totals
+      if machine.machinetypeName in self.machinetypes:
+        machinetype = self.machinetypes[machine.machinetypeName]
+        machinetype.totalMachines += 1
+        machinetype.totalProcessors += machine.processors
+
+        if machinetype.target_share > 0.0:
+          hs06Weight = machine.hs06 if machine.hs06 else float(machine.processors)
+          machinetype.weightedMachines += hs06Weight / machinetype.target_share
+
+        if machine.state == MachineState.starting:
+          machinetype.startingProcessors += machine.processors
+
+        if machine.state == MachineState.running:
+          machinetype.runningMachines += 1
+          machinetype.runningProcessors += machine.processors
+          if machine.hs06:
+            machinetype.runningHS06 += machine.hs06
+
+        if (machine.state == MachineState.starting
+            or (machine.state == MachineState.running
+              and (int(time.time()) - machine.startedTime)
+              < machinetype.fizzle_seconds)):
+          machinetype.notPassedFizzle += 1
+
   def oneCycle(self):
 
     try:
@@ -2056,6 +2042,7 @@ class BaseSpace(object):
 
     try:
       self.scanMachines()
+      self.updateMachineTotals()
     except Exception as e:
       vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
