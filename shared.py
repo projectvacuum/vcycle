@@ -80,7 +80,7 @@ class MachineState:
   # random OpenStack unreliability can require transition to failed at any time
   # stopped file created when machine first seen in shutdown, deleting, or failed state
   #
-  unknown, shutdown, starting, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Running', 'Deleting', 'Failed')
+  unknown, shutdown, starting, stopping, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Stopping', 'Running', 'Deleting', 'Failed')
 
 class Machine:
 
@@ -911,7 +911,14 @@ class Machinetype:
       self.options['legacy_proxy'] = True
     else:
       self.options['legacy_proxy'] = False
-    
+
+    try:
+      self.preemptible = bool(parser.get(machinetypeSectionName, 'preemptible'))
+    except:
+      self.preemptible = False
+
+    # print self.preemptible # TODO testing
+
     # Just for this instance, so Total for this machinetype in one space
     self.totalMachines      = 0
     self.totalProcessors    = 0
@@ -1797,6 +1804,8 @@ class BaseSpace(object):
     creationsPerCycle  = int(0.9999999 + self.processors_limit * 0.1)
     creationsThisCycle = 0
 
+    self._preemptiveShutdown(creationsPerCycle)
+
     # Keep making passes through the machinetypes until limits exhausted
     while True:
       if self.processors_limit is not None and self.totalProcessors >= self.processors_limit:
@@ -2039,6 +2048,104 @@ class BaseSpace(object):
                                      self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
 
     # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
+
+  def _preemptiveShutdown(self, creationsPerCycle):
+    """ Preemptively shutdown low priority machines
+
+    In the case of low priority machinetypes in the space, preemptively
+    shutdown machines to make room for high priority machinetypes, when they
+    have jobs available.
+    """
+
+    # lists to collect machine type names we need
+    preemptibleMachinetypes = []
+    highPriorityMachinetypesTest = []
+    highPriorityMachinetypes = []
+
+    # scan through machine types and collect what we need to know
+    for machinetypeName, machinetypeObject in self.machinetypes.iteritems():
+      if machinetypeObject.preemptible == True:
+        preemptibleMachinetypes.append(machinetypeName)
+      elif (int(time.time()) < machinetypeObject.lastAbortTime
+          + machinetypeObject.backoff_seconds):
+        continue
+      elif (int(time.time()) < machinetypeObject.lastAbortTime
+          + machinetypeObject.backoff_seconds
+          + machinetypeObject.fizzle_seconds):
+        highPriorityMachinetypesTest.append(machinetypeName)
+      else:
+        highPriorityMachinetypes.append(machinetypeName)
+
+    # TODO remove these
+    print "preemptibleMachinetypes: ", preemptibleMachinetypes
+    print "highPriorityMachinetypesTest: ", highPriorityMachinetypesTest
+    print "highPriorityMachinetypes: ", highPriorityMachinetypes
+
+    # all HP machines are within abort time or there are no preemptible
+    # machines
+    if (len(highPriorityMachinetypesTest) + len(highPriorityMachinetypes) == 0
+        or len(preemptibleMachinetypes) == 0):
+      return
+
+    # else we now want to stop creating preemptible machines
+    # TODO: Make this some sort of hold off variable/file rather than using the
+    # last abort time file
+    for machinetypeName in preemptibleMachinetypes:
+      self.machinetypes[machinetypeName].setLastAbortTime(int(time.time()))
+
+    # NOTE(RaoulHC): we'll use the fact sleep seconds is hard coded to 60
+
+    # scan through machines of preemptible machine types and see how many are
+    # shutting down, get a list of those that are still running
+    numPoweringOff = 0
+    preemptibleMachines = []
+    for machineName, machine in self.machines.iteritems():
+      if (machine.state == vcycle.MachineState.stopping
+          and machine.machinetypeName in preemptibleMachinetypes):
+        numPoweringOff += 1
+      elif (machine.machinetypeName in preemptibleMachinetypes
+          and machine.state == vcycle.MachineState.running):
+        preemptibleMachines.append(machineName)
+
+    # FIXME(RaoulHC): remove this later
+    print "Number of preemptible machines powering off: ", numPoweringOff
+
+    # TODO(RaoulHC): atm no grace time is implemented so gonna use 10 mins, but
+    # this should be changed later. Probably an option to be set in the
+    # configuration file along with preemptible. (os shutdown timeout)
+    graceSecs = 600
+
+    # now want to figure out if we have more machines to turn off
+    # NOTE(RaoulHC): for now, I think I'll assume worse case scenario, that
+    # they're all gonna take grace_secs to shutdown, basically check whether
+    # creations per cycle times * grace secs / cycle time > num powering off
+    # and if so start shutting more down. Hard coded cycle time to 60 for now
+    # probably could be changed.
+    # Pretty sure this part needs redoing/extending for fizzling vms.
+    if (creationsPerCycle * graceSecs / 60 < numPoweringOff
+        or len(preemptibleMachines) == 0):
+      return
+    elif (creationsPerCycle * graceSecs / 60
+        < numPoweringOff + creationsPerCycle):
+      shutdownSignals = min(
+          creationsPerCycle * graceSecs / 60 - numPoweringOff,
+          len(preemptibleMachines))
+    else:
+      shutdownSignals = min(creationsPerCycle, len(preemptibleMachines))
+
+    # FIXME: Remove this later
+    print "Shutdown signals to send: ", shutdownSignals
+
+    # Now want to actually send shutdown signals to preemptible machines
+    # need a list of preemptible machines (not machine types) might have to
+    # scan machines. TODO maybe I want to combine this into the other scan of
+    # machines?
+    print "preemptible machines: ", preemptibleMachines # FIXME Remove
+    random.shuffle(preemptibleMachines)
+    print "shuffled preemptible machines: ", preemptibleMachines # FIXME Remove
+
+    for i in range(shutdownSignals):
+      self.shutdownOneMachine(preemptibleMachines[i])
 
   def oneCycle(self):
 
