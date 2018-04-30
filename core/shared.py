@@ -60,6 +60,12 @@ import ConfigParser
 import xml.etree.cElementTree
 
 from vcycle.core import vacutils
+from vcycle.core import file
+
+
+file_driver = file.File(
+    base_dir = '/var/lib/vcycle',
+    tmp_dir = '/var/lib/vcycle/tmp')
 
 
 class VcycleError(Exception):
@@ -1829,28 +1835,29 @@ class BaseSpace(object):
       vacutils.logLine('Failed construction new machine name (' + str(e) + ')')
 
     try:
-      shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
-      vacutils.logLine('Found and deleted left over /var/lib/vcycle/machines/' + machineName)
+      file_driver.remove_dir('machines/' + machineName)
     except:
       pass
 
-    os.makedirs('/var/lib/vcycle/machines/' + machineName + '/machinefeatures',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-    os.makedirs('/var/lib/vcycle/machines/' + machineName + '/jobfeatures',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-    os.makedirs('/var/lib/vcycle/machines/' + machineName + '/joboutputs',
+    file_driver.create_dir('machines/' + machineName + '/machinefeatures',
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP 
+                + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    file_driver.create_dir('machines/' + machineName + '/jobfeatures',
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP
+                + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    file_driver.create_dir('machines/' + machineName + '/joboutputs',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR +
                 stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP +
                 stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
 
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/created', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/created', str(int(time.time())), 0600)
+    file_driver.create_file('machines/' + machineName + '/updated', str(int(time.time())), 0600)
+    file_driver.create_file('machines/' + machineName + '/machinetype_name', machinetypeName,  0644)
+    file_driver.create_file('machines/' + machineName + '/space_name',  self.spaceName, 0644)
 
     if self.zones:
       zone = random.choice(self.zones)
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/zone',  zone,   0644, '/var/lib/vcycle/tmp')
+      file_driver.create_file('machines/' + machineName + '/zone',  zone,   0644)
     else:
       zone = None
 
@@ -1912,8 +1919,8 @@ class BaseSpace(object):
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')
 
     try:
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/user_data',
-                                 userDataContents, 0600, '/var/lib/vcycle/tmp')
+      file_driver.create_file('machines/' + machineName + '/user_data',
+                              userDataContents, 0600)
     except:
       raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
 
@@ -1928,68 +1935,68 @@ class BaseSpace(object):
     # $MACHINEFEATURES first
 
     # We maintain the fiction that this is a single-VM hypervisor, as we don't know the hypervisor details
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/jobslots',
-                               "1", 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/machinefeatures/jobslots',
+                               "1", 0644)
 
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/total_cpu',
-                               str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/machinefeatures/total_cpu',
+                               str(self.machines[machineName].processors), 0644)
 
     # phys_cores and log_cores keys are deprecated
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/phys_cores',
-                               str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/log_cores',
-                               str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/machinefeatures/phys_cores',
+                               str(self.machines[machineName].processors), 0644)
+    file_driver.create_file('machines/' + machineName + '/machinefeatures/log_cores',
+                               str(self.machines[machineName].processors), 0644)
 
     if self.machinetypes[machinetypeName].hs06_per_processor:
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/hs06',
+      file_driver.create_file('machines/' + machineName + '/machinefeatures/hs06',
                                  str(self.machinetypes[machinetypeName].hs06_per_processor * self.machines[machineName].processors),
-                                 0644, '/var/lib/vcycle/tmp')
+                                 0644)
 
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
-                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/machinefeatures/shutdown_time',
+                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644)
 
     # Then $JOBFEATURES
 
     # check for existence of shutdownTime and whether wallclock limit is closer
     if (self.shutdownTime is None or
         int(time.time()) + self.machinetypes[machinetypeName].maxWallclockSeconds < self.shutdownTime):
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
-                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+      file_driver.create_file('machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644)
     else:
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
-                                str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
+      file_driver.create_file('machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(self.shutdownTime), 0644)
 
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs',
-                               str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/wall_limit_secs',
+                               str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644)
 
     # We assume worst case that CPU usage is limited by wallclock limit
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/cpu_limit_secs',
-                               str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/cpu_limit_secs',
+                               str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644)
 
     # Calculate MB for this VM ("job")
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/max_rss_bytes',
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/max_rss_bytes',
                                str(self.machinetypes[machinetypeName].rss_bytes_per_processor *
-                                   self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+                                   self.machines[machineName].processors), 0644)
 
     # All the cpus are allocated to this one VM ("job")
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_cpu',
-                               str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/allocated_cpu',
+                               str(self.machines[machineName].processors), 0644)
     # allocated_CPU key name is deprecated
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/allocated_CPU',
-                               str(self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/allocated_CPU',
+                               str(self.machines[machineName].processors), 0644)
 
 
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/jobstart_secs',
-                               str(int(time.time())), 0644, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/jobfeatures/jobstart_secs',
+                               str(int(time.time())), 0644)
 
     if self.machines[machineName].uuidStr is not None:
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/job_id',
-                                 self.machines[machineName].uuidStr, 0644, '/var/lib/vcycle/tmp')
+      file_driver.create_file('machines/' + machineName + '/jobfeatures/job_id',
+                                 self.machines[machineName].uuidStr, 0644)
 
     if self.machinetypes[machinetypeName].hs06_per_processor:
-      vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/hs06_job',
+      file_driver.create_file('machines/' + machineName + '/jobfeatures/hs06_job',
                                  str(self.machinetypes[machinetypeName].hs06_per_processor *
-                                     self.machines[machineName].processors), 0644, '/var/lib/vcycle/tmp')
+                                     self.machines[machineName].processors), 0644)
 
     # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
 

@@ -76,6 +76,7 @@ fi
 /usr/share/doc/vcycle-%{version}
 %{python_sitelib}/vcycle/__init__.py*
 %{python_sitelib}/vcycle/core/__init__.py*
+%{python_sitelib}/vcycle/core/file.py*
 %{python_sitelib}/vcycle/core/shared.py*
 %{python_sitelib}/vcycle/core/vacutils.py*
 %{python_sitelib}/vcycle/plugins/__init__.py*
