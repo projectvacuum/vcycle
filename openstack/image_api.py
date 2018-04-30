@@ -107,7 +107,7 @@ class GlanceV2(GlanceBase):
         "disk_format": disk_format,
         "container_format": "bare",
         "visibility": "private",
-        "tags" : [
+        "tags": [
           "last_modified: " + str(imageLastModified),
           "architecture: x86_64"
           ]
@@ -209,6 +209,56 @@ class GlanceV2(GlanceBase):
         'status' : self.curl.getinfo(pycurl.RESPONSE_CODE)
         }
 
+  def updateShutdownTimeout(self, osShutdownTimeout):
+    """ Update os_shutdown_timeout property for images """
+    response = self.getImageDetails()['response']
+    for image in response['images']:
+      if (osShutdownTimeout is not None and
+          'os_shutdown_timeout' not in image):
+        self._patchOsShutdownTimeout(image['id'], 'add', osShutdownTimeout)
+      elif (osShutdownTimeout is None and
+          'os_shutdown_timeout' in image):
+        self._patchOsShutdownTimeout(image['id'], 'remove')
+      elif (osShutdownTimeout is not None and
+          'os_shutdown_timeout' not in image and
+          osShutdownTimeout != image['os_shutdown_timeout']):
+        self._patchOsShutdownTimeout(image['id'], 'replace', osShutdownTimeout)
+
+  def _patchOsShutdownTimeout(self, imageID, op, value = None):
+    """ patch image value """
+
+    # set cert path
+    if os.path.isdir('/etc/grid-security/certificates'):
+      self.curl.setopt(pycurl.CAPATH, '/etc/grid-security/certificates')
+
+    self.curl.setopt(pycurl.CUSTOMREQUEST, 'PATCH')
+    self.curl.setopt(pycurl.URL, str(self.imageURL + '/v2/images/' + imageID))
+    self.curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.TIMEOUT, 30)
+    self.curl.setopt(pycurl.FOLLOWLOCATION, False)
+    self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
+    self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
+
+    self.curl.setopt(pycurl.HTTPHEADER, [
+      'X-Auth-Token: ' + self.token,
+      'Content-Type: application/openstack-images-v2.1-json-patch'])
+
+    jsonRequest = {
+        "op": op,
+        "path": "/os_shutdown_timeout"
+        }
+    if op in ['add', 'replace'] and value is not None:
+      jsonRequest["value"] = str(value)
+    self.curl.setopt(pycurl.POSTFIELDS, "[" + json.dumps(jsonRequest) + "]")
+
+    outputBuffer = StringIO.StringIO()
+    self.curl.setopt(pycurl.WRITEFUNCTION, outputBuffer.write)
+
+    try:
+      self.curl.perform()
+    except Exception as e:
+      vcycle.vacutils.logLine('Failed to get replace image porperties ('
+          + str(e) + ')')
 
 class GlanceV1(GlanceBase):
   """ Class to interact with Glance v1 API """

@@ -132,6 +132,11 @@ When creating VMs in OpenStack spaces, Vcycle will create "machinefeatures",
 corresponding directories for the VM on the Vcycle machine's HTTP(S)
 server.
 
+.B os_shutdown_timeout
+sets the "os_shutdown_timeout" image metadata tag, which overrides the time
+given to instances to shutdown gracefully. Currently sets all for a given
+space.
+
 .SH EC2 SPACE SECTIONS
 
 As well as OpenStack, Vcycle natively supports the EC2 API. However, you
