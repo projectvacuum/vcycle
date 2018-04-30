@@ -105,7 +105,7 @@ class Machine:
     else:
       try:
         # Try to recreate from created file
-        self.createdTime = int(open('/var/lib/vcycle/machines/' + name + '/created', 'r').readline())
+        self.createdTime = int(self.getFileContents('created'))
       except:
         pass
 
@@ -114,7 +114,7 @@ class Machine:
     else:
       try:
         # Try to recreate from started file
-        self.startedTime = int(open('/var/lib/vcycle/machines/' + name + '/started', 'r').readline())
+        self.startedTime = int(self.getFileContents('started'))
       except:
         if self.state == MachineState.running:
           # If startedTime not recorded, then must just have started
@@ -126,20 +126,18 @@ class Machine:
     if not self.updatedTime:
       try:
         # Try to recreate from updated file
-        self.updatedTime = int(open('/var/lib/vcycle/machines/' + name + '/updated', 'r').readline())
+        self.updatedTime = int(self.getFileContents('updated'))
       except:
         pass
 
     if not self.machinetypeName:
       # Get machinetype name saved when we requested the machine
       try:
-        f = open('/var/lib/vcycle/machines/' + name + '/machinetype_name', 'r')
+        self.machinetypeName = self.getFileContents('machinetype_name')
       except:
         pass
       else:
-        self.machinetypeName = f.read().strip()
-        f.close()
-        
+        # check whether machinetype name is a managed machinetype
         if self.machinetypeName not in spaces[self.spaceName].machinetypes:
           self.machinetypeName = None
 
@@ -157,7 +155,7 @@ class Machine:
       self.processors = processors
     else:
       try:
-        self.processors = int(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/allocated_cpu', 'r').read().strip())
+        self.processors = int(self.getFileContents('jobfeatures/allocated_cpu'))
       except:
         try:
           self.processors = spaces[self.spaceName].machinetypes[self.machinetypeName].min_processors
@@ -165,7 +163,7 @@ class Machine:
           self.processors = 1
 
     try:
-      self.hs06 = float(open('/var/lib/vcycle/machines/' + name + '/jobfeatures/hs06_job', 'r').read().strip())
+      self.hs06 = float(self.getFileContents('jobfeatures/hs06_job'))
     except:
       self.hs06 = None
 
@@ -178,11 +176,11 @@ class Machine:
 
     # Record when the machine started (rather than just being created)
     if self.startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
-      vacutils.createFile('/var/lib/vcycle/machines/' + name + '/started', str(self.startedTime), 0600, '/var/lib/vcycle/tmp')
-      vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
+      self.setFileContents('started', str(self.startedTime))
+      self.setFileContents('updated', str(self.updatedTime))
 
     try:
-      self.deletedTime = int(open('/var/lib/vcycle/machines/' + name + '/deleted', 'r').read().strip())
+      self.deletedTime = int(self.getFileContents('deleted'))
     except:
       self.deletedTime = None
 
@@ -191,18 +189,21 @@ class Machine:
 
     # Check if the machine already has a stopped timestamp
     try:
-      self.stoppedTime = int(open('/var/lib/vcycle/machines/' + name + '/stopped', 'r').read())
+      self.stoppedTime = int(self.getFileContents('stopped'))
     except:
-      if self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting:
-        # Record that we have seen the machine in a stopped state for the first time
-        # If updateTime has the last transition time, presumably it is to being stopped.
-        # This is certainly a better estimate than using time.time() if available (ie OpenStack)
+      if (self.state == MachineState.shutdown
+          or self.state == MachineState.failed
+          or self.state == MachineState.deleting):
+        # Record that we have seen the machine in a stopped state for the first
+        # time If updateTime has the last transition time, presumably it is to
+        # being stopped. This is certainly a better estimate than using
+        # time.time() if available (ie OpenStack)
         if not self.updatedTime:
           self.updatedTime = int(time.time())
-          vacutils.createFile('/var/lib/vcycle/machines/' + name + '/updated', str(self.updatedTime), 0600, '/var/lib/vcycle/tmp')
+          self.setFileContents('updated', str(self.updatedTime))
 
         self.stoppedTime = self.updatedTime
-        vacutils.createFile('/var/lib/vcycle/machines/' + name + '/stopped', str(self.stoppedTime), 0600, '/var/lib/vcycle/tmp')
+        self.setFileContents('stopped', str(self.stoppedTime))
 
         # Record the shutdown message if available
         self.setShutdownMessage()
@@ -287,7 +288,9 @@ class Machine:
 
   def setFileContents(self, fileName, contents):
     # Set the contents of a file for the given machine
-    open('/var/lib/vcycle/machines/' + self.name + '/' + fileName, 'w').write(contents)
+    vacutils.createFile(
+        '/var/lib/vcycle/machines/' + self.name + '/' + fileName,
+        contents, 0600, '/var/lib/vcycle/tmp')
 
   def writeApel(self):
 
