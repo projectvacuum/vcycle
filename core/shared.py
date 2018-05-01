@@ -1001,6 +1001,45 @@ class BaseSpace(object):
     # all the Vcycle-created VMs in this space
     self.machines = {}
 
+    if parser.has_option(spaceSectionName, 'gocdb_sitename'):
+      self.gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename')
+    else:
+      self.gocdb_sitename = None
+
+    if parser.has_option(spaceSectionName, 'gocdb_cert_file'):
+      self.gocdb_cert_file = parser.get(spaceSectionName,'gocdb_cert_file')
+    else:
+      self.gocdb_cert_file = None
+
+    if parser.has_option(spaceSectionName, 'gocdb_key_file'):
+      self.gocdb_key_file = parser.get(spaceSectionName,'gocdb_key_file')
+    else:
+      self.gocdb_key_file = None
+      
+    if self.gocdb_cert_file and self.gocdb_key_file is None:
+      raise VcycleError('gocdb_cert_file given but gocdb_key_file is missing!')
+
+    if self.gocdb_cert_file is None and self.gocdb_key_file:
+      raise VcycleError('gocdb_key_file given but gocdb_cert_file is missing!')
+
+    if parser.has_option(spaceSectionName, 'vacmon_hostport'):
+      try:
+        self.vacmons = parser.get(spaceSectionName,'vacmon_hostport').lower().split()
+      except:
+        raise VcycleError('Failed to parse vacmon_hostport for space ' + spaceName)
+
+      for v in self.vacmons:
+        if re.search('^[a-z0-9.-]+:[0-9]+$', v) is None:
+          raise VcycleError('Failed to parse vacmon_hostport: must be host.domain:port')
+    else:
+      self.vacmons = []
+
+    if parser.has_option(spaceSectionName, 'https_port'):
+      self.https_port = int(parser.get(spaceSectionName,'https_port').strip())
+    else:
+      self.https_port = 443
+
+
   def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes):
     """ Read configuration settings from a vacuum pipe """
 
@@ -2155,44 +2194,6 @@ def readConf(printConf = False, updatePipes = True):
 
       if spaceName not in spaces:
         raise VcycleError(api + ' is not a supported API for managing spaces')
-
-      if parser.has_option(spaceSectionName, 'gocdb_sitename'):
-        spaces[spaceName].gocdb_sitename = parser.get(spaceSectionName,'gocdb_sitename')
-      else:
-        spaces[spaceName].gocdb_sitename = None
-
-      if parser.has_option(spaceSectionName, 'gocdb_cert_file'):
-        spaces[spaceName].gocdb_cert_file = parser.get(spaceSectionName,'gocdb_cert_file')
-      else:
-        spaces[spaceName].gocdb_cert_file = None
-
-      if parser.has_option(spaceSectionName, 'gocdb_key_file'):
-        spaces[spaceName].gocdb_key_file = parser.get(spaceSectionName,'gocdb_key_file')
-      else:
-        spaces[spaceName].gocdb_key_file = None
-        
-      if spaces[spaceName].gocdb_cert_file and spaces[spaceName].gocdb_key_file is None:
-        raise VcycleError('gocdb_cert_file given but gocdb_key_file is missing!')
-
-      if spaces[spaceName].gocdb_cert_file is None and spaces[spaceName].gocdb_key_file:
-        raise VcycleError('gocdb_key_file given but gocdb_cert_file is missing!')
-
-      if parser.has_option(spaceSectionName, 'vacmon_hostport'):
-        try:
-          spaces[spaceName].vacmons = parser.get(spaceSectionName,'vacmon_hostport').lower().split()
-        except:
-          raise VcycleError('Failed to parse vacmon_hostport for space ' + spaceName)
-
-        for v in spaces[spaceName].vacmons:
-          if re.search('^[a-z0-9.-]+:[0-9]+$', v) is None:
-            raise VcycleError('Failed to parse vacmon_hostport: must be host.domain:port')
-      else:
-        spaces[spaceName].vacmons = []
-
-      if parser.has_option(spaceSectionName, 'https_port'):
-        spaces[spaceName].https_port = int(parser.get(spaceSectionName,'https_port').strip())
-      else:
-        spaces[spaceName].https_port = 443
 
     elif sectionType != 'machinetype' and sectionType != 'vacuum_pipe':
       raise VcycleError('Section type ' + sectionType + 'not recognised')
