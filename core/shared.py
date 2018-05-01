@@ -2123,7 +2123,7 @@ class BaseSpace(object):
     except Exception as e:
       vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
 
-def readConf(printConf = False, updatePipes = True):
+def readConf(printConf = False, updatePipes = True, parser = None):
 
   global vcycleVersion, spaces
 
@@ -2136,23 +2136,24 @@ def readConf(printConf = False, updatePipes = True):
 
   spaces = {}
 
-  parser = ConfigParser.RawConfigParser()
+  if parser == None:
+    parser = ConfigParser.RawConfigParser()
 
-  # Look for configuration files in /etc/vcycle.d
-  try:
-    confFiles = os.listdir('/etc/vcycle.d')
-  except:
-    pass
-  else:
-    for oneFile in sorted(confFiles):
-      if oneFile[-5:] == '.conf':
-        try:
-          parser.read('/etc/vcycle.d/' + oneFile)
-        except Exception as e:
-          vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
+    # Look for configuration files in /etc/vcycle.d
+    try:
+      confFiles = os.listdir('/etc/vcycle.d')
+    except:
+      pass
+    else:
+      for oneFile in sorted(confFiles):
+        if oneFile[-5:] == '.conf':
+          try:
+            parser.read('/etc/vcycle.d/' + oneFile)
+          except Exception as e:
+            vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
 
-  # Standalone configuration file, read last in case of manual overrides
-  parser.read('/etc/vcycle.conf')
+    # Standalone configuration file, read last in case of manual overrides
+    parser.read('/etc/vcycle.conf')
 
   # Find the space sections
   for spaceSectionName in parser.sections():
