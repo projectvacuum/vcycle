@@ -1,4 +1,5 @@
 import os
+import stat
 import shutil
 
 from vcycle.core import vacutils
@@ -15,7 +16,9 @@ class File(object):
   def create_dir(self, dir_name, mode):
     os.makedirs(self.base_dir + '/' +  dir_name, mode)
 
-  def create_file(self, file_name, content, mode):
+  def create_file(
+      self, file_name, content,
+      mode = stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP):
     vacutils.createFile(self.base_dir + '/' + file_name, content, mode)
 
   def remove_dir(self, dir_name):

@@ -294,9 +294,9 @@ class Machine:
 
   def setFileContents(self, fileName, contents):
     # Set the contents of a file for the given machine
-    vacutils.createFile(
-        '/var/lib/vcycle/machines/' + self.name + '/' + fileName,
-        contents, 0600, '/var/lib/vcycle/tmp')
+    file_driver.create_file(
+        'machines/' + self.name + '/' + fileName,
+        contents, 0600)
 
   def writeApel(self):
 
@@ -362,12 +362,17 @@ class Machine:
     fileName = time.strftime('%H%M%S', nowTime) + str(time.time() % 1)[2:][:8]
 
     try:
-      os.makedirs(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+      file_driver.create_dir(
+          time.strftime('apel-archive/%Y%m%d', nowTime),
+          stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP
+          | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
     except:
       pass
 
     try:
-      vacutils.createFile(time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+      file_driver.create_file(
+          time.strftime('apel-archive/%Y%m%d/', nowTime) + fileName, mesg,
+          stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
     except:
       vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-archive/%Y%m%d/', nowTime) + fileName)
       return
@@ -375,12 +380,15 @@ class Machine:
     if spaces[self.spaceName].gocdb_sitename:
       # We only write to apel-outgoing if gocdb_sitename is set
       try:
-        os.makedirs(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d', nowTime), stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+        file_driver.create_file(
+            time.strftime('apel-outgoing/%Y%m%d', nowTime),
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP
+            | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
       except:
         pass
 
       try:
-        vacutils.createFile(time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH, '/var/lib/vcycle/tmp')
+        file_driver.create_file(time.strftime('apel-outgoing/%Y%m%d/', nowTime) + fileName, mesg, stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP|stat.S_IROTH)
       except:
         vacutils.logLine('Failed creating ' + time.strftime('/var/lib/vcycle/apel-outgoing/%Y%m%d/', nowTime) + fileName)
         return
@@ -885,13 +893,16 @@ class Machinetype:
       self.lastAbortTime = abortTime
 
       try:
-        os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName,
-                    stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+        file_driver.create_dir(
+            'spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName,
+            stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP
+            + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
       except:
         pass
 
-      vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time',
-                                 str(abortTime), tmpDir = '/var/lib/vcycle/tmp')
+      file_driver.create_file(
+          'spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName
+          + '/last_abort_time', str(abortTime))
 
   def makeMachineName(self):
     """Construct a machine name including the machinetype"""
@@ -1415,11 +1426,11 @@ class BaseSpace(object):
                             str(self.machines[machineName].machinetypeName) + ', in state ' + str(self.machines[machineName].state))
 
     # record when this was tried (not when done, since don't want to overload service with failing deletes)
-    vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    file_driver.create_file('machines/' + machineName + '/deleted', str(int(time.time())), 0600)
 
     if shutdownMessage and not os.path.exists('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message'):
       try:
-        vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600, '/var/lib/vcycle/tmp')
+        file_driver.create_file('machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600)
       except:
         pass
 
@@ -1494,8 +1505,9 @@ class BaseSpace(object):
     # Create a list of machines in each machinetype, to be populated
     # with machine names of machines with a current heartbeat
     try:
-      os.makedirs('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+      file_driver.create_dir('spaces/' + self.spaceName + '/heartbeatmachines',
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP
+                + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     except:
       pass
 
@@ -1525,7 +1537,7 @@ class BaseSpace(object):
 
       # Sort the list by heartbeat time, newest first, then write as a file
       fileContents.sort(reverse=True)
-      vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/heartbeatmachines/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/tmp')
+      file_driver.create_file('spaces/' + self.spaceName + '/heartbeatmachines/' + machinetypeName, ''.join(fileContents), 0664)
       
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
@@ -1672,7 +1684,9 @@ class BaseSpace(object):
        time.time() < (os.stat('/var/lib/vcycle/gocdb-updated').st_ctime + 86400):
       return
 
-    vacutils.createFile('/var/lib/vcycle/gocdb-updated', '', stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH, '/var/lib/vcycle/tmp')
+    file_driver.create_file(
+        'gocdb-updated', '',
+        stat.S_IWUSR + stat.S_IRUSR + stat.S_IRGRP + stat.S_IROTH)
 
     voShares = {}
     policyRules = ''
@@ -2261,8 +2275,7 @@ def cleanupMachines():
 
       # Always delete the working copies
       try:
-        shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
-        vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
+        file_driver.remove_dir('machines/' + machineName)
       except:
         vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
 
@@ -2273,8 +2286,10 @@ def logJoboutputs(spaceName, machinetypeName, machineName):
     return
 
   try:
-    os.makedirs('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    file_driver.create_dir(
+        'joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
+        stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP
+        + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
   except:
     vacutils.logLine('Failed creating /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
     return
@@ -2339,7 +2354,7 @@ def cleanupJoboutputs():
 
         if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
           try:
-            shutil.rmtree('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
+            file_driver.remove_dir('joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
             vacutils.logLine('Deleted /var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir +
                                     '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
           except:
