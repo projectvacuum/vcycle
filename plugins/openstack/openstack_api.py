@@ -379,6 +379,8 @@ class OpenstackSpace(shared.BaseSpace):
 
       if taskState == 'Deleting':
         state = shared.MachineState.deleting
+      elif status == 'ACTIVE' and taskState == 'powering-off':
+        state = shared.MachineState.stopping
       elif status == 'ACTIVE' and powerState == 1:
         state = shared.MachineState.running
       elif status == 'BUILD' or status == 'ACTIVE':
@@ -684,3 +686,16 @@ class OpenstackSpace(shared.BaseSpace):
                        headers = [ 'X-Auth-Token: ' + self.token ])
     except Exception as e:
       raise shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+
+  def shutdownOneMachine(self, machineName):
+      """ Send shutdown signal to one machine """
+      try:
+        self.httpRequest(
+                (self.computeURL + '/servers/'
+                + self.machines[machineName].uuidStr + '/action'),
+                method = 'POST',
+                headers = ['X-Auth-Token: ' + self.token],
+                jsonRequest = {"os-stop": ""})
+      except Exception as e:
+        raise vcycle.shared.VcycleError('Cannot shutdown ' + machineName
+                + ' via ' + self.computeURL + ' (' + str(e) + ')')
