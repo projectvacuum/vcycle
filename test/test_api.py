@@ -7,8 +7,19 @@ from vcycle.core.shared import Machine
 from vcycle.core.shared import MachineState
 from vcycle.core.shared import VcycleError
 
+class CycleTime():
+
+  def __init__(self):
+    self.cycle = 0
+
+  def time(self):
+    return self.cycle
+
+  def update(self):
+    self.cycle += 1
+
 class TestMachine():
-  """ Test machine class that that doesn't do any file creation """
+  """ Test machine class that overrides functions we don't want """
 
   def __init__(
       self, name, spaceName, state, ip, createdTime, startedTime, updatedTime,
@@ -29,7 +40,9 @@ class TestMachine():
     self.deletedTime     = None
     self.stoppedTime     = None
 
-    self.cycleNum = 0 # cycle number to be incremented
+    # function that changes depending on state
+    self._update = self._startUpdate
+    self.timeInState = 0
 
   def getFileContents(self, fileName):
     pass
@@ -50,8 +63,23 @@ class TestMachine():
     pass
 
   def update(self):
-    vacutils.logLine('Updating machine')
-    self.cycleNum += 1
+    self.timeInState += 1
+    self._update()
+
+  def _startUpdate(self):
+    self._update = self._runningUpdate
+    self.state = MachineState.running
+    self.timeInState = 0
+
+  def _runningUpdate(self):
+    if self.timeInState > 10:
+      self._update = self._stoppingUpdate
+      self.state = MachineState.stopping
+      self.timeInState = 0
+
+  def _stoppingUpdate(self):
+    self.state = MachineState.shutdown
+    self.timeInState = 0
 
 class TestSpace(BaseSpace):
   """ Class that keeps track of machine creation and deletion without actually
@@ -75,25 +103,11 @@ class TestSpace(BaseSpace):
     state of machines
     """
 
-    try:
-      self.updateMachines()
-    except Exception as e:
-      raise VcycleError('Updating machines in ' + self.spaceName
-          + ' fails: ' + str(e))
-
-    try:
-      self.deleteMachines()
-      for i in self.machinesToDelete:
-        del self.machines[i]
-    except Exception as e:
-      vacutils.logLine('Deleting machines in ' + self.spaceName
-          + ' fails: ' + str(e))
-
-    try:
-      self.makeMachines()
-    except Exception as e:
-      vacutils.logLine('Making machines in ' + self.spaceName
-          + ' fails: ' + str(e))
+    self.updateMachines()
+    self.updateTotals()
+    self.deleteMachines()
+    self.cleanMachines()
+    self.makeMachines()
 
   def scanMachines(self):
     """ Null as we aren't starting up the class every time """
@@ -114,7 +128,7 @@ class TestSpace(BaseSpace):
   def createMachine(self, machineName, machinetypeName, zone = None):
     """ Used to generate test machines """
     # create machine
-    self.machines[machineName] = TestMachine(
+    machine = TestMachine(
         name            = machineName,
         spaceName       = self.spaceName,
         state           = MachineState.starting,
@@ -127,46 +141,40 @@ class TestSpace(BaseSpace):
         zone            = zone,
         processors      = 1)
 
-    # update space totals
-    machine = self.machines[machineName]
-    self.totalMachines += 1
-    self.totalProcessors += machine.processors
-    self.runningMachines += 1
-    self.runningProcessors += machine.processors
-
-    machinetype = self.machinetypes[machinetypeName]
-    machinetype.totalMachines += 1
-    machinetype.totalProcessors += machine.processors
-    # for now assume it's running from the beginning
-    machinetype.runningMachines += 1
-    machinetype.runningProcessors += machine.processors
+    self.machines[machineName] = machine
 
   def deleteOneMachine(self, machineName):
-    """ Note machine to delete and update totals """
+    """ Note machine to delete """
 
     self.machinesToDelete.append(machineName)
-
-    # update totals
-    machine = self.machines[machineName]
-    self.totalMachines -= 1
-    self.totalProcessors -=  machine.processors
-    self.runningMachines -= 1
-    self.runningProcessors -=  machine.processors
-
-    # update machinetype totals
-    machinetype = self.machinetypes[machine.machinetypeName]
-    machinetype.totalMachines -= 1
-    machinetype.totalProcessors -= machine.processors
-    machinetype.runningMachines -= 1
-    machinetype.runningProcessors -= machine.processors
 
   def updateMachines(self):
     """ Simulate vm's running """
 
-    vacutils.logLine('Updating machines in ' + self.spaceName)
-
-    self.cycleNum += 1
-
     # update individual machines
-    for _, machine in self.machines.iteritems():
+    for machine in self.machines.values():
       machine.update()
+
+  def cleanMachines(self):
+    """ Delete machines based of machinesToDelete """
+    for machine in self.machinesToDelete:
+      del self.machines[machine]
+
+    self.machinesToDelete = []
+
+  def updateTotals(self):
+
+    # reset numbers
+    self.totalMachines     = 0
+    self.totalProcessors   = 0
+    self.runningMachines   = 0
+    self.runningProcessors = 0
+
+    for mt in self.machinetypes.values():
+      mt.totalMachines      = 0
+      mt.totalProcessors    = 0
+      mt.runningMachines    = 0
+      mt.runningProcessors  = 0
+      mt.startingProcessors = 0
+
+    self.updateMachineTotals()

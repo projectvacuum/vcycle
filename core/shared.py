@@ -636,7 +636,7 @@ class Machinetype:
     try:
       f = open('/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/' + self.machinetypeName + '/last_abort_time', 'r')
     except:
-      self.lastAbortTime = 0
+      self.lastAbortTime = None
     else:
       self.lastAbortTime = int(f.read().strip())
       f.close()
@@ -1847,15 +1847,17 @@ class BaseSpace(object):
           vacutils.logLine('Reached limit (%d) on processors that can be in starting state for machinetype %s' % (self.machinetypes[machinetypeName].max_starting_processors, machinetypeName))
           continue
 
-        if int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime + self.machinetypes[machinetypeName].backoff_seconds):
+        if (self.machinetypes[machinetypeName].lastAbortTime and
+            int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime + self.machinetypes[machinetypeName].backoff_seconds)):
           vacutils.logLine('Free capacity found for %s ... but only %d seconds after last abort'
                                   % (machinetypeName, int(time.time()) - self.machinetypes[machinetypeName].lastAbortTime) )
           continue
 
-        if (int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime +
+        if ( self.machinetypes[machinetypeName].lastAbortTime and
+            (int(time.time()) < (self.machinetypes[machinetypeName].lastAbortTime +
                                 self.machinetypes[machinetypeName].backoff_seconds +
-                                self.machinetypes[machinetypeName].fizzle_seconds)) and \
-           (self.machinetypes[machinetypeName].notPassedFizzle > 0):
+                                self.machinetypes[machinetypeName].fizzle_seconds)) and
+           (self.machinetypes[machinetypeName].notPassedFizzle > 0)):
           vacutils.logLine('Free capacity found for ' +
                                   machinetypeName +
                                   ' ... but still within fizzle_seconds+backoff_seconds(' +
@@ -2121,10 +2123,12 @@ class BaseSpace(object):
     for machinetypeName, machinetypeObject in self.machinetypes.iteritems():
       if machinetypeObject.preemptible == True:
         preemptibleMachinetypes.append(machinetypeName)
-      elif (int(time.time()) < machinetypeObject.lastAbortTime
+      elif (machinetypeObject.lastAbortTime and
+          int(time.time()) < machinetypeObject.lastAbortTime
           + machinetypeObject.backoff_seconds):
         continue
-      elif (int(time.time()) < machinetypeObject.lastAbortTime
+      elif (machinetypeObject.lastAbortTime and
+          int(time.time()) < machinetypeObject.lastAbortTime
           + machinetypeObject.backoff_seconds
           + machinetypeObject.fizzle_seconds):
         highPriorityMachinetypesTest.append(machinetypeName)
@@ -2132,9 +2136,9 @@ class BaseSpace(object):
         highPriorityMachinetypes.append(machinetypeName)
 
     # TODO remove these
-    print "preemptibleMachinetypes: ", preemptibleMachinetypes
-    print "highPriorityMachinetypesTest: ", highPriorityMachinetypesTest
-    print "highPriorityMachinetypes: ", highPriorityMachinetypes
+    # print "preemptibleMachinetypes: ", preemptibleMachinetypes
+    # print "highPriorityMachinetypesTest: ", highPriorityMachinetypesTest
+    # print "highPriorityMachinetypes: ", highPriorityMachinetypes
 
     # all HP machines are within abort time or there are no preemptible
     # machines
