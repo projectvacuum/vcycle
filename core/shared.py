@@ -92,7 +92,7 @@ class MachineState:
   unknown, shutdown, starting, stopping, running, deleting, failed = ('Unknown', 'Shut down', 'Starting', 'Stopping', 'Running', 'Deleting', 'Failed')
 
 
-class Machine:
+class Machine(object):
 
   def __init__(self, name, spaceName, state, ip, createdTime, startedTime, updatedTime, uuidStr, machinetypeName, zone = None, processors = None):
 

@@ -1,16 +1,20 @@
-import unittest
-import mock
+import os
+import ConfigParser
+import time # calls should be overridden in test patching
+from mock import patch
+
 
 from vcycle.core import vacutils
+from vcycle.core import shared
 from vcycle.core.shared import BaseSpace
 from vcycle.core.shared import Machine
 from vcycle.core.shared import MachineState
 from vcycle.core.shared import VcycleError
 
-class CycleTime():
+class CycleTime(object):
 
   def __init__(self):
-    self.cycle = 0
+    self.cycle = 1 # start at one else bool statements fudge up :(
 
   def time(self):
     return self.cycle
@@ -18,31 +22,31 @@ class CycleTime():
   def update(self):
     self.cycle += 1
 
-class TestMachine():
+
+class JobState:
+  starting = 'Starting'
+  requesting = 'Requesting Job'
+  noJob = 'No Jobs available'
+  running = 'Job running'
+  finished = 'Job executed'
+  failed = 'Job failed'
+
+class TestMachine(Machine):
   """ Test machine class that overrides functions we don't want """
 
   def __init__(
       self, name, spaceName, state, ip, createdTime, startedTime, updatedTime,
       uuidStr, machinetypeName, zone = None, processors = None):
-    self.name            = name
-    self.spaceName       = spaceName
-    self.state           = state
-    self.ip              = ip
-    self.createdTime     = createdTime
-    self.startedTime     = startedTime
-    self.updatedTime     = updatedTime
-    self.uuidStr         = uuidStr
-    self.machinetypeName = machinetypeName
-    self.zone            = zone
-    self.processors      = processors
-    self.hs06            = None
-    self.managedHere     = True
-    self.deletedTime     = None
-    self.stoppedTime     = None
+    super(TestMachine, self).__init__(
+      name, spaceName, state, ip, createdTime, startedTime, updatedTime,
+      uuidStr, machinetypeName, zone = None, processors = None)
 
     # function that changes depending on state
     self._update = self._startUpdate
     self.timeInState = 0
+
+    self.job = JobState.starting
+    self.jobID = None
 
   def getFileContents(self, fileName):
     pass
@@ -70,8 +74,13 @@ class TestMachine():
     self._update = self._runningUpdate
     self.state = MachineState.running
     self.timeInState = 0
+    self.job = JobState.requesting
 
   def _runningUpdate(self):
+    if self.job == JobState.noJob:
+      self._update = self._stoppingUpdate
+      self.state = MachineState.stopping
+      self.timeInState = 0
     if self.timeInState > 10:
       self._update = self._stoppingUpdate
       self.state = MachineState.stopping
@@ -92,7 +101,6 @@ class TestSpace(BaseSpace):
         api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     # additional variables that the test space uses
-    self.cycleNum = 0
     self.machinesToDelete = []
 
   def oneCycle(self):
@@ -133,19 +141,21 @@ class TestSpace(BaseSpace):
         spaceName       = self.spaceName,
         state           = MachineState.starting,
         ip              = None,
-        createdTime     = 0,
-        startedTime     = 0,
-        updatedTime     = 0,
+        createdTime     = int(time.time()),
+        startedTime     = int(time.time()),
+        updatedTime     = int(time.time()),
         uuidStr         = None,
         machinetypeName = machinetypeName,
         zone            = zone,
         processors      = 1)
 
+    machine.managedHere = True
+    machine.deletedTime = None
+
     self.machines[machineName] = machine
 
   def deleteOneMachine(self, machineName):
     """ Note machine to delete """
-
     self.machinesToDelete.append(machineName)
 
   def updateMachines(self):
@@ -176,5 +186,98 @@ class TestSpace(BaseSpace):
       mt.runningMachines    = 0
       mt.runningProcessors  = 0
       mt.startingProcessors = 0
+      mt.notPassedFizzle    = 0
 
     self.updateMachineTotals()
+
+class TestManager(object):
+  """ Manages test space objects and their queues """
+
+  def __init__(self, fileName):
+    # initialise parser
+    parser = ConfigParser.RawConfigParser()
+    conf_path = (os.path.abspath(os.path.dirname(__file__))
+        + '/test_configs/' + fileName)
+    parser.read(conf_path)
+    self.parser = parser
+
+    self.queues = {}
+    self._queueIDs = {}
+    self.machinetypeQueue = {}
+    self.setupQueues()
+
+    shared.readConf(parser = parser, updatePipes = False)
+    self.spaces = shared.getSpaces()
+    self.ct = CycleTime()
+
+  def setupQueues(self):
+    for sec in self.parser.sections():
+      (secType, secName) = sec.lower().split(None,1)
+      if secType == 'queue':
+        events = eval(self.parser.get(sec, 'events'))
+        self.queues[secName] = events
+        self._queueIDs[secName] = 0
+        self.parser.remove_section(sec) # clean up section
+
+      try:
+        (secType, spaceType, mtName) = sec.lower().split(None, 2)
+      except ValueError:
+        continue
+      if secType == 'machinetype':
+        qName = self.parser.get(sec, 'queue')
+        self.machinetypeQueue[mtName] = qName
+        self.parser.remove_option(sec, 'queue')
+
+  def assignJobs(self):
+    for space in self.spaces.values():
+      for machine in space.machines.values():
+        if machine.job == JobState.requesting:
+          jobID = self.getJob(machine)
+          if jobID:
+            machine.job = JobState.running
+            machine.jobID = jobID
+          else:
+            machine.job = JobState.noJob
+            mtName = machine.machinetypeName
+            space.machinetypes[mtName].lastAbortTime = self.ct.time()
+
+  def getJob(self, machine):
+    """ Get's a job from a queue name
+    returns id if a job is available
+    returns None if not
+    """
+
+    queueName = self.machinetypeQueue[machine.machinetypeName]
+    q = self.queues[queueName]
+
+    if not q:
+      return None
+    (t, jobs) = q[0]
+    if t >= self.ct.time():
+      return None
+
+    # get jobID and increment
+    jobID = self._queueIDs[queueName]
+    self._queueIDs[queueName] += 1
+
+    if (jobs - 1) <= 0:
+      q.pop(0)
+    else:
+      q[0] = (t, jobs - 1)
+
+    return queueName + '-' + str(jobID)
+
+  def cycle(self):
+    print "cycle: ", self.ct.time()
+    print "queues: ", self.queues
+
+    self.assignJobs()
+    with patch('time.time', side_effect = self.ct.time) as mock_time:
+      for space in self.spaces.values():
+        space.oneCycle()
+      self.ct.update()
+
+    for space in self.spaces.values():
+      print "Machines (name, state, jobState, jobID)"
+      for x in space.machines.values():
+          print (x.name, x.state, x.job, x.jobID)
