@@ -1993,6 +1993,8 @@ class BaseSpace(object):
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
       vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
+    else:
+      self._countMachine(machineName)
     
     # MJF. Some values may be set by self.createMachine() from the API!
 
@@ -2064,47 +2066,44 @@ class BaseSpace(object):
 
     # We do not know max_swap_bytes, scratch_limit_bytes etc so ignore them
 
-  def updateMachineTotals(self):
-    """ Run through the machines and update various totals """
+  def _countMachine(self, machineName):
 
-    for machineName, machine in self.machines.iteritems():
+    machine = self.machines[machineName]
+    self.totalMachines += 1
+    self.totalProcessors += machine.processors
 
-      # Update overall spaces totals for newly created machine
-      self.totalMachines += 1
-      self.totalProcessors += machine.processors
+    if machine.state == MachineState.running:
+      self.runningMachines += 1
+      self.runningProcessors += machine.processors
+
+      if machine.hs06:
+        if self.runningHS06:
+          self.runningHS06 += machine.hs06
+
+    # update machinetypes totals
+    if machine.machinetypeName in self.machinetypes:
+      machinetype = self.machinetypes[machine.machinetypeName]
+      machinetype.totalMachines += 1
+      machinetype.totalProcessors += machine.processors
+
+      if machinetype.target_share > 0.0:
+        hs06Weight = machine.hs06 if machine.hs06 else float(machine.processors)
+        machinetype.weightedMachines += hs06Weight / machinetype.target_share
+
+      if machine.state == MachineState.starting:
+        machinetype.startingProcessors += machine.processors
 
       if machine.state == MachineState.running:
-        self.runningMachines += 1
-        self.runningProcessors += machine.processors
-
+        machinetype.runningMachines += 1
+        machinetype.runningProcessors += machine.processors
         if machine.hs06:
-          if self.runningHS06:
-            self.runningHS06 += machine.hs06
+          machinetype.runningHS06 += machine.hs06
 
-      # update machinetypes totals
-      if machine.machinetypeName in self.machinetypes:
-        machinetype = self.machinetypes[machine.machinetypeName]
-        machinetype.totalMachines += 1
-        machinetype.totalProcessors += machine.processors
-
-        if machinetype.target_share > 0.0:
-          hs06Weight = machine.hs06 if machine.hs06 else float(machine.processors)
-          machinetype.weightedMachines += hs06Weight / machinetype.target_share
-
-        if machine.state == MachineState.starting:
-          machinetype.startingProcessors += machine.processors
-
-        if machine.state == MachineState.running:
-          machinetype.runningMachines += 1
-          machinetype.runningProcessors += machine.processors
-          if machine.hs06:
-            machinetype.runningHS06 += machine.hs06
-
-        if (machine.state == MachineState.starting
-            or (machine.state == MachineState.running
-              and (int(time.time()) - machine.startedTime)
-              < machinetype.fizzle_seconds)):
-          machinetype.notPassedFizzle += 1
+      if (machine.state == MachineState.starting
+          or (machine.state == MachineState.running
+            and (int(time.time()) - machine.startedTime)
+            < machinetype.fizzle_seconds)):
+        machinetype.notPassedFizzle += 1
 
   def _preemptiveShutdown(self, creationsPerCycle):
     """ Preemptively shutdown low priority machines
@@ -2216,7 +2215,6 @@ class BaseSpace(object):
 
     try:
       self.scanMachines()
-      self.updateMachineTotals()
     except Exception as e:
       vacutils.logLine('Giving up on ' + self.spaceName + ' this cycle: ' + str(e))
       return
