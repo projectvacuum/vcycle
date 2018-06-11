@@ -6,6 +6,8 @@
 
 # numpy data files
 *.npy
+# pickle data files
+*.pkl
 
 # Temporary rpm folder
 RPMTMP

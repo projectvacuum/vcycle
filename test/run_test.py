@@ -11,7 +11,8 @@ ct = CycleTime()
 @patch('vcycle.core.shared.file_driver', autospec = True)
 @patch('vcycle.core.vacutils.createUserData', autospec = True)
 @patch('time.time', side_effect = ct.time)
-def test(_0, _1, _2):
+@patch('vcycle.core.vacutils.logLine', autospec = True)
+def test(_0, _1, _2, _3):
 
   tm = TestManager('test.conf', 1000)
 

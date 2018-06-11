@@ -1,8 +1,10 @@
 import os
+import sys
 import ConfigParser
 import time # calls should be overridden in test patching
 from mock import patch
 import numpy as np
+import pickle
 
 
 from vcycle.core import vacutils
@@ -224,7 +226,18 @@ class TestManager(object):
     for i in range(self.cycles):
       self.data[i] = self._countMachinetypes().values()
       self.cycle()
+    print "\nsaving data"
+    self.saveData()
+
+  def saveData(self):
+    # save data
     np.save(self.conf_path, self.data)
+    machinetypes = []
+    for space in self.spaces.values():
+      machinetypes += space.machinetypes.keys()
+
+    with open(self.conf_path + '.pkl', 'wb') as f:
+      pickle.dump(machinetypes, f, pickle.HIGHEST_PROTOCOL)
 
   def setupQueues(self):
     for sec in self.parser.sections():
@@ -284,7 +297,8 @@ class TestManager(object):
     return queueName + '-' + str(jobID)
 
   def cycle(self):
-    print "cycle: ", self.ct.time()
+    sys.stdout.write("\rcycle: {}/{}".format(self.ct.time(), self.cycles))
+    sys.stdout.flush()
 
     self.assignJobs()
     with patch('time.time', side_effect = self.ct.time) as mock_time:
@@ -300,4 +314,3 @@ class TestManager(object):
       for machine in space.machines.values():
         machineCount[machine.machinetypeName] += 1
     return machineCount
-
