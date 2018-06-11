@@ -2,6 +2,7 @@ import os
 import ConfigParser
 import time # calls should be overridden in test patching
 from mock import patch
+import numpy as np
 
 
 from vcycle.core import vacutils
@@ -81,7 +82,10 @@ class TestMachine(Machine):
       self._update = self._stoppingUpdate
       self.state = MachineState.stopping
       self.timeInState = 0
-    if self.timeInState > 10:
+    if self.timeInState > 50:
+      ran = np.random.random()
+      if ran < 0.99:
+        return
       self._update = self._stoppingUpdate
       self.state = MachineState.stopping
       self.timeInState = 0
@@ -187,18 +191,20 @@ class TestSpace(BaseSpace):
       mt.runningProcessors  = 0
       mt.startingProcessors = 0
       mt.notPassedFizzle    = 0
+      mt.weightedMachines   = 0
 
-    self.updateMachineTotals()
+    for machineName in self.machines:
+      self._countMachine(machineName)
 
 class TestManager(object):
   """ Manages test space objects and their queues """
 
-  def __init__(self, fileName):
+  def __init__(self, configFile, cycles):
     # initialise parser
     parser = ConfigParser.RawConfigParser()
-    conf_path = (os.path.abspath(os.path.dirname(__file__))
-        + '/test_configs/' + fileName)
-    parser.read(conf_path)
+    self.conf_path = (os.path.abspath(os.path.dirname(__file__))
+        + '/test_configs/' + configFile)
+    parser.read(self.conf_path)
     self.parser = parser
 
     self.queues = {}
@@ -209,6 +215,16 @@ class TestManager(object):
     shared.readConf(parser = parser, updatePipes = False)
     self.spaces = shared.getSpaces()
     self.ct = CycleTime()
+
+    # numpy array to keep track
+    self.data = np.empty((cycles, len(self.machinetypeQueue)))
+    self.cycles = cycles
+
+  def run(self):
+    for i in range(self.cycles):
+      self.data[i] = self._countMachinetypes().values()
+      self.cycle()
+    np.save(self.conf_path, self.data)
 
   def setupQueues(self):
     for sec in self.parser.sections():
@@ -269,7 +285,6 @@ class TestManager(object):
 
   def cycle(self):
     print "cycle: ", self.ct.time()
-    print "queues: ", self.queues
 
     self.assignJobs()
     with patch('time.time', side_effect = self.ct.time) as mock_time:
@@ -277,7 +292,12 @@ class TestManager(object):
         space.oneCycle()
       self.ct.update()
 
+  def _countMachinetypes(self):
+    machineCount = {}
     for space in self.spaces.values():
-      print "Machines (name, state, jobState, jobID)"
-      for x in space.machines.values():
-          print (x.name, x.state, x.job, x.jobID)
+      for mtn in space.machinetypes:
+        machineCount[mtn] = 0
+      for machine in space.machines.values():
+        machineCount[machine.machinetypeName] += 1
+    return machineCount
+

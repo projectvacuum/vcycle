@@ -13,16 +13,8 @@ ct = CycleTime()
 @patch('time.time', side_effect = ct.time)
 def test(_0, _1, _2):
 
-  tm = TestManager('test.conf')
+  tm = TestManager('test.conf', 1000)
 
-  for _ in range(100):
-    tm.cycle()
-
-  # look at machines in the space
-  for space in tm.spaces.values():
-    print space
-    print map(lambda x: x.state, space.machines.values())
-    print map(lambda x: x.job, space.machines.values())
-    print map(lambda x: x.jobID, space.machines.values())
+  tm.run()
 
 test()
