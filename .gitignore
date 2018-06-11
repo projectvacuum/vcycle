@@ -4,5 +4,8 @@
 # compiled python files
 *.pyc
 
+# numpy data files
+*.npy
+
 # Temporary rpm folder
 RPMTMP
