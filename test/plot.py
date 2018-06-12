@@ -11,11 +11,18 @@ def plot(file_name):
   plkData = os.path.abspath(
       os.path.join(os.path.dirname(__file__), file_name[:-3] + 'pkl'))
   with open(plkData, 'rb') as f:
-    machinetypes = pickle.load(f)
+    metadata = pickle.load(f)
 
-  plt.stackplot(cycles, np.transpose(data), labels = machinetypes)
+  utilisation = 0
+  for point in np.nditer(data):
+    utilisation += point
+
+  utilisation /= len(data) * metadata['processors_limit']
+  plt.title('Utilisation: {}%'.format(100*utilisation))
+
+  plt.stackplot(cycles, np.transpose(data), labels = metadata['machinetypes'])
+
   plt.legend(loc = 2)
-
   plt.xlabel('Cycle')
   plt.ylabel('Machine count')
 

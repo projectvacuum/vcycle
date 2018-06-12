@@ -249,12 +249,19 @@ class TestManager(object):
   def saveData(self):
     # save data
     np.save(self.conf_path, self.data)
+
+    # metadata
     machinetypes = []
+    processors_limit = 0
     for space in self.spaces.values():
       machinetypes += space.machinetypes.keys()
-
+      processors_limit += space.processors_limit
+    metadata = {
+        'machinetypes': machinetypes,
+        'processors_limit': processors_limit
+    }
     with open(self.conf_path + '.pkl', 'wb') as f:
-      pickle.dump(machinetypes, f, pickle.HIGHEST_PROTOCOL)
+      pickle.dump(metadata, f, pickle.HIGHEST_PROTOCOL)
 
   def setupQueues(self):
     for sec in self.parser.sections():
