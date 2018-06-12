@@ -894,6 +894,9 @@ class Machinetype:
     self.weightedMachines   = 0.0
     self.notPassedFizzle    = 0
 
+    # Used in preemptive instances 
+    self.holdOff = False
+
   def setLastAbortTime(self, abortTime):
 
     if abortTime > self.lastAbortTime:
@@ -1870,6 +1873,11 @@ class BaseSpace(object):
                                   str(self.machinetypes[machinetypeName].fizzle_seconds) + ')')
           continue
 
+        if (self.machinetypes[machinetypeName].preemptible
+            and self.machinetypes[machinetypeName].holdOff):
+          print "holding off"
+          continue
+
         if (not bestMachinetypeName) or (self.machinetypes[machinetypeName].weightedMachines < self.machinetypes[bestMachinetypeName].weightedMachines):
           bestMachinetypeName = machinetypeName
 
@@ -2141,15 +2149,12 @@ class BaseSpace(object):
 
     # all HP machines are within abort time or there are no preemptible
     # machines
-    if (len(highPriorityMachinetypesTest) + len(highPriorityMachinetypes) == 0
-        or len(preemptibleMachinetypes) == 0):
+    if len(highPriorityMachinetypesTest) + len(highPriorityMachinetypes) == 0:
+      for mt in preemptibleMachinetypes:
+        self.machinetypes[mt].holdOff = False
       return
-
-    # else we now want to stop creating preemptible machines
-    # TODO: Make this some sort of hold off variable/file rather than using the
-    # last abort time file
-    for machinetypeName in preemptibleMachinetypes:
-      self.machinetypes[machinetypeName].setLastAbortTime(int(time.time()))
+    elif len(preemptibleMachinetypes) == 0:
+      return
 
     # NOTE(RaoulHC): we'll use the fact sleep seconds is hard coded to 60
 
@@ -2158,38 +2163,49 @@ class BaseSpace(object):
     numPoweringOff = 0
     preemptibleMachines = []
     for machineName, machine in self.machines.iteritems():
-      if (machine.state == vcycle.MachineState.stopping
-          and machine.machinetypeName in preemptibleMachinetypes):
-        numPoweringOff += 1
-      elif (machine.machinetypeName in preemptibleMachinetypes
-          and machine.state == vcycle.MachineState.running):
-        preemptibleMachines.append(machineName)
+      if machine.machinetypeName in preemptibleMachinetypes:
+        if machine.state == MachineState.stopping:
+          numPoweringOff += 1
+        elif machine.state == MachineState.running:
+          preemptibleMachines.append(machineName)
+
+    print "hp mt", len(highPriorityMachinetypes)
+    print "hp testing", len(highPriorityMachinetypesTest)
+    print "number powering off: ", numPoweringOff
 
     # FIXME(RaoulHC): remove this later
-    print "Number of preemptible machines powering off: ", numPoweringOff
+    # print " Number of preemptible machines powering off: ", numPoweringOff
 
     # TODO(RaoulHC): atm no grace time is implemented so gonna use 10 mins, but
     # this should be changed later. Probably an option to be set in the
     # configuration file along with preemptible. (os shutdown timeout)
-    graceSecs = 600
+    graceSecs = 15
 
-    # now want to figure out if we have more machines to turn off
     # NOTE(RaoulHC): for now, I think I'll assume worse case scenario, that
     # they're all gonna take grace_secs to shutdown, basically check whether
     # creations per cycle times * grace secs / cycle time > num powering off
     # and if so start shutting more down. Hard coded cycle time to 60 for now
     # probably could be changed.
-    # Pretty sure this part needs redoing/extending for fizzling vms.
-    if (creationsPerCycle * graceSecs / 60 < numPoweringOff
+    if (creationsPerCycle * graceSecs < numPoweringOff
         or len(preemptibleMachines) == 0):
       return
-    elif (creationsPerCycle * graceSecs / 60
-        < numPoweringOff + creationsPerCycle):
-      shutdownSignals = min(
-          creationsPerCycle * graceSecs / 60 - numPoweringOff,
-          len(preemptibleMachines))
-    else:
+
+    space = self.processors_limit - self.totalProcessors
+    print "space: ", space
+
+    if len(highPriorityMachinetypes) > 0:
+      # don't want to create preemptible machines so tell them to hold off
+      for machinetypeName in preemptibleMachinetypes:
+        self.machinetypes[machinetypeName].holdOff = True
+
       shutdownSignals = min(creationsPerCycle, len(preemptibleMachines))
+
+    elif (len(highPriorityMachinetypes) == 0
+        and len(highPriorityMachinetypesTest) > 0):
+        shutdownSignals = max(len(highPriorityMachinetypesTest) - numPoweringOff, 0)
+
+    if shutdownSignals == 0:
+      return
 
     # FIXME: Remove this later
     print "Shutdown signals to send: ", shutdownSignals
@@ -2198,9 +2214,9 @@ class BaseSpace(object):
     # need a list of preemptible machines (not machine types) might have to
     # scan machines. TODO maybe I want to combine this into the other scan of
     # machines?
-    print "preemptible machines: ", preemptibleMachines # FIXME Remove
+    # print "preemptible machines: ", preemptibleMachines # FIXME Remove
     random.shuffle(preemptibleMachines)
-    print "shuffled preemptible machines: ", preemptibleMachines # FIXME Remove
+    # print "shuffled preemptible machines: ", preemptibleMachines # FIXME Remove
 
     for i in range(shutdownSignals):
       self.shutdownOneMachine(preemptibleMachines[i])
