@@ -36,11 +36,11 @@ def plot(file_name):
 
   plt.title('Utilisation: {}%'.format(100*utilisation))
 
-  plt.legend(loc = 2)
+  plt.legend(loc = 4)
   plt.xlabel('Cycle')
   plt.ylabel('Machine count')
 
-  plt.show()
+  plt.savefig(file_path + '.pdf')
 
 if __name__ == '__main__':
   plot(sys.argv[1])
