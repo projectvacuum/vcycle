@@ -1,5 +1,4 @@
 import os
-import sys
 import ConfigParser
 import time # calls should be overridden in test patching
 from mock import patch
@@ -47,6 +46,7 @@ class TestMachine(Machine):
     # function that changes depending on state
     self._update = self._startUpdate
     self.timeInState = 0
+    self.timeToStop = 2 + 0.1 * np.random.randn()
 
     self.job = JobState.starting
     self.jobID = None
@@ -74,27 +74,41 @@ class TestMachine(Machine):
     self._update()
 
   def _startUpdate(self):
+    if self.timeInState < self.timeToStop:
+      return
+
     self._update = self._runningUpdate
     self.state = MachineState.running
     self.timeInState = 0
+    self.timeToStop = 100 + 20 * np.random.randn()
     self.job = JobState.requesting
 
   def _runningUpdate(self):
+
+    # if no job is found
     if self.job == JobState.noJob:
       self._update = self._stoppingUpdate
       self.state = MachineState.stopping
       self.timeInState = 0
-    if self.timeInState > 50:
-      ran = np.random.random()
-      if ran < 0.99:
-        return
-      self._update = self._stoppingUpdate
-      self.state = MachineState.stopping
-      self.timeInState = 0
+      return
+
+    # shutdown after a while
+    if self.timeInState < self.timeToStop:
+      return
+    self._update = self._stoppingUpdate
+    self.state = MachineState.stopping
+    self.timeInState = 0
 
   def _stoppingUpdate(self):
     self.state = MachineState.shutdown
     self.timeInState = 0
+
+  def shutdownSignal(self):
+    # set timeToStop to be closer
+    shutdownTime = self.timeInState + np.random.random() * 15
+    self.timeToStop = shutdownTime if shutdownTime < self.timeToStop else self.timeToStop
+    self.state = MachineState.stopping
+
 
 class TestSpace(BaseSpace):
   """ Class that keeps track of machine creation and deletion without actually
@@ -198,6 +212,9 @@ class TestSpace(BaseSpace):
     for machineName in self.machines:
       self._countMachine(machineName)
 
+  def shutdownOneMachine(self, machineName):
+    self.machines[machineName].shutdownSignal()
+
 class TestManager(object):
   """ Manages test space objects and their queues """
 
@@ -297,8 +314,8 @@ class TestManager(object):
     return queueName + '-' + str(jobID)
 
   def cycle(self):
-    sys.stdout.write("\rcycle: {}/{}".format(self.ct.time(), self.cycles))
-    sys.stdout.flush()
+    print "cycle: {}/{}\n".format(self.ct.time(), self.cycles)
+    print "queue: {}\n".format(self.queues)
 
     self.assignJobs()
     with patch('time.time', side_effect = self.ct.time) as mock_time:
