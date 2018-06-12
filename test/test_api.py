@@ -14,6 +14,11 @@ from vcycle.core.shared import MachineState
 from vcycle.core.shared import VcycleError
 
 class CycleTime(object):
+  """Cycle time class
+  
+  Can be used to keep track of cycle count, patch time.time() with the
+  time method to run vcycle in terms of cycles.
+  """
 
   def __init__(self):
     self.cycle = 1 # start at one else bool statements fudge up :(
@@ -34,7 +39,11 @@ class JobState:
   failed = 'Job failed'
 
 class TestMachine(Machine):
-  """ Test machine class that overrides functions we don't want """
+  """Test machine class
+  
+  Stubs out various function and simulates a running machine via update
+  functions.
+  """
 
   def __init__(
       self, name, spaceName, state, ip, createdTime, startedTime, updatedTime,
@@ -111,8 +120,10 @@ class TestMachine(Machine):
 
 
 class TestSpace(BaseSpace):
-  """ Class that keeps track of machine creation and deletion without actually
-  doing anything
+  """Class that keeps track of test machines
+  
+  Inherits base space but overrides and stubs various functionality
+  Should be used in context where time is patched to return cycle count
   """
 
   def __init__(
@@ -127,8 +138,8 @@ class TestSpace(BaseSpace):
     """ Override standard oneCycle
 
     Don't care about connect, sendVacMon, updateGOCDB or
-    createHeartbeatMachines, and we'd like to have update method that changes
-    state of machines
+    createHeartbeatMachines, and we'd like to have update method that
+    changes state of machines
     """
 
     self.updateMachines()
@@ -240,6 +251,7 @@ class TestManager(object):
     self.cycles = cycles
 
   def run(self):
+    """Method to run test simulation"""
     for i in range(self.cycles):
       self.data[i] = self._countMachinetypes().values()
       self.cycle()
@@ -247,6 +259,7 @@ class TestManager(object):
     self.saveData()
 
   def saveData(self):
+    """Saves machine data and metadata"""
     # save data
     np.save(self.conf_path, self.data)
 
@@ -264,6 +277,13 @@ class TestManager(object):
       pickle.dump(metadata, f, pickle.HIGHEST_PROTOCOL)
 
   def setupQueues(self):
+    """Sets up queues using config files
+    
+    Creates dictionary of queues, mapping of machinetypes to queues.
+    Removes these sections and options from parser as not cause issues
+    with the rest of vcycle.
+    """
+
     for sec in self.parser.sections():
       (secType, secName) = sec.lower().split(None,1)
       if secType == 'queue':
@@ -282,6 +302,8 @@ class TestManager(object):
         self.parser.remove_option(sec, 'queue')
 
   def assignJobs(self):
+    """Assigns jobs from queues to machines"""
+
     for space in self.spaces.values():
       for machine in space.machines.values():
         if machine.job == JobState.requesting:
@@ -295,7 +317,7 @@ class TestManager(object):
             space.machinetypes[mtName].lastAbortTime = self.ct.time()
 
   def getJob(self, machine):
-    """ Get's a job from a queue name
+    """ Get's a job for a machine
     returns id if a job is available
     returns None if not
     """
@@ -321,8 +343,10 @@ class TestManager(object):
     return queueName + '-' + str(jobID)
 
   def cycle(self):
-    print "cycle: {}/{}\n".format(self.ct.time(), self.cycles)
-    print "queue: {}\n".format(self.queues)
+    """Assigns jobs, cycles all spaces and updates cycle time"""
+
+    print "cycle: {}/{}".format(self.ct.time(), self.cycles)
+    print "queue: {}".format(self.queues)
 
     self.assignJobs()
     with patch('time.time', side_effect = self.ct.time) as mock_time:
@@ -331,6 +355,8 @@ class TestManager(object):
       self.ct.update()
 
   def _countMachinetypes(self):
+    """Count up number of each machine type"""
+
     machineCount = {}
     for space in self.spaces.values():
       for mtn in space.machinetypes:

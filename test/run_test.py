@@ -1,4 +1,7 @@
+#! /usr/bin/python2
+
 import os
+import sys
 import time
 import ConfigParser
 from mock import patch
@@ -12,10 +15,16 @@ ct = CycleTime()
 @patch('vcycle.core.vacutils.createUserData', autospec = True)
 @patch('time.time', side_effect = ct.time)
 @patch('vcycle.core.vacutils.logLine', autospec = True)
-def test(_0, _1, _2, _3):
+def test(file_name, cycles, _0, _1, _2, _3):
+  """ Test function that wraps around the TestManager
 
-  tm = TestManager('test.conf', 1000)
+  Allows some features to be mocked out for everything contained within
+  using cycles instead of seconds, mocking out functions dealing with
+  files, and the logLine function.
+  """
 
+  tm = TestManager(file_name, cycles)
   tm.run()
 
-test()
+if __name__ == '__main__':
+  test(sys.argv[1], int(sys.argv[2]))

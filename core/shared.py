@@ -1875,7 +1875,8 @@ class BaseSpace(object):
 
         if (self.machinetypes[machinetypeName].preemptible
             and self.machinetypes[machinetypeName].holdOff):
-          print "holding off"
+          vacutils.logLine('Free capacity found for {} but higher priority'
+              + ' machines are favoured'.format(machinetypeName))
           continue
 
         if (not bestMachinetypeName) or (self.machinetypes[machinetypeName].weightedMachines < self.machinetypes[bestMachinetypeName].weightedMachines):
@@ -2142,21 +2143,15 @@ class BaseSpace(object):
       else:
         highPriorityMachinetypes.append(machinetypeName)
 
-    # TODO remove these
-    # print "preemptibleMachinetypes: ", preemptibleMachinetypes
-    # print "highPriorityMachinetypesTest: ", highPriorityMachinetypesTest
-    # print "highPriorityMachinetypes: ", highPriorityMachinetypes
-
-    # all HP machines are within abort time or there are no preemptible
-    # machines
+    # all HP machines are within abort time so allow preemptible machines to be
+    # created again
     if len(highPriorityMachinetypesTest) + len(highPriorityMachinetypes) == 0:
       for mt in preemptibleMachinetypes:
         self.machinetypes[mt].holdOff = False
       return
+    # no preemptible machines so we don't care
     elif len(preemptibleMachinetypes) == 0:
       return
-
-    # NOTE(RaoulHC): we'll use the fact sleep seconds is hard coded to 60
 
     # scan through machines of preemptible machine types and see how many are
     # shutting down, get a list of those that are still running
@@ -2169,37 +2164,30 @@ class BaseSpace(object):
         elif machine.state == MachineState.running:
           preemptibleMachines.append(machineName)
 
-    print "hp mt", len(highPriorityMachinetypes)
-    print "hp testing", len(highPriorityMachinetypesTest)
-    print "number powering off: ", numPoweringOff
-
-    # FIXME(RaoulHC): remove this later
-    # print " Number of preemptible machines powering off: ", numPoweringOff
-
-    # TODO(RaoulHC): atm no grace time is implemented so gonna use 10 mins, but
+    # TODO(RaoulHC): atm no grace time is implemented so gonna use 15 cycles, but
     # this should be changed later. Probably an option to be set in the
-    # configuration file along with preemptible. (os shutdown timeout)
+    # configuration file along with preemptible. (os shutdown timeout?)
     graceSecs = 15
 
-    # NOTE(RaoulHC): for now, I think I'll assume worse case scenario, that
-    # they're all gonna take grace_secs to shutdown, basically check whether
-    # creations per cycle times * grace secs / cycle time > num powering off
-    # and if so start shutting more down. Hard coded cycle time to 60 for now
-    # probably could be changed.
-    if (creationsPerCycle * graceSecs < numPoweringOff
-        or len(preemptibleMachines) == 0):
+    # NOTE(RaoulHC): This assumes the worse case scenario that machines will
+    # take graceSecs to shut down.
+    if (creationsPerCycle * graceSecs < numPoweringOff):
       return
 
     space = self.processors_limit - self.totalProcessors
-    print "space: ", space
 
     if len(highPriorityMachinetypes) > 0:
       # don't want to create preemptible machines so tell them to hold off
       for machinetypeName in preemptibleMachinetypes:
         self.machinetypes[machinetypeName].holdOff = True
 
-      shutdownSignals = min(creationsPerCycle, len(preemptibleMachines))
+      # figure out how many machines we want to shut down, a lot of the time it
+      # will be creations per cycle
+      shutdownSignals = min([creationsPerCycle, len(preemptibleMachines),
+        creationsPerCycle * graceSecs - space - numPoweringOff])
 
+    # See if we need to create space for testing 
+    # A lot of the time there will be available space
     elif (len(highPriorityMachinetypes) == 0
         and len(highPriorityMachinetypesTest) > 0):
         shutdownSignals = max(len(highPriorityMachinetypesTest) - numPoweringOff, 0)
@@ -2207,17 +2195,8 @@ class BaseSpace(object):
     if shutdownSignals == 0:
       return
 
-    # FIXME: Remove this later
-    print "Shutdown signals to send: ", shutdownSignals
-
-    # Now want to actually send shutdown signals to preemptible machines
-    # need a list of preemptible machines (not machine types) might have to
-    # scan machines. TODO maybe I want to combine this into the other scan of
-    # machines?
-    # print "preemptible machines: ", preemptibleMachines # FIXME Remove
+    # Now want to send the shutdown signals to the running preemptible machines
     random.shuffle(preemptibleMachines)
-    # print "shuffled preemptible machines: ", preemptibleMachines # FIXME Remove
-
     for i in range(shutdownSignals):
       self.shutdownOneMachine(preemptibleMachines[i])
 
