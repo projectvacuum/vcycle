@@ -882,6 +882,8 @@ class Machinetype:
       self.preemptible = bool(parser.get(machinetypeSectionName, 'preemptible'))
     except:
       self.preemptible = False
+    else:
+      self.graceSecs = int(parser.get(machinetypeSectionName, 'grace_secs'))
 
     # print self.preemptible # TODO testing
 
@@ -2124,22 +2126,28 @@ class BaseSpace(object):
 
     # lists to collect machine type names we need
     preemptibleMachinetypes = []
+    graceSecs = 0
     highPriorityMachinetypesTest = []
     highPriorityMachinetypes = []
 
     # scan through machine types and collect what we need to know
     for machinetypeName, machinetypeObject in self.machinetypes.iteritems():
+
       if machinetypeObject.preemptible == True:
         preemptibleMachinetypes.append(machinetypeName)
+        graceSecs = max(graceSecs, machinetypeObject.graceSecs)
+
       elif (machinetypeObject.lastAbortTime and
           int(time.time()) < machinetypeObject.lastAbortTime
           + machinetypeObject.backoff_seconds):
         continue
+
       elif (machinetypeObject.lastAbortTime and
           int(time.time()) < machinetypeObject.lastAbortTime
           + machinetypeObject.backoff_seconds
           + machinetypeObject.fizzle_seconds):
         highPriorityMachinetypesTest.append(machinetypeName)
+
       else:
         highPriorityMachinetypes.append(machinetypeName)
 
@@ -2163,11 +2171,6 @@ class BaseSpace(object):
           numPoweringOff += 1
         elif machine.state == MachineState.running:
           preemptibleMachines.append(machineName)
-
-    # TODO(RaoulHC): atm no grace time is implemented so gonna use 15 cycles, but
-    # this should be changed later. Probably an option to be set in the
-    # configuration file along with preemptible. (os shutdown timeout?)
-    graceSecs = 15
 
     # NOTE(RaoulHC): This assumes the worse case scenario that machines will
     # take graceSecs to shut down.
