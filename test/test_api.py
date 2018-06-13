@@ -3,7 +3,6 @@ import ConfigParser
 import time # calls should be overridden in test patching
 from mock import patch
 import numpy as np
-import pickle
 
 
 from vcycle.core import vacutils
@@ -13,9 +12,10 @@ from vcycle.core.shared import Machine
 from vcycle.core.shared import MachineState
 from vcycle.core.shared import VcycleError
 
+
 class CycleTime(object):
   """Cycle time class
-  
+
   Can be used to keep track of cycle count, patch time.time() with the
   time method to run vcycle in terms of cycles.
   """
@@ -38,9 +38,10 @@ class JobState:
   finished = 'Job executed'
   failed = 'Job failed'
 
+
 class TestMachine(Machine):
   """Test machine class
-  
+
   Stubs out various function and simulates a running machine via update
   functions.
   """
@@ -121,7 +122,7 @@ class TestMachine(Machine):
 
 class TestSpace(BaseSpace):
   """Class that keeps track of test machines
-  
+
   Inherits base space but overrides and stubs various functionality
   Should be used in context where time is patched to return cycle count
   """
@@ -226,6 +227,7 @@ class TestSpace(BaseSpace):
   def shutdownOneMachine(self, machineName):
     self.machines[machineName].shutdownSignal()
 
+
 class TestManager(object):
   """ Manages test space objects and their queues """
 
@@ -246,39 +248,30 @@ class TestManager(object):
     self.spaces = shared.getSpaces()
     self.ct = CycleTime()
 
+    machinetypes = []
+    for space in self.spaces.values():
+      machinetypes += space.machinetypes
+
     # numpy array to keep track
-    self.data = np.empty((cycles, len(self.machinetypeQueue)))
+    self.mcdtype = np.dtype([
+        (i, [
+          ('total', 'int_'), ('starting', 'int_'),
+          ('running', 'int_'), ('stopping', 'int_')])
+        for i in machinetypes])
+    self.data = np.empty(cycles, dtype=self.mcdtype)
     self.cycles = cycles
 
   def run(self):
     """Method to run test simulation"""
     for i in range(self.cycles):
-      self.data[i] = self._countMachinetypes().values()
+      self.data[i] = self._countMachinetypes()
       self.cycle()
     print "\nsaving data"
-    self.saveData()
-
-  def saveData(self):
-    """Saves machine data and metadata"""
-    # save data
     np.save(self.conf_path, self.data)
-
-    # metadata
-    machinetypes = []
-    processors_limit = 0
-    for space in self.spaces.values():
-      machinetypes += space.machinetypes.keys()
-      processors_limit += space.processors_limit
-    metadata = {
-        'machinetypes': machinetypes,
-        'processors_limit': processors_limit
-    }
-    with open(self.conf_path + '.pkl', 'wb') as f:
-      pickle.dump(metadata, f, pickle.HIGHEST_PROTOCOL)
 
   def setupQueues(self):
     """Sets up queues using config files
-    
+
     Creates dictionary of queues, mapping of machinetypes to queues.
     Removes these sections and options from parser as not cause issues
     with the rest of vcycle.
@@ -357,10 +350,21 @@ class TestManager(object):
   def _countMachinetypes(self):
     """Count up number of each machine type"""
 
-    machineCount = {}
+    machineCount = np.empty(1, dtype=self.mcdtype)[0]
     for space in self.spaces.values():
+
       for mtn in space.machinetypes:
-        machineCount[mtn] = 0
+        machineCount[mtn] = (0, 0, 0, 0)
+
       for machine in space.machines.values():
-        machineCount[machine.machinetypeName] += 1
+        mCount = machineCount[machine.machinetypeName]
+        mCount['total'] += 1
+        if machine.state == MachineState.starting:
+          mCount['starting'] += 1
+        elif machine.state == MachineState.running:
+          mCount['running'] += 1
+        elif machine.state == MachineState.stopping:
+          mCount['stopping'] += 1
+
+    print machineCount
     return machineCount
