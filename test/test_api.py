@@ -249,8 +249,10 @@ class TestManager(object):
     self.ct = CycleTime()
 
     machinetypes = []
+    self.processors_limit = 0
     for space in self.spaces.values():
       machinetypes += space.machinetypes
+      self.processors_limit += space.processors_limit
 
     # numpy array to keep track
     self.mcdtype = np.dtype([
@@ -267,7 +269,15 @@ class TestManager(object):
       self.data[i] = self._countMachinetypes()
       self.cycle()
     print "\nsaving data"
-    np.save(self.conf_path, self.data)
+    self.save()
+
+  def save(self):
+    """Save meta and simulation data"""
+    metadata = {'processors_limit': self.processors_limit}
+
+    data = np.array({'metadata': metadata, 'data': self.data})
+
+    np.save(self.conf_path, data)
 
   def setupQueues(self):
     """Sets up queues using config files
@@ -350,7 +360,7 @@ class TestManager(object):
   def _countMachinetypes(self):
     """Count up number of each machine type"""
 
-    machineCount = np.empty(1, dtype=self.mcdtype)[0]
+    machineCount = np.empty(1, dtype=self.mcdtype)[0] # TODO probably a neater way of creating that dtype element
     for space in self.spaces.values():
 
       for mtn in space.machinetypes:

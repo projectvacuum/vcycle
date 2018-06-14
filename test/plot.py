@@ -14,8 +14,7 @@ def load_data(file_name):
   file_path = (os.path.abspath(os.path.dirname(__file__))
       + '/test_configs/' + file_name)
   # check file existence
-  if not (os.path.isfile(file_path + '.npy')
-      or os.path.isfile(file_path + '.pkl')):
+  if not os.path.isfile(file_path + '.npy'):
     print "Data not found, run test on conf file first!"
     return None
 
@@ -41,8 +40,11 @@ def color_cycle():
 def plot(file_name):
   """Function to load data and metadata, and create stacked plot"""
 
-  data = load_data(file_name)
-  cycles = np.arange(0, len(data)) # x axis
+  file_data = load_data(file_name).item()
+  metadata = file_data['metadata']
+  data = file_data['data']
+  cycleCount = len(data)
+  cycles = np.arange(0, cycleCount) # x axis
 
   machinetypes = data.dtype.fields.keys()
   labels = [x + ' - ' + i
@@ -59,10 +61,16 @@ def plot(file_name):
     return entry
   plotting_data = np.array([extractor(x) for x in data])
 
+  # calculate utilisation by looking at running and stopping machines
   utilisation = 0
   for x in plotting_data:
-    utilisation += sum(x[i] for i in [1, 2, 4, 5])
-  util_percent = 100*utilisation/float(len(data)*1000)
+    for i, value in enumerate(x):
+      if i % 3 != 0:
+        utilisation += value
+
+  processors_limit = metadata['processors_limit']
+  print processors_limit
+  util_percent = 100 * utilisation / float(cycleCount * processors_limit)
 
   # colour
   plt.rc('axes', prop_cycle=cycler('color', color_cycle()))
