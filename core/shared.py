@@ -1462,6 +1462,11 @@ class BaseSpace(object):
         # We never try deletions more than once every 60 minutes
         continue
 
+      if machine.machinetypeName in self.machinetypes:
+        machinetype = self.machinetypes[machine.machinetypeName]
+      else:
+        machinetype = None
+
       # Delete machines as appropriate
       if machine.state == MachineState.starting and \
          (machine.createdTime is None or
@@ -1477,29 +1482,29 @@ class BaseSpace(object):
         self._deleteOneMachine(machineName)
 
       elif machine.state == MachineState.running and \
-           machine.machinetypeName in self.machinetypes and \
+           machinetype and \
            machine.startedTime and \
-           (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].max_wallclock_seconds)):
+           (int(time.time()) > (machine.startedTime + machinetype.max_wallclock_seconds)):
         vacutils.logLine(machineName + ' exceeded max_wallclock_seconds')
         self._deleteOneMachine(machineName, '700 Exceeded max_wallclock_seconds')
 
       elif machine.state == MachineState.running and \
-           machine.machinetypeName in self.machinetypes and \
-           self.machinetypes[machine.machinetypeName].heartbeat_file and \
-           self.machinetypes[machine.machinetypeName].heartbeat_seconds and \
+           machinetype and \
+           machinetype.heartbeat_file and \
+           machinetype.heartbeat_seconds and \
            machine.startedTime and \
-           (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].fizzle_seconds)) and \
-           (int(time.time()) > (machine.startedTime + self.machinetypes[machine.machinetypeName].heartbeat_seconds)) and \
+           (int(time.time()) > (machine.startedTime + machinetype.fizzle_seconds)) and \
+           (int(time.time()) > (machine.startedTime + machinetype.heartbeat_seconds)) and \
            (
             (machine.heartbeatTime is None) or
-            (machine.heartbeatTime < (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
+            (machine.heartbeatTime < (int(time.time()) - machinetype.heartbeat_seconds))
            ):
         vacutils.logLine(machineName + ' failed to update heartbeat file')
         self._deleteOneMachine(machineName, '700 Heartbeat file not updated')
 
       # Check shutdown times
       elif machine.state == MachineState.running and \
-           machine.machinetypeName in self.machinetypes:
+           machinetype:
         shutdowntime = self.updateShutdownTime(machine)
         if shutdowntime is not None and int(time.time()) > shutdowntime:
           # log what has passed
