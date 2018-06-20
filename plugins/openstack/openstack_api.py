@@ -394,7 +394,7 @@ class OpenstackSpace(shared.BaseSpace):
       else:
         state = shared.MachineState.unknown
 
-      self.machines[machineName] = shared.Machine(
+      self._makeMachine(
           name             = machineName,
           spaceName        = self.spaceName,
           state            = state,
@@ -667,16 +667,17 @@ class OpenstackSpace(shared.BaseSpace):
 
     vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = shared.Machine(name             = machineName,
-                                                       spaceName        = self.spaceName,
-                                                       state            = shared.MachineState.starting,
-                                                       ip               = '0.0.0.0',
-                                                       createdTime      = int(time.time()),
-                                                       startedTime      = None,
-                                                       updatedTime      = int(time.time()),
-                                                       uuidStr          = uuidStr,
-                                                       machinetypeName  = machinetypeName,
-                                                       processors       = self.flavors[flavorName]['processors'])
+    self._makeMachine(
+        name             = machineName,
+        spaceName        = self.spaceName,
+        state            = shared.MachineState.starting,
+        ip               = '0.0.0.0',
+        createdTime      = int(time.time()),
+        startedTime      = None,
+        updatedTime      = int(time.time()),
+        uuidStr          = uuidStr,
+        machinetypeName  = machinetypeName,
+        processors       = self.flavors[flavorName]['processors'])
 
   def deleteOneMachine(self, machineName):
 

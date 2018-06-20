@@ -162,15 +162,16 @@ class AzureSpace(shared.BaseSpace):
                 vacutils.logLine(str(ex))
                 state = shared.MachineState.starting
 
-            self.machines[result.service_name] = shared.Machine(name        = result.service_name,
-                                                                spaceName   = self.spaceName,
-                                                                state       = state,
-                                                                ip          = ip,
-                                                                createdTime = createdTime,
-                                                                startedTime = startedTime,
-                                                                updatedTime = updatedTime,
-                                                                uuidStr     = uuidStr,
-                                                                machinetypeName  = machinetypeName)
+            self._makeMachine(
+                    name        = result.service_name,
+                    spaceName   = self.spaceName,
+                    state       = state,
+                    ip          = ip,
+                    createdTime = createdTime,
+                    startedTime = startedTime,
+                    updatedTime = updatedTime,
+                    uuidStr     = uuidStr,
+                    machinetypeName  = machinetypeName)
 
 
     def createMachine(self, machineName, machinetypeName, zone = None):
@@ -186,15 +187,17 @@ class AzureSpace(shared.BaseSpace):
                              fingerprint=(fingerprint, path))
             vacutils.logLine('Created ' + machineName + ' (' + machineName + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-            self.machines[machineName] = shared.Machine(name        = machineName,
-                                                               spaceName   = self.spaceName,
-                                                               state       = shared.MachineState.starting,
-                                                               ip          = '0.0.0.0',
-                                                               createdTime = int(time.time()),
-                                                               startedTime = None,
-                                                               updatedTime = int(time.time()),
-                                                               uuidStr     = None,
-                                                               machinetypeName  = machinetypeName)
+            self._makeMachine(
+                    name        = machineName,
+                    spaceName   = self.spaceName,
+                    state       = shared.MachineState.starting,
+                    ip          = '0.0.0.0',
+                    createdTime = int(time.time()),
+                    startedTime = None,
+                    updatedTime = int(time.time()),
+                    uuidStr     = None,
+                    machinetypeName  = machinetypeName)
+
         except Exception as ex:
             try:
                 self.__delete(machineName)

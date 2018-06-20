@@ -149,15 +149,16 @@ class DbceSpace(shared.BaseSpace):
       else:
           state = shared.MachineState.failed
 
-      self.machines[oneServer['name']] = shared.Machine(name             = oneServer['name'],
-                                                 spaceName        = self.spaceName,
-                                                 state            = state,
-                                                 ip               = "0.0.0.0",
-                                                 createdTime      = createdTime,
-                                                 startedTime      = startedTime,
-                                                 updatedTime      = updatedTime,
-                                                 uuidStr          = uuidStr,
-                                                 machinetypeName  = machinetypeName)
+      self._makeMachine(
+          name             = oneServer['name'],
+          spaceName        = self.spaceName,
+          state            = state,
+          ip               = "0.0.0.0",
+          createdTime      = createdTime,
+          startedTime      = startedTime,
+          updatedTime      = updatedTime,
+          uuidStr          = uuidStr,
+          machinetypeName  = machinetypeName)
 
   def createMachine(self, machineName, machinetypeName, zone = None):
 
@@ -199,15 +200,16 @@ class DbceSpace(shared.BaseSpace):
                         str(result['response']['data']['id']),
                         0644,
                         '/var/lib/vcycle/tmp')
-    self.machines[machineName] = shared.Machine(name        = machineName,
-                                                       spaceName   = self.spaceName,
-                                                       state       = shared.MachineState.starting,
-                                                       ip          = ip,
-                                                       createdTime = int(time.time()),
-                                                       startedTime = None,
-                                                       updatedTime = int(time.time()),
-                                                       uuidStr     = None,
-                                                       machinetypeName  = machinetypeName)
+    self._makeMachine(
+        name        = machineName,
+        spaceName   = self.spaceName,
+        state       = shared.MachineState.starting,
+        ip          = ip,
+        createdTime = int(time.time()),
+        startedTime = None,
+        updatedTime = int(time.time()),
+        uuidStr     = None,
+        machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
     try:

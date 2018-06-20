@@ -153,15 +153,16 @@ class OcciSpace(shared.BaseSpace):
             else:
                 state = shared.MachineState.unknown
 
-            self.machines[machineName] = shared.Machine(name=machineName,
-                                                 spaceName=self.spaceName,
-                                                 state=state,
-                                                 ip=ip,
-                                                 createdTime=createdTime,
-                                                 startedTime=startedTime,
-                                                 updatedTime=updatedTime,
-                                                 uuidStr=uuidStr,
-                                                 machinetypeName=None)
+            self._makeMachine(
+                name=machineName,
+                spaceName=self.spaceName,
+                state=state,
+                ip=ip,
+                createdTime=createdTime,
+                startedTime=startedTime,
+                updatedTime=updatedTime,
+                uuidStr=uuidStr,
+                machinetypeName=None)
 
     def createMachine(self, machineName, machinetypeName, zone = None):
 
@@ -220,15 +221,16 @@ class OcciSpace(shared.BaseSpace):
 
         vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
-        self.machines[machineName] = shared.Machine(name=machineName,
-                                             spaceName=self.spaceName,
-                                             state=shared.MachineState.starting,
-                                             ip='0.0.0.0',
-                                             createdTime=int(time.time()),
-                                             startedTime=int(time.time()),
-                                             updatedTime=int(time.time()),
-                                             uuidStr=None,
-                                             machinetypeName=machinetypeName)
+        self._makeMachine(
+            name=machineName,
+            spaceName=self.spaceName,
+            state=shared.MachineState.starting,
+            ip='0.0.0.0',
+            createdTime=int(time.time()),
+            startedTime=int(time.time()),
+            updatedTime=int(time.time()),
+            uuidStr=None,
+            machinetypeName=machinetypeName)
 
         return machineName
 

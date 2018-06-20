@@ -129,16 +129,17 @@ class CreamceSpace(shared.BaseSpace):
       else:
         state = shared.MachineState.unknown
 
-      self.machines[machineName] = shared.Machine(name             = machineName,
-                                                         spaceName        = self.spaceName,
-                                                         state            = state,
-                                                         ip               = '0.0.0.0',
-                                                         createdTime      = None,
-                                                         startedTime      = None,
-                                                         updatedTime      = None,
-                                                         uuidStr          = oneStatus['JobID'],
-                                                         machinetypeName  = machinetypeName,
-                                                         zone             = None)
+      self._makeMachine(
+          name             = machineName,
+          spaceName        = self.spaceName,
+          state            = state,
+          ip               = '0.0.0.0',
+          createdTime      = None,
+          startedTime      = None,
+          updatedTime      = None,
+          uuidStr          = oneStatus['JobID'],
+          machinetypeName  = machinetypeName,
+          zone             = None)
 
   def parseGliteCeJobStatus(self, rawStatuses):
     # State machine to go through rawStatuses from glite-ce-job-status
@@ -210,15 +211,16 @@ OutputSandboxBaseDestURI = "gsiftp://localhost";
 
     vacutils.logLine('Created ' + machineName + ' (' + jobID + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = shared.Machine(name        = machineName,
-                                                       spaceName   = self.spaceName,
-                                                       state       = shared.MachineState.starting,
-                                                       ip          = '0.0.0.0',
-                                                       createdTime = int(time.time()),
-                                                       startedTime = None,
-                                                       updatedTime = int(time.time()),
-                                                       uuidStr     = jobID,
-                                                       machinetypeName  = machinetypeName)
+    self._makeMachine(
+        name        = machineName,
+        spaceName   = self.spaceName,
+        state       = shared.MachineState.starting,
+        ip          = '0.0.0.0',
+        createdTime = int(time.time()),
+        startedTime = None,
+        updatedTime = int(time.time()),
+        uuidStr     = jobID,
+        machinetypeName  = machinetypeName)
 
   def deleteOneMachine(self, machineName):
 

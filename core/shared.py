@@ -1906,6 +1906,16 @@ class BaseSpace(object):
         vacutils.logLine('No more free capacity and/or suitable machinetype found within ' + self.spaceName)
         return
 
+  def _makeMachine(self, **kwargs):
+    """Used to create machine object and count properties"""
+    machineName = kwargs['name']
+    try:
+      self.machines[machineName] = Machine(**kwargs)
+    except:
+      raise VcycleError('Creation of machine object %s fails with: %s' % (machineName, str(e)))
+    else:
+      self._countMachine(machineName)
+
   def _createMachine(self, machinetypeName):
     """Generic machine creation"""
 
@@ -2009,8 +2019,6 @@ class BaseSpace(object):
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
       vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
-    else:
-      self._countMachine(machineName)
     
     # MJF. Some values may be set by self.createMachine() from the API!
 

@@ -252,16 +252,18 @@ class GoogleSpace(shared.BaseSpace):
           else:
             state = shared.MachineState.unknown
 
-          self.machines[machineName] = shared.Machine(name             = machineName,
-                                                             spaceName        = self.spaceName,
-                                                             state            = state,
-                                                             ip               = ip,
-                                                             createdTime      = createdTime,
-                                                             startedTime      = None,
-                                                             updatedTime      = None,
-                                                             uuidStr          = id,
-                                                             machinetypeName  = machinetypeName,
-                                                             zone             = zone)
+          self._makeMachine(
+              name             = machineName,
+              spaceName        = self.spaceName,
+              state            = state,
+              ip               = ip,
+              createdTime      = createdTime,
+              startedTime      = None,
+              updatedTime      = None,
+              uuidStr          = id,
+              machinetypeName  = machinetypeName,
+              zone             = zone)
+
         except Exception as e:
           vacutils.logLine('Problem processing %s - skipping (%s)' % (machineName, str(e)))
 
@@ -564,16 +566,17 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
 
     vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = shared.Machine(name            = machineName,
-                                                       spaceName       = self.spaceName,
-                                                       state           = shared.MachineState.starting,
-                                                       ip              = '0.0.0.0',
-                                                       createdTime     = int(time.time()),
-                                                       startedTime     = None,
-                                                       updatedTime     = int(time.time()),
-                                                       uuidStr         = uuidStr,
-                                                       machinetypeName = machinetypeName,
-                                                       zone            = zone)
+    self._makeMachine(
+        name            = machineName,
+        spaceName       = self.spaceName,
+        state           = shared.MachineState.starting,
+        ip              = '0.0.0.0',
+        createdTime     = int(time.time()),
+        startedTime     = None,
+        updatedTime     = int(time.time()),
+        uuidStr         = uuidStr,
+        machinetypeName = machinetypeName,
+        zone            = zone)
 
   def deleteOneMachine(self, machineName):
 

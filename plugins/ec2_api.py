@@ -240,15 +240,16 @@ class Ec2Space(shared.BaseSpace):
         except Exception as e:
           vacutils.logLine('Adding tags fails with ' + str(e))
 
-      self.machines[machineName] = shared.Machine(name            = machineName,
-                                                         spaceName       = self.spaceName,
-                                                         state           = state,
-                                                         ip              = ip,
-                                                         createdTime     = None,
-                                                         startedTime     = None,
-                                                         updatedTime     = updatedTime,
-                                                         uuidStr         = instanceId,
-                                                         machinetypeName = machinetypeName)
+      self._makeMachine(
+          name            = machineName,
+          spaceName       = self.spaceName,
+          state           = state,
+          ip              = ip,
+          createdTime     = None,
+          startedTime     = None,
+          updatedTime     = updatedTime,
+          uuidStr         = instanceId,
+          machinetypeName = machinetypeName)
 
   def getImageID(self, machinetypeName):
     """Get the image ID"""
@@ -378,15 +379,16 @@ class Ec2Space(shared.BaseSpace):
 
     vacutils.logLine('Created ' + machineName + ' ( ' + str(instanceId) + ' / ' + str(privateDnsName) + ' ) for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = shared.Machine(name        = machineName,
-                                                       spaceName   = self.spaceName,
-                                                       state       = shared.MachineState.starting,
-                                                       ip          = '0.0.0.0',
-                                                       createdTime = int(time.time()),
-                                                       startedTime = None,
-                                                       updatedTime = int(time.time()),
-                                                       uuidStr     = instanceId,
-                                                       machinetypeName  = machinetypeName)
+    self._makeMachine(
+        name        = machineName,
+        spaceName   = self.spaceName,
+        state       = shared.MachineState.starting,
+        ip          = '0.0.0.0',
+        createdTime = int(time.time()),
+        startedTime = None,
+        updatedTime = int(time.time()),
+        uuidStr     = instanceId,
+        machinetypeName  = machinetypeName)
 
   def createTags(self, instanceId, machineName, machinetypeName):
 
