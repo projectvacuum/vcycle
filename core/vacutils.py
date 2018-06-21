@@ -286,7 +286,7 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
          userDataContents = userDataContents.replace('##user_data_option_x509_proxy##',
                               makeX509Proxy(certPath, keyPath, shutdownTime, isLegacyProxy=False, cn=machinetypeName))
      except Exception as e:
-       raise VacutilsError('Faled to make proxy (' + str(e) + ')')
+       raise VacutilsError('Failed to make proxy (' + str(e) + ')')
 
    # Site configurable substitutions for this machinetype
    for oneOption, oneValue in options.iteritems():
