@@ -33,13 +33,17 @@
 
 include VERSION
 
-INSTALL_FILES=vcycled shared.py vacutils.py __init__.py \
-              openstack/__init__.py openstack/openstack_api.py occi_api.py azure_api.py \
-	      openstack/image_api.py \
-              dbce_api.py ec2_api.py example.vcycle.conf \
-              vcycle-cgi vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
-              vcycled.logrotate admin-guide.html VERSION CHANGES \
-              vcycle.conf.5 vcycled.8
+OPENSTACK_PLUGINS := $(wildcard plugins/openstack/*.py) 
+
+PLUGIN_FILES:= $(wildcard plugins/*.py) $(OPENSTACK_PLUGINS)
+
+CORE_FILES := $(wildcard core/*.py)
+
+INSTALL_FILES = $(PLUGIN_FILES) $(CORE_FILES) \
+                vcycled __init__.py example.vcycle.conf vcycle-cgi \
+                vcycle.httpd.conf vcycle.httpd.inc vcycled.init \
+                vcycled.logrotate admin-guide.html VERSION CHANGES \
+                vcycle.conf.5 vcycled.8
 
 TGZ_FILES=$(INSTALL_FILES) Makefile vcycle.spec
 
@@ -48,7 +52,8 @@ GNUTAR ?= tar
 PYTHONDIR := $(shell python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 vcycle.tgz: $(TGZ_FILES)
-	mkdir -p TEMPDIR/vcycle TEMPDIR/vcycle/openstack
+	mkdir -p TEMPDIR/vcycle TEMPDIR/vcycle/plugins \
+                TEMPDIR/vcycle/plugins/openstack TEMPDIR/vcycle/core
 	for i in $(TGZ_FILES) ; do cp $$i TEMPDIR/vcycle/$$i ; done
 	cd TEMPDIR ; $(GNUTAR) zcvf ../vcycle.tgz --owner=root --group=root vcycle
 	rm -R TEMPDIR
@@ -56,7 +61,9 @@ vcycle.tgz: $(TGZ_FILES)
 install: $(INSTALL_FILES)
 	mkdir -p $(RPM_BUILD_ROOT)/usr/sbin \
 	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle \
-	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/openstack \
+	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/core \
+	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/plugins \
+	         $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/plugins/openstack \
  	         $(RPM_BUILD_ROOT)/usr/share/doc/vcycle-$(VERSION) \
  	         $(RPM_BUILD_ROOT)/usr/share/man/man5 \
                  $(RPM_BUILD_ROOT)/usr/share/man/man8 \
@@ -73,12 +80,10 @@ install: $(INSTALL_FILES)
 	         $(RPM_BUILD_ROOT)/etc/vcycle.d
 	cp vcycled vcycle-cgi \
 	   $(RPM_BUILD_ROOT)/usr/sbin
-	cp __init__.py shared.py vacutils.py \
-	    occi_api.py \
-	   dbce_api.py azure_api.py ec2_api.py \
-	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle
-	cp openstack/__init__.py openstack/image_api.py openstack/openstack_api.py \
-	   $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/openstack
+	cp $(CORE_FILES) $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/core
+	cp __init__.py $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle
+	echo $(OPENSTACK_PLUGINS)
+	for i in $(PLUGIN_FILES) ; do cp $$i $(RPM_BUILD_ROOT)$(PYTHONDIR)/vcycle/$$i ; done
 	cp VERSION CHANGES vcycle.httpd.conf vcycle.httpd.inc \
 	   example.vcycle.conf vcycle.conf.5 vcycled.8 \
 	   admin-guide.html \

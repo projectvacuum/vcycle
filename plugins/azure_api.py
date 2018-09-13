@@ -55,18 +55,19 @@ import calendar
 from azure import *
 from azure.servicemanagement import *
 
-import vcycle.vacutils
+from vcycle.core import shared
+from vcycle.core import vacutils
 
 class AzureError(Exception):
     pass
 
 
-class AzureSpace(vcycle.BaseSpace):
+class AzureSpace(shared.BaseSpace):
 
     def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
         # Initialize data structures from configuration files
         # Generic initialization
-        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+        shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
         # Azure-specific initialization
         try:
@@ -129,7 +130,7 @@ class AzureSpace(vcycle.BaseSpace):
             try:
                 info = sms.get_hosted_service_properties(result.service_name, True)
             except WindowsAzureMissingResourceError as ex:
-                vcycle.vacutils.logLine("% don't have vms? " % result.service_name)
+                vacutils.logLine("% don't have vms? " % result.service_name)
                 continue
 
             if len(info.deployments) == 0 : continue
@@ -149,27 +150,28 @@ class AzureSpace(vcycle.BaseSpace):
                 status = info.deployments[0].role_instance_list[0].instance_status
                 if status in ['Unknown', 'CreatingVM', 'StartingVM', 'CreatingRole', 'StartingRole',
                                          'ReadyRole', 'BusyRole', 'Preparing','ProvisioningFailed']:
-                    state = vcycle.MachineState.starting
+                    state = shared.MachineState.starting
                 elif status in ['StoppingRole', 'StoppingVM', 'DeletingVM',
                                 'StoppedVM', 'RestartingRole','StoppedDeallocated']:
-                    state = vcycle.MachineState.deleting
+                    state = shared.MachineState.deleting
                 else:
-                    state = vcycle.MachineState.starting
+                    state = shared.MachineState.starting
             except Exception as ex:
                 import json
-                vcycle.vacutils.logLine(json.dumps(info,indent=2))
-                vcycle.vacutils.logLine(str(ex))
-                state = vcycle.MachineState.starting
+                vacutils.logLine(json.dumps(info,indent=2))
+                vacutils.logLine(str(ex))
+                state = shared.MachineState.starting
 
-            self.machines[result.service_name] = vcycle.Machine(name        = result.service_name,
-                                                                spaceName   = self.spaceName,
-                                                                state       = state,
-                                                                ip          = ip,
-                                                                createdTime = createdTime,
-                                                                startedTime = startedTime,
-                                                                updatedTime = updatedTime,
-                                                                uuidStr     = uuidStr,
-                                                                machinetypeName  = machinetypeName)
+            self._makeMachine(
+                    name        = result.service_name,
+                    spaceName   = self.spaceName,
+                    state       = state,
+                    ip          = ip,
+                    createdTime = createdTime,
+                    startedTime = startedTime,
+                    updatedTime = updatedTime,
+                    uuidStr     = uuidStr,
+                    machinetypeName  = machinetypeName)
 
 
     def createMachine(self, machineName, machinetypeName, zone = None):
@@ -183,17 +185,19 @@ class AzureSpace(vcycle.BaseSpace):
                              password= self.password,
                              user_data=base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
                              fingerprint=(fingerprint, path))
-            vcycle.vacutils.logLine('Created ' + machineName + ' (' + machineName + ') for ' + machinetypeName + ' within ' + self.spaceName)
+            vacutils.logLine('Created ' + machineName + ' (' + machineName + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-            self.machines[machineName] = vcycle.shared.Machine(name        = machineName,
-                                                               spaceName   = self.spaceName,
-                                                               state       = vcycle.MachineState.starting,
-                                                               ip          = '0.0.0.0',
-                                                               createdTime = int(time.time()),
-                                                               startedTime = None,
-                                                               updatedTime = int(time.time()),
-                                                               uuidStr     = None,
-                                                               machinetypeName  = machinetypeName)
+            self._makeMachine(
+                    name        = machineName,
+                    spaceName   = self.spaceName,
+                    state       = shared.MachineState.starting,
+                    ip          = '0.0.0.0',
+                    createdTime = int(time.time()),
+                    startedTime = None,
+                    updatedTime = int(time.time()),
+                    uuidStr     = None,
+                    machinetypeName  = machinetypeName)
+
         except Exception as ex:
             try:
                 self.__delete(machineName)
@@ -206,7 +210,7 @@ class AzureSpace(vcycle.BaseSpace):
         try:
             sms.delete_hosted_service(machineName, True)
         except Exception as e:
-            raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')
+            raise shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')
 
 
     def __create_service(self, name="", location=None):

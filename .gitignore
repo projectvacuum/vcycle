@@ -4,5 +4,12 @@
 # compiled python files
 *.pyc
 
+# numpy data files
+*.npy
+# pickle data files
+*.pkl
+# pdf files plotted
+*.pdf
+
 # Temporary rpm folder
 RPMTMP

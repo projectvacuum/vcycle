@@ -36,12 +36,12 @@
 #            Luis.Villazon.Esteban@cern.ch
 #
 
-
 import requests
 import time
 import base64
-import vcycle.vacutils
 
+from vcycle.core import shared
+from vcycle.core import vacutils
 
 
 class OcciError(Exception):
@@ -50,13 +50,13 @@ class OcciError(Exception):
 
 ca_path = '/etc/grid-security/occi.ca-certs'
 
-class OcciSpace(vcycle.BaseSpace):
+class OcciSpace(shared.BaseSpace):
 
     def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
         # Initialize data structures from configuration files
 
         # Generic initialization
-        vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+        shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
         # OCCI-specific initialization
         try:
@@ -96,7 +96,7 @@ class OcciSpace(vcycle.BaseSpace):
         #Retrieve token
         keystone_url = self._get_keystone()
         if keystone_url is not None:
-            vcycle.vacutils.logLine("Found Keystone URL %s" % keystone_url)
+            vacutils.logLine("Found Keystone URL %s" % keystone_url)
             self.token = self._get_token(keystone_url)
             self.session.headers.clear()
             self.session.headers.update({"X-Auth-Token": self.token})
@@ -105,7 +105,7 @@ class OcciSpace(vcycle.BaseSpace):
 
         self._get_definitions()
         self.computeURL = "%s/compute/" % (self.queryURL)
-        vcycle.vacutils.logLine("Connected to %s for space %s" % (self.queryURL ,self.spaceName))
+        vacutils.logLine("Connected to %s for space %s" % (self.queryURL ,self.spaceName))
 
     def scanMachines(self):
         """Query OCCI compute service for details of machines in this space"""
@@ -147,21 +147,22 @@ class OcciSpace(vcycle.BaseSpace):
                 startedTime = None
 
             if occiState == 'active':
-                state = vcycle.MachineState.running
+                state = shared.MachineState.running
             elif occiState == 'inactive':
-                state = vcycle.MachineState.shutdown
+                state = shared.MachineState.shutdown
             else:
-                state = vcycle.MachineState.unknown
+                state = shared.MachineState.unknown
 
-            self.machines[machineName] = vcycle.shared.Machine(name=machineName,
-                                                 spaceName=self.spaceName,
-                                                 state=state,
-                                                 ip=ip,
-                                                 createdTime=createdTime,
-                                                 startedTime=startedTime,
-                                                 updatedTime=updatedTime,
-                                                 uuidStr=uuidStr,
-                                                 machinetypeName=None)
+            self._makeMachine(
+                name=machineName,
+                spaceName=self.spaceName,
+                state=state,
+                ip=ip,
+                createdTime=createdTime,
+                startedTime=startedTime,
+                updatedTime=updatedTime,
+                uuidStr=uuidStr,
+                machinetypeName=None)
 
     def createMachine(self, machineName, machinetypeName, zone = None):
 
@@ -218,17 +219,18 @@ class OcciSpace(vcycle.BaseSpace):
         except Exception as e:
             raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
-        vcycle.vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
+        vacutils.logLine('Created ' + machineName + ' for ' + machinetypeName + ' within ' + self.spaceName)
 
-        self.machines[machineName] = vcycle.shared.Machine(name=machineName,
-                                             spaceName=self.spaceName,
-                                             state=vcycle.MachineState.starting,
-                                             ip='0.0.0.0',
-                                             createdTime=int(time.time()),
-                                             startedTime=int(time.time()),
-                                             updatedTime=int(time.time()),
-                                             uuidStr=None,
-                                             machinetypeName=machinetypeName)
+        self._makeMachine(
+            name=machineName,
+            spaceName=self.spaceName,
+            state=shared.MachineState.starting,
+            ip='0.0.0.0',
+            createdTime=int(time.time()),
+            startedTime=int(time.time()),
+            updatedTime=int(time.time()),
+            uuidStr=None,
+            machinetypeName=machinetypeName)
 
         return machineName
 
@@ -240,7 +242,7 @@ class OcciSpace(vcycle.BaseSpace):
         try:
             self.session.delete("%s%s" % (self.computeURL, self.machines[machineName].uuidStr))
         except Exception as e:
-            raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
+            raise shared.VcycleError('Cannot delete ' + machineName + ' via ' + self.computeURL + ' (' + str(e) + ')')
 
     def _get_definitions(self):
         """Store the schema definitions to create VMs
@@ -364,7 +366,7 @@ class OcciSpace(vcycle.BaseSpace):
             headers = {
                 'Accept': 'application/json',
                 'X-Auth-Token': token,
-                'User-Agent': 'Vcycle ' + vcycle.shared.vcycleVersion + ' ( OCCI/1.1 )',
+                'User-Agent': 'Vcycle ' + shared.vcycleVersion + ' ( OCCI/1.1 )',
                 'Content-Type': 'application/json',
                 'Content-Length': len(json.dumps(data))
             }

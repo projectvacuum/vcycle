@@ -53,7 +53,8 @@ import calendar
 import M2Crypto
 import hashlib
 
-import vcycle.vacutils
+from vcycle.core import shared 
+from vcycle.core import vacutils
 
 def _emptyCallback1(p1, p2):
   return
@@ -61,13 +62,13 @@ def _emptyCallback1(p1, p2):
 class GoogleError(Exception):
   pass
 
-class GoogleSpace(vcycle.BaseSpace):
+class GoogleSpace(shared.BaseSpace):
 
   def __init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes):
   # Initialize data structures from configuration files
 
     # Generic initialization
-    vcycle.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
+    shared.BaseSpace.__init__(self, api, apiVersion, spaceName, parser, spaceSectionName, updatePipes)
 
     # Google-specific initialization
 
@@ -141,7 +142,7 @@ class GoogleSpace(vcycle.BaseSpace):
     """Connect to Google Compute Engine"""
 
     self.accessToken = self._getAccessToken()
-    vcycle.vacutils.logLine('Connected to Google Compute Engine for space ' + self.spaceName)
+    vacutils.logLine('Connected to Google Compute Engine for space ' + self.spaceName)
 
     try:
       result = self.httpRequest('https://www.googleapis.com/compute/v1/projects/%s/global/images' % self.project_id,
@@ -240,29 +241,31 @@ class GoogleSpace(vcycle.BaseSpace):
             machinetypeName = None
 
           if status == 'RUNNING':
-            state = vcycle.MachineState.running
+            state = shared.MachineState.running
           elif status == 'TERMINATED' or status == 'SUSPENDED':
-            state = vcycle.MachineState.shutdown
+            state = shared.MachineState.shutdown
           elif status == 'PROVISIONING' or status == 'STAGING':
-            state = vcycle.MachineState.starting
+            state = shared.MachineState.starting
           elif status == 'STOPPING' or status == 'SUSPENDING':
-            state = vcycle.MachineState.deleting
-          # No need to use vcycle.MachineState.failed? Covered by TERMINATED?
+            state = shared.MachineState.deleting
+          # No need to use shared.MachineState.failed? Covered by TERMINATED?
           else:
-            state = vcycle.MachineState.unknown
+            state = shared.MachineState.unknown
 
-          self.machines[machineName] = vcycle.shared.Machine(name             = machineName,
-                                                             spaceName        = self.spaceName,
-                                                             state            = state,
-                                                             ip               = ip,
-                                                             createdTime      = createdTime,
-                                                             startedTime      = None,
-                                                             updatedTime      = None,
-                                                             uuidStr          = id,
-                                                             machinetypeName  = machinetypeName,
-                                                             zone             = zone)
+          self._makeMachine(
+              name             = machineName,
+              spaceName        = self.spaceName,
+              state            = state,
+              ip               = ip,
+              createdTime      = createdTime,
+              startedTime      = None,
+              updatedTime      = None,
+              uuidStr          = id,
+              machinetypeName  = machinetypeName,
+              zone             = zone)
+
         except Exception as e:
-          vcycle.vacutils.logLine('Problem processing %s - skipping (%s)' % (machineName, str(e)))
+          vacutils.logLine('Problem processing %s - skipping (%s)' % (machineName, str(e)))
 
   def _imageNameExists(self, imageName):
     """Check that imageName has already been uploaded to Google"""
@@ -299,10 +302,10 @@ class GoogleSpace(vcycle.BaseSpace):
        self.machinetypes[machinetypeName].root_image.startswith('https://'):
 
       try:
-          imageFile = vcycle.vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
+          imageFile = vacutils.getRemoteRootImage(self.machinetypes[machinetypeName].root_image,
                                          '/var/lib/vcycle/imagecache',
                                          '/var/lib/vcycle/tmp',
-                                         'Vcycle ' + vcycle.shared.vcycleVersion)
+                                         'Vcycle ' + shared.vcycleVersion)
 
           imageLastModified = int(os.stat(imageFile).st_mtime)
           imageURL = self.machinetypes[machinetypeName].root_image
@@ -330,7 +333,7 @@ class GoogleSpace(vcycle.BaseSpace):
       # We already have it!
       return imageName
 
-    vcycle.vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in GCE image store, so need to upload')
+    vacutils.logLine('Image "' + self.machinetypes[machinetypeName].root_image + '" not found in GCE image store, so need to upload')
 
     # Create the family name, which is also a hash but doesn't change with new versions
     imageFamily = base64.b32encode(hashlib.sha256(imageURL).digest()).lower().replace('=','0')
@@ -371,7 +374,7 @@ class GoogleSpace(vcycle.BaseSpace):
     self.curl.setopt(pycurl.UPLOAD,         True)
     self.curl.setopt(pycurl.CUSTOMREQUEST,  'POST')
     self.curl.setopt(pycurl.URL,            self.imageURL + '/v1/images')
-    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + vcycle.shared.vcycleVersion)
+    self.curl.setopt(pycurl.USERAGENT,      'Vcycle ' + shared.vcycleVersion)
     self.curl.setopt(pycurl.TIMEOUT,        30)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
@@ -417,7 +420,7 @@ class GoogleSpace(vcycle.BaseSpace):
       raise GoogleError('JSON decoding of HTTP(S) response fails (' + str(e) + ')')
 
     try:
-      vcycle.vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
+      vacutils.logLine('Uploaded new image ' + imageName + ' with ID ' + str(response['image']['id']))
       return str(response['image']['id'])
     except:
       raise GoogleError('Failed to upload image file for ' + imageName + ' (' + str(e) + ')')
@@ -561,18 +564,19 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
     except:
       raise GoogleError('Unable to get VM id from GCE instance insert response (' + str(e) + ')')
 
-    vcycle.vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
+    vacutils.logLine('Created ' + machineName + ' (' + uuidStr + ') for ' + machinetypeName + ' within ' + self.spaceName)
 
-    self.machines[machineName] = vcycle.shared.Machine(name            = machineName,
-                                                       spaceName       = self.spaceName,
-                                                       state           = vcycle.MachineState.starting,
-                                                       ip              = '0.0.0.0',
-                                                       createdTime     = int(time.time()),
-                                                       startedTime     = None,
-                                                       updatedTime     = int(time.time()),
-                                                       uuidStr         = uuidStr,
-                                                       machinetypeName = machinetypeName,
-                                                       zone            = zone)
+    self._makeMachine(
+        name            = machineName,
+        spaceName       = self.spaceName,
+        state           = shared.MachineState.starting,
+        ip              = '0.0.0.0',
+        createdTime     = int(time.time()),
+        startedTime     = None,
+        updatedTime     = int(time.time()),
+        uuidStr         = uuidStr,
+        machinetypeName = machinetypeName,
+        zone            = zone)
 
   def deleteOneMachine(self, machineName):
 
@@ -582,4 +586,4 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                        headers = [ 'Authorization: Bearer ' + self.accessToken ])
 
     except Exception as e:
-      raise vcycle.shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')
+      raise shared.VcycleError('Cannot delete ' + machineName + ' (' + str(e) + ')')

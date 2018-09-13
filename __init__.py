@@ -33,9 +33,6 @@
 #  Contacts: Andrew.McNab@cern.ch  http://www.gridpp.ac.uk/vcycle/
 #
 
-from vcycle.shared   import *
-from vcycle.vacutils import *
-
 import os
 
 # We import all modules of the form xxxx_api.py in the package directory
@@ -46,7 +43,7 @@ import os
 
 vcycledir = os.path.dirname(__file__)
 
-for dirname, dirnames, files in os.walk(vcycledir):
+for dirname, dirnames, files in os.walk(vcycledir + '/plugins'):
   # ignore .git folder and build folder
   if '.git' in dirnames:
     dirnames.remove('.git')
@@ -55,12 +52,12 @@ for dirname, dirnames, files in os.walk(vcycledir):
   # look for api files and import them
   for apifile in files:
     if apifile.endswith('_api.py'):
-      reldir = os.path.relpath(dirname, vcycledir)
+      reldir = os.path.relpath(dirname, vcycledir + '/plugins')
       if reldir == '.':
-        __import__('vcycle.' + apifile[:-3])
+        __import__('vcycle.plugins.' + apifile[:-3])
       else:
-        __import__('vcycle.' + reldir + '.' + apifile[:-3])
+        __import__('vcycle.plugins.' + reldir + '.' + apifile[:-3])
 
 del apifile, dirname, dirnames, files
 
-__all__ = [ 'shared', 'vacutils' ]
+__all__ = [ 'core.shared', 'core.vacutils' ]
