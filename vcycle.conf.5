@@ -57,20 +57,6 @@ If gocdb_sitename is not given, then records are only written to
 apel-archive and the Vcycle space name is used as a placeholder in the
 files.
 
-.B gocdb_cert_file
-and
-.B gocdb_key_file
-are the absolute paths of an X.509 certificate and private key which
-are authorized to update the GOCDB capacity and VO information for this
-space. The space must already exist in GOCDB as part of the site with name
-given by 
-.B gocdb_sitename.
-The list of VOs with machinetypes in this space is taken from the Vcycle
-configuration with FQANs given by
-.B accounting_fqan.
-Both machinetypes defined locally and those from remote vacuum pipes are
-included. Updates are sent to GOCDB once every 24 hours.
-
 .B vacmon_hostport
 If set, this option gives a space-separated list of HOST:PORT to send
 VacQuery UDP messages to. This can be used to monitor the ongoing status

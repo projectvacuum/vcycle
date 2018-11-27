@@ -1,4 +1,5 @@
 ==================== Changes in Vcycle version 03.00.00 =====================
+- Remove GOCDB updating mechanism and gocdb_cert/key_file option
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================
