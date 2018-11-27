@@ -1,5 +1,7 @@
 ==================== Changes in Vcycle version 03.00.00 =====================
 - Remove GOCDB updating mechanism and gocdb_cert/key_file option
+- Add min/max_wallclock_seconds, min/max_processors, bytes_per_processor
+  to machinetypes VacQuery messages to VacMon
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================

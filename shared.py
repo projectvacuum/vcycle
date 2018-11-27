@@ -1626,6 +1626,7 @@ class BaseSpace(object):
                 'time_sent'             : timeNow,
 
                 'machinetype'           : machinetypeName,
+                'bytes_per_processor'   : spaces[self.spaceName].machinetypes[machinetypeName].rss_bytes_per_processor,
                 'running_machines'      : spaces[self.spaceName].machinetypes[machinetypeName].runningMachines,
                 'running_processors'    : spaces[self.spaceName].machinetypes[machinetypeName].runningProcessors
                      }
@@ -1637,7 +1638,13 @@ class BaseSpace(object):
 
       if spaces[self.spaceName].machinetypes[machinetypeName].runningHS06 is not None:
         messageDict['running_hs06'] = spaces[self.spaceName].machinetypes[machinetypeName].runningHS06
+        
+      if spaces[self.spaceName].machinetypes[machinetypeName].max_wallclock_seconds is not None:
+        messageDict['max_wallclock_seconds'] = spaces[self.spaceName].machinetypes[machinetypeName].max_wallclock_seconds
 
+      if spaces[self.spaceName].machinetypes[machinetypeName].max_processors is not None:
+        messageDict['max_processors'] = spaces[self.spaceName].machinetypes[machinetypeName].max_processors
+        
       messages.append(json.dumps(messageDict))
 
     return messages
