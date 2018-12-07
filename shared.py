@@ -1918,7 +1918,7 @@ class BaseSpace(object):
                                  str(self.machinetypes[machinetypeName].hs06_per_processor * self.machines[machineName].processors),
                                  0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time',
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime',
                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
 
     # Then $JOBFEATURES
@@ -2129,7 +2129,7 @@ def cleanupMachines():
 
     # Get the time beyond which this machine shouldn't be here
     try:
-      expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdown_time', 'r').read().strip())
+      expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
     except:
       # if the shutdown_time is missing, then we construct it using the longest lived machinetype in current config
       expireTime = int(os.stat('/var/lib/vcycle/machines/' + machineName).st_ctime) + maxWallclockSeconds
