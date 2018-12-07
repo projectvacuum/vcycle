@@ -2131,8 +2131,9 @@ def cleanupMachines():
     try:
       expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
     except:
-      # if the shutdown_time is missing, then we construct it using the longest lived machinetype in current config
-      expireTime = int(os.stat('/var/lib/vcycle/machines/' + machineName).st_ctime) + maxWallclockSeconds
+      # if the shutdowntime is missing, then we force the removal of the directory
+      vcycle.vacutils.logLine(machineName + ' has no shutdowntime - cleaning up its directory')
+      expireTime = 0
 
     if int(time.time()) > expireTime + 3600:
 
