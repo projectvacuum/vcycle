@@ -4,7 +4,7 @@
 #
 #  Andrew McNab, Raoul Hidalgo Charman,
 #  University of Manchester.
-#  Copyright (c) 2013-8. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -68,6 +68,7 @@ vcycleVersion       = None
 vacQueryVersion     = '01.02' # Has to match shared.py in Vac
 spaces              = None
 maxWallclockSeconds = 0
+curlTimeOutSeconds  = 90
 
 class MachineState:
   #
@@ -543,7 +544,7 @@ class Machine:
        spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 0)
        spaces[self.spaceName].curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
        spaces[self.spaceName].curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
-       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, 30)
+       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, curlTimeOutSeconds)
        spaces[self.spaceName].curl.setopt(pycurl.FOLLOWLOCATION, True)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYPEER, 1)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYHOST, 2)
@@ -615,7 +616,7 @@ class Machine:
        spaces[self.spaceName].curl.setopt(pycurl.NOBODY, 1)
        spaces[self.spaceName].curl.setopt(pycurl.WRITEFUNCTION, buffer.write)
        spaces[self.spaceName].curl.setopt(pycurl.USERAGENT, 'Vcycle ' + vcycleVersion)
-       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, 30)
+       spaces[self.spaceName].curl.setopt(pycurl.TIMEOUT, curlTimeOutSeconds)
        spaces[self.spaceName].curl.setopt(pycurl.FOLLOWLOCATION, True)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYPEER, 1)
        spaces[self.spaceName].curl.setopt(pycurl.SSL_VERIFYHOST, 2)
@@ -1328,7 +1329,7 @@ class BaseSpace(object):
     else:
       self.curl.setopt(pycurl.VERBOSE, 0)
 
-    self.curl.setopt(pycurl.TIMEOUT,        30)
+    self.curl.setopt(pycurl.TIMEOUT,        curlTimeOutSeconds)
     self.curl.setopt(pycurl.FOLLOWLOCATION, False)
     self.curl.setopt(pycurl.SSL_VERIFYPEER, 1)
     self.curl.setopt(pycurl.SSL_VERIFYHOST, 2)
@@ -1428,8 +1429,18 @@ class BaseSpace(object):
     # Call the subclass method specific to this space
     self.deleteOneMachine(machineName)
 
+    # Move the directory structure to the finished machines directory
+    os.rename('/var/lib/vcycle/machines/' + machineName, '/var/lib/vcycle/shared/machines/finished/' + machineName)
+
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
+
+    # Make sure the directory we move finished machines directories to is there
+    try:
+      os.makedirs('/var/lib/vcycle/shared/machines/finished',
+                  stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    except:
+      pass
 
     for machineName,machine in self.machines.iteritems():
 
@@ -1819,7 +1830,8 @@ class BaseSpace(object):
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/created', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/updated', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', machinetypeName,  0644, '/var/lib/vcycle/tmp')
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',  self.spaceName,   0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/space_name',       self.spaceName,   0644, '/var/lib/vcycle/tmp')
+    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/manager',          os.uname()[1],    0644, '/var/lib/vcycle/tmp')
 
     if self.zones:
       zone = random.choice(self.zones)
@@ -1890,13 +1902,28 @@ class BaseSpace(object):
     except:
       raise VcycleError('Failed to writing /var/lib/vcycle/machines/' + machineName + '/user_data')
 
+    # Create MJF shutdowntime values as these are used in deleting failed machines
+
+    # check for existence of shutdownTime and whether wallclock limit is closer anyway
+    if (self.shutdownTime is None or
+        int(time.time()) + self.machinetypes[machinetypeName].maxWallclockSeconds < self.shutdownTime):
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime',
+                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
+    else:
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime',
+                                str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
+                                str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
+
     # Call the API-specific method to actually create the machine
     try:
       self.createMachine(machineName, machinetypeName, zone)
     except Exception as e:
       vcycle.vacutils.logLine('Creation of machine %s fails with: %s' % (machineName, str(e)))
 
-    # MJF. Some values may be set by self.createMachine() from the API!
+    # Rest of MJF. Some values may be set by self.createMachine() from the API!
 
     # $MACHINEFEATURES first
 
@@ -1918,19 +1945,7 @@ class BaseSpace(object):
                                  str(self.machinetypes[machinetypeName].hs06_per_processor * self.machines[machineName].processors),
                                  0644, '/var/lib/vcycle/tmp')
 
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime',
-                               str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
-
     # Then $JOBFEATURES
-
-    # check for existence of shutdownTime and whether wallclock limit is closer
-    if (self.shutdownTime is None or
-        int(time.time()) + self.machinetypes[machinetypeName].maxWallclockSeconds < self.shutdownTime):
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
-                                str(int(time.time()) + self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
-    else:
-      vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/shutdowntime_job',
-                                str(self.shutdownTime), 0644, '/var/lib/vcycle/tmp')
 
     vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/jobfeatures/wall_limit_secs',
                                str(self.machinetypes[machinetypeName].max_wallclock_seconds), 0644, '/var/lib/vcycle/tmp')
@@ -2130,9 +2145,9 @@ def cleanupMachines():
     # Get the time beyond which this machine shouldn't be here
     try:
       expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
-    except:
+    except Exception as e:
       # if the shutdowntime is missing, then we force the removal of the directory
-      vcycle.vacutils.logLine(machineName + ' has no shutdowntime - cleaning up its directory')
+      vcycle.vacutils.logLine(machineName + ' has no shutdowntime - cleaning up its directory (' + str(e) + ')')
       expireTime = 0
 
     if int(time.time()) > expireTime + 3600:

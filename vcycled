@@ -74,13 +74,19 @@ if __name__ == '__main__':
 
       while True:
 
+        # Ensure /var/log/vcycle directory exists
+        try:
+          os.makedirs('/var/log/vcycle', stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP|stat.S_IROTH|stat.S_IXOTH)
+        except:
+          pass
+
         # Close and reopen stdout->log file, in case of logrotate
         try:
           close(so)
         except:
           pass
 
-        so = file('/var/log/vcycled', 'a+')
+        so = file('/var/log/vcycle/vcycled', 'a+')
         os.dup2(so.fileno(), sys.stdout.fileno())
 
         # Close and reopen stderr->log file, in case of logrotate
@@ -89,7 +95,7 @@ if __name__ == '__main__':
         except:
           pass
 
-        se = file('/var/log/vcycled', 'a+', 0)
+        se = file('/var/log/vcycle/vcycled', 'a+', 0)
         os.dup2(se.fileno(), sys.stderr.fileno())
 
         try:

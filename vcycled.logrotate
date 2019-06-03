@@ -1,4 +1,4 @@
-/var/log/vcycled
+/var/log/vcycle/vcycled
 {
   daily
   missingok
