@@ -1429,9 +1429,6 @@ class BaseSpace(object):
     # Call the subclass method specific to this space
     self.deleteOneMachine(machineName)
 
-    # Move the directory structure to the finished machines directory
-    os.rename('/var/lib/vcycle/machines/' + machineName, '/var/lib/vcycle/shared/machines/finished/' + machineName)
-
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
 
@@ -2122,7 +2119,7 @@ def readConf(printConf = False, updatePipes = True):
     print
 
 def cleanupMachines():
-  """ Go through /var/lib/vcycle/machines deleting/saved expired directory trees """
+  """ Go through /var/lib/vcycle/machines moving expired directory trees to ../finished """
 
   try:
     dirslist = os.listdir('/var/lib/vcycle/machines/')
@@ -2142,9 +2139,30 @@ def cleanupMachines():
         # We never delete/log directories for machines that are still listed
         continue
 
+    # Move the directory structure to the finished machines directory
+    vcycle.vacutils.logLine('Save ' + machineName + ' files to finished directory')
+    os.rename('/var/lib/vcycle/machines/' + machineName, '/var/lib/vcycle/shared/machines/finished/' + machineName)
+
+def cleanupFinished():    
+  """ Go through /var/lib/vcycle/machines moving expired directory trees to ../finished """
+
+  try:
+    dirslist = os.listdir('/var/lib/vcycle/shared/machines/finished/')
+  except:
+    return
+
+  # Go through the per-machine directories
+  for machineName in dirslist:
+
+    # Get the space name
+    try:
+      spaceName = open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/space_name', 'r').read().strip()
+    except:
+      spaceName = None
+
     # Get the time beyond which this machine shouldn't be here
     try:
-      expireTime = int(open('/var/lib/vcycle/machines/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
+      expireTime = int(open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
     except Exception as e:
       # if the shutdowntime is missing, then we force the removal of the directory
       vcycle.vacutils.logLine(machineName + ' has no shutdowntime - cleaning up its directory (' + str(e) + ')')
@@ -2154,7 +2172,7 @@ def cleanupMachines():
 
       # Get the machinetype
       try:
-        machinetypeName = open('/var/lib/vcycle/machines/' + machineName + '/machinetype_name', 'r').read().strip()
+        machinetypeName = open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/machinetype_name', 'r').read().strip()
       except:
         machinetypeName = None
 
@@ -2169,10 +2187,10 @@ def cleanupMachines():
 
       # Always delete the working copies
       try:
-        shutil.rmtree('/var/lib/vcycle/machines/' + machineName)
-        vcycle.vacutils.logLine('Deleted /var/lib/vcycle/machines/' + machineName)
+        shutil.rmtree('/var/lib/vcycle/shared/machines/finished/' + machineName)
+        vcycle.vacutils.logLine('Deleted /var/lib/vcycle/shared/machines/finished/' + machineName)
       except:
-        vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/machines/' + machineName)
+        vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/shared/machines/finished/' + machineName)
 
 def logJoboutputs(spaceName, machinetypeName, machineName):
 
@@ -2189,9 +2207,9 @@ def logJoboutputs(spaceName, machinetypeName, machineName):
 
   try:
     # Get the list of files that the VM wrote in its /etc/joboutputs
-    outputs = os.listdir('/var/lib/vcycle/machines/' + machineName + '/joboutputs')
+    outputs = os.listdir('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs')
   except:
-    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/machines/' + machineName + '/joboutputs')
+    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs')
     return
 
   if outputs:
@@ -2200,15 +2218,15 @@ def logJoboutputs(spaceName, machinetypeName, machineName):
 
       try:
         # first we try a hard link, which is efficient in time and space used
-        os.link('/var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput,
+        os.link('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput,
                 '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
       except:
         try:
           # if linking failed (different filesystems?) then we try a copy
-          shutil.copyfile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput,
+          shutil.copyfile('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput,
                             '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
         except:
-          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/machines/' + machineName + '/joboutputs/' + oneOutput +
+          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput +
                                   ' to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
 
 def cleanupJoboutputs():
