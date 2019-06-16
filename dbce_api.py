@@ -99,6 +99,8 @@ class DbceSpace(vcycle.BaseSpace):
     except Exception as e:
       raise DbceError('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
+    # Convert machines from None to an empty dictionary since we successfully connected
+    self.machines = {}
 
     for oneServer in result['response']['data']:
       # Just in case other VMs are in this space

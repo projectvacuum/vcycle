@@ -125,6 +125,9 @@ class AzureSpace(vcycle.BaseSpace):
                 raise AzureError("No cert file , check the path.")
             raise AzureError(str(ex))
 
+        # Convert machines from None to an empty dictionary since we successfully connected
+        self.machines = {}
+
         for result in results:
             try:
                 info = sms.get_hosted_service_properties(result.service_name, True)

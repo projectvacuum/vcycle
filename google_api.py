@@ -196,6 +196,9 @@ class GoogleSpace(vcycle.BaseSpace):
     except Exception as e:
       raise GoogleError('Cannot get instances list (' + str(e) + ')')
 
+    # Convert machines from None to an empty dictionary since we successfully connected
+    self.machines = {}
+
     for oneZone in result['response']['items']:
 
       if 'instances' not in result['response']['items'][oneZone]:

@@ -159,6 +159,9 @@ class Ec2Space(vcycle.BaseSpace):
     except Exception as e:
       raise Ec2Error('Cannot connect to ' + self.url + ' (' + str(e) + ')')
 
+    # Convert machines from None to an empty dictionary since we successfully connected
+    self.machines = {}
+
     for item1 in result['response']['DescribeInstancesResponse']['reservationSet'][0]['item']:
      for oneServer in item1['instancesSet'][0]['item']:
 

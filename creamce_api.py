@@ -99,6 +99,9 @@ class CreamceSpace(vcycle.BaseSpace):
 
     os.remove(path)
 
+    # Convert machines from None to an empty dictionary since we successfully connected
+    self.machines = {}
+
     for oneStatus in self.parseGliteCeJobStatus(rawStatuses):
 
       try:

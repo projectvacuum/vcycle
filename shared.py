@@ -1040,8 +1040,8 @@ class BaseSpace(object):
     self.curl  = pycurl.Curl()
     self.token = None
 
-    # all the Vcycle-created VMs in this space
-    self.machines = {}
+    # Dictionary of all the Vcycle-created VMs in this space: None in case failed to connect and do scan successfully
+    self.machines = None
 
   def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes):
     """ Read configuration settings from a vacuum pipe """
@@ -2135,8 +2135,8 @@ def cleanupMachines():
     except:
       spaceName = None
     else:
-      if spaceName in spaces and machineName in spaces[spaceName].machines:
-        # We never delete/log directories for machines that are still listed
+      if spaceName in spaces and spaces[spaceName].machines is not None and machineName in spaces[spaceName].machines:
+        # We never delete/log directories for machines that are still listed, if we have a valid list
         continue
 
     # Move the directory structure to the finished machines directory

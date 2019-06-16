@@ -314,6 +314,9 @@ class OpenstackSpace(vcycle.BaseSpace):
     except Exception as e:
       raise OpenstackError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
+    # Convert machines from None to an empty dictionary since we successfully connected
+    self.machines = {}
+
     for oneServer in result['response']['servers']:
 
       try:

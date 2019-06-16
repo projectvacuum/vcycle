@@ -116,6 +116,9 @@ class OcciSpace(vcycle.BaseSpace):
         except Exception as e:
             raise OcciError('Cannot connect to ' + self.computeURL + ' (' + str(e) + ')')
 
+        # Convert machines from None to an empty dictionary since we successfully connected
+        self.machines = {}
+
         for machineID in [line[line.rfind('/')+1:] for line in response.text.split("\n")[1:]]:
             try:
                 response = self.session.get("%s/%s" % (self.computeURL, machineID), headers=headers)

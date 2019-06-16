@@ -5,6 +5,7 @@
 - Fix $MACHINEFEATURES/shutdowntime key name
 - Create vcycled logs in /var/log/vcycle to all symlink redirection
 - Move directories for deleted machines to finished machines directory
+- Do not try to process machines if fail to connect to space's service
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================
