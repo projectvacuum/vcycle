@@ -641,10 +641,15 @@ class Machinetype:
     except Exception as e:
       raise VcycleError('max_wallclock_seconds is required in [' + machinetypeSectionName + '] (' + str(e) + ')')
 
-    try:
-      self.x509dn = parser.get(machinetypeSectionName, 'x509dn')
-    except:
-      self.x509dn = None
+
+    if parser.has_option(machinetypeSectionName, 'x509dn'):
+      vcycle.vacutils.logLine('x509dn (in machinetype ' + machinetypeSectionName + ') is deprecated - please use https_x509dn')
+      self.https_x509dn = parser.get(machinetypeSectionName, 'x509dn')
+    else:
+      try:
+        self.https_x509dn = parser.get(machinetypeSectionName, 'https_x509dn')
+      except:
+        self.https_x509dn = None
 
 # The heartbeat and joboutputs options should cause errors if x509dn isn't given!
 
@@ -1692,8 +1697,7 @@ class BaseSpace(object):
     os.makedirs(self.machineDir(machineName) + '/jobfeatures',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     os.makedirs(self.machineDir(machineName) + '/joboutputs',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR +
-                stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP +
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IWGRP + stat.S_IXGRP + stat.S_IRGRP +
                 stat.S_IWOTH + stat.S_IXOTH + stat.S_IROTH)
 
     self.setFileContents(machineName, 'created',          str(int(time.time())))
@@ -1701,6 +1705,9 @@ class BaseSpace(object):
     self.setFileContents(machineName, 'machinetype_name', machinetypeName)
     self.setFileContents(machineName, 'space_name',       self.spaceName)
     self.setFileContents(machineName, 'manager',          os.uname()[1])
+    
+    if self.machinetypes[machinetypeName].https_x509dn:
+      self.setFileContents(machineName, 'https_x509dn', self.machinetypes[machinetypeName].https_x509dn)
     
     if self.zones:
       zone = random.choice(self.zones)

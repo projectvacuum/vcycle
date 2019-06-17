@@ -35,19 +35,6 @@
 import os
 import sys
 
-import vcycle
-
-# Tell logLine to write to sys.stderr to avoid corrupting the
-# stdout stream we return to the web server
-vcycle.vacutils.logToStderr()
-
-try:
-  vcycle.shared.readConf(updatePipes = False)
-except:
-  print 'Status: 500 Internal Server Error (1)'
-  print
-  sys.exit(0)
-
 try:
   (machinesDirectory, spaceName, hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:6]
 except:
@@ -71,11 +58,12 @@ except:
   print
   sys.exit(0)
 
-if ('SSL_CLIENT_S_DN' not in os.environ or
-    spaceName not in vcycle.shared.spaces or
-    machinetypeName not in vcycle.shared.spaces[spaceName].machinetypes or
-    not hasattr(vcycle.shared.spaces[spaceName].machinetypes[machinetypeName], 'x509dn') or
-    os.environ['SSL_CLIENT_S_DN'] != vcycle.shared.spaces[spaceName].machinetypes[machinetypeName].x509dn):
+try:
+  httpsX509dn = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/https_x509dn', 'r').read()
+except:
+  httpsX509dn = None
+
+if ('SSL_CLIENT_S_DN' not in os.environ) or (os.environ['SSL_CLIENT_S_DN'] != httpsX509dn):
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)

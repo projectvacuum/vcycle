@@ -4,8 +4,14 @@
   to machinetypes VacQuery messages to VacMon
 - Fix $MACHINEFEATURES/shutdowntime key name
 - Create vcycled logs in /var/log/vcycle to all symlink redirection
-- Move directories for deleted machines to finished machines directory
+- Move directories for removed machines to deleted machines directory
 - Do not try to process machines if fail to connect to space's service
+- Remove joboutputs copying and joboutputs configuration options
+- Remove remote joboutputs handling
+- Seperate hiearchies in /var/lib/vcycle/shared/machines for each space
+- x509dn becomes https_x509dn, now recorded in each machines directory
+- Add https_host to allow a remote HTTPS server using a shared filesystem
+- vcycle-cgi now no longer depends on Vcycle or Vacutils modules
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================
