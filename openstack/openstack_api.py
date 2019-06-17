@@ -4,7 +4,7 @@
 #
 #  Andrew McNab, Raoul Hidalgo Charman,
 #  University of Manchester.
-#  Copyright (c) 2013-8. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -614,22 +614,17 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('No flavor suitable for machinetype ' + machinetypeName)
 
     try:
-      if self.machinetypes[machinetypeName].remote_joboutputs_url:
-        joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
-      else:
-        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-
       request = { 'server' :
-                  { 'user_data' : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
+                  { 'user_data' : base64.b64encode(self.getFileContents(machineName, 'user_data')),
                     'name'      : machineName,
                     'imageRef'  : self.getImageID(machinetypeName),
                     'flavorRef' : self.flavors[flavorName]['id'],
                     'metadata'  : { 'cern-services'   : 'false',
                                     'name'	      : machineName,
                                     'machinetype'     : machinetypeName,
-                                    'machinefeatures' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
-                                    'jobfeatures'     : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                                    'joboutputs'      : joboutputsURL  }
+                                    'machinefeatures' : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/machinefeatures',
+                                    'jobfeatures'     : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/jobfeatures',
+                                    'joboutputs'      : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/joboutputs'  }
                   }
                 }
 

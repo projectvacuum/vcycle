@@ -2,6 +2,8 @@
 #
 #  azure_api.py - an Azure plugin for Vcycle
 #
+#  THIS FILE NEEDS UPDATING FOR Vcycle 3.0 CHANGES!
+#
 #  Andrew McNab, University of Manchester.
 #  Luis Villazon Esteban, CERN.
 #  Copyright (c) 2013-7. All rights reserved.

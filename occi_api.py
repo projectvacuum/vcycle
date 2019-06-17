@@ -2,6 +2,8 @@
 #
 #  occi_api.py - common functions, classes, and variables for Vcycle
 #
+#  THIS FILE NEEDS UPDATING FOR Vcycle 3.0 CHANGES!
+#
 #  Andrew McNab, University of Manchester.
 #  Luis Villazon Esteban, CERN.
 #  Copyright (c) 2013-5. All rights reserved.

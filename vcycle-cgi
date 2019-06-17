@@ -3,7 +3,7 @@
 #  vcycle-cgi - Accept HTTP PUT requests of $JOBOUTPUTS files
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-5. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -49,22 +49,23 @@ except:
   sys.exit(0)
 
 try:
-  (machinesDirectory, hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:5]
+  (machinesDirectory, spaceName, hostName, subDirectory, fileName) = os.environ['REQUEST_URI'].replace('//','/').split('/')[1:6]
 except:
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
+# These components cannot contain "/" (the split character). Is that sufficient sanitisation?
+
 if (machinesDirectory != 'machines' or
     subDirectory != 'joboutputs' or
-    not os.path.isdir('/var/lib/vcycle/machines/' + hostName + '/joboutputs')):
+    not os.path.isdir('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/joboutputs')):
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
 try:
-  spaceName  = open('/var/lib/vcycle/machines/' + hostName + '/space_name',  'r').read()
-  machinetypeName = open('/var/lib/vcycle/machines/' + hostName + '/machinetype_name', 'r').read()
+  machinetypeName = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/machinetype_name', 'r').read()
 except:
   print 'Status: 500 Internal Server Error (2)'
   print
@@ -80,7 +81,7 @@ if ('SSL_CLIENT_S_DN' not in os.environ or
   sys.exit(0)
 
 try:
-  f = open('/var/lib/vcycle/machines/' + hostName + '/joboutputs/' + fileName, 'w')
+  f = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/joboutputs/' + fileName, 'w')
   f.write(sys.stdin.read())
   f.close()
 except:

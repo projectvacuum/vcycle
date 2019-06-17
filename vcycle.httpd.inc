@@ -65,11 +65,13 @@ DocumentRoot "/var/lib/vcycle/machines"
 
 CustomLog logs/http--vcycle.log combined
 
-Alias          /machines/ /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/heartbeatmachines/([^/]*) /var/lib/vcycle/spaces/$1/heartbeatmachines/$2
+AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/machinefeatures/$3
+AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/jobfeatures/$3
+AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/heartbeatmachines/">
+<DirectoryMatch
+"^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
@@ -93,8 +95,9 @@ CustomLog logs/https-vcycle.log combined
 ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
 
-Alias          /machines/ /var/lib/vcycle/machines/
-AliasMatch    ^/spaces/([^/]*)/heartbeatmachines/([^/]*) /var/lib/vcycle/spaces/$1/heartbeatmachines/$2
+AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/machinefeatures/$3
+AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/jobfeatures/$3
+AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
 Alias          /blank404error /dev/null
 
 <DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/heartbeatmachines/">

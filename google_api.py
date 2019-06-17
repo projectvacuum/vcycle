@@ -2,8 +2,11 @@
 #
 #  google_api.py - a Google plugin for Vcycle
 #
+#  THIS FILE HAS BEEN UPDATED FOR Vcycle 3.0 BUT NEEDS VALIDATING
+#  USING THE GOOGLE CLOUD SERVICE
+#
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-7. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -462,12 +465,7 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
     # Google-specific machine creation steps (included hardcoded default 40 GB/processor if not explicitly given)
 
     try:
-      if self.machinetypes[machinetypeName].remote_joboutputs_url:
-        joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
-      else:
-        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-
-      userData = open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()
+      userData = self.getFileContents(machineName, 'user_data')
 
       if self.machinetypes[machinetypeName].disk_gb_per_processor is None:
         disk_gb_per_processor = 40
@@ -500,11 +498,11 @@ cvmfs_http_proxy='##user_data_option_cvmfs_proxy##'
                                            { 'key'   : 'machinetype',
                                              'value' :  machinetypeName },
                                            { 'key'   : 'machinefeatures',
-                                             'value' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures' },
+                                             'value' : 'https://' + https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/machinefeatures' },
                                            { 'key'   : 'jobfeatures',
-                                             'value' : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures' },
+                                             'value' : 'https://' + https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/jobfeatures' },
                                            { 'key'   : 'joboutputs',
-                                             'value' :  joboutputsURL }
+                                             'value' : 'https://' + https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/joboutputs' }
                                          ]
                               }
                 }

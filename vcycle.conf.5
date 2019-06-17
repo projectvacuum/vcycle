@@ -63,6 +63,12 @@ VacQuery UDP messages to. This can be used to monitor the ongoing status
 of the Vcycle factory and its VMs via site or central VacMon services.
 The central GridPP VacMon service is vacmon.gridpp.ac.uk:8884
 
+.B https_host
+gives the FQDN used to contact the Vcycle HTTPS server from
+within the VMs. This may be used to direct requests to an HTTPS server
+which obtains the files via a shared filesystem. The default value is
+the host on which Vcycle runs.
+
 .B https_port
 gives the port number used to contact the Vcycle HTTPS server from
 within the VMs. This only needs to be changed if there is an intervening
@@ -287,23 +293,6 @@ is an optional X.509 DN which will be used by the vcycle-cgi script to
 control writing to VMs' $JOBOUTPUTS directories on the local HTTPS
 server.
 
-.B log_joboutputs
-can be set to True to enable recording of all the files from
-local $JOBOUTPUTS directories for VMs, to subdirectories of
-/var/lib/vcycle/joboutputs when the VMs finish or are killed. The
-subdirectories are in a hierarchy of the space name, machinetype name,
-and then hostname of the VM. Default False.
-
-.B joboutputs_days
-sets the expiration time in days for per-VM directories created under
-/var/lib/vcycle/joboutputs.
-
-.B remote_joboutputs_url
-sets a base URL on a remote HTTPS server to which VMs of this machinetype
-can write. The value of $JOBOUTPUTS will be the VM
-name chosen by Vcycle appended as a directory name to the URL given
-by this option.
-
 .B legacy_proxy
 can be set to True to generate Globus legacy proxies rather than RFC 3820
 proxies. Default False.
@@ -322,15 +311,6 @@ will be used as an absolute path; otherwise the path will be interpreted
 relative to the machinetype's subdirectory of /var/lib/vcycle/spaces/SPACE/machinetypes/MACHINETYPE/files
 where SPACE is the parent space name and MACHINETYPE is the name of
 this machinetype.
-
-.B remote_joboutputs_cert
-and
-.B remote_joboutputs_key
-give filesnames of an X.509 client
-certificate and key to use when requesting
-$JOBOUTPUTS/shutdown_message and any heartbeat file in $JOBOUTPUTS. If
-both are contained in the same file then the same value can be given
-to both options.
 
 .B root_image
 identifies the image file from which the VM will boot. If the cloud

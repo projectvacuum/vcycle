@@ -339,16 +339,11 @@ class Ec2Space(vcycle.BaseSpace):
     # EC2-specific machine creation steps
 
     try:
-      if self.machinetypes[machinetypeName].remote_joboutputs_url:
-        joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
-      else:
-        joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-
       formRequest = { 'Action'       : 'RunInstances',
                       'Version'      : self.version,
                       'MinCount'     : '1',
                       'MaxCount'     : '1',
-                      'UserData'     : base64.b64encode(open('/var/lib/vcycle/machines/' + machineName + '/user_data', 'r').read()),
+                      'UserData'     : base64.b64encode(self.getFileContents(machineName, 'user_data')),
                       'ImageId'      : self.getImageID(machinetypeName),
                       'InstanceType' : self.machinetypes[machinetypeName].flavor_names[0] }
 
@@ -392,11 +387,6 @@ class Ec2Space(vcycle.BaseSpace):
 
   def createTags(self, instanceId, machineName, machinetypeName):
 
-    if self.machinetypes[machinetypeName].remote_joboutputs_url:
-      joboutputsURL = self.machinetypes[machinetypeName].remote_joboutputs_url + machineName
-    else:
-      joboutputsURL = 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/joboutputs'
-
     try:
       result = self.ec2Request( formRequest = {
                       'Action'       : 'CreateTags',
@@ -407,13 +397,11 @@ class Ec2Space(vcycle.BaseSpace):
                       'Tag.2.Key'    : 'machinetype',
                       'Tag.2.Value'  : machinetypeName,
                       'Tag.3.Key'    : 'machinefeatures',
-                      'Tag.3.Value'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/machinefeatures',
+                      'Tag.3.Value'  : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/machinefeatures',
                       'Tag.4.Key'    : 'jobfeatures',
-                      'Tag.4.Value'  : 'https://' + os.uname()[1] + ':' + str(self.https_port) + '/machines/' + machineName + '/jobfeatures',
-                      'Tag.5.Key'    : 'machineoutputs',
-                      'Tag.5.Value'  : joboutputsURL,
-                      'Tag.6.Key'    : 'joboutputs',
-                      'Tag.6.Value'  : joboutputsURL
+                      'Tag.4.Value'  : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/jobfeatures',
+                      'Tag.5.Key'    : 'joboutputs',
+                      'Tag.5.Value'  : 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/joboutputs'
                                               },
                                 verbose = False )
 
