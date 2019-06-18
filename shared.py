@@ -230,7 +230,7 @@ class Machine:
         self.managedHere = False
 
     # Record when the machine started (rather than just being created)
-    if self.startedTime and not os.path.isfile('/var/lib/vcycle/machines/' + name + '/started'):
+    if self.managedHere and self.startedTime and not os.path.isfile(self.machineDir() + '/started'):
       self.setFileContents('started', str(self.startedTime))
       self.setFileContents('updated', str(self.updatedTime))
 
@@ -246,7 +246,7 @@ class Machine:
     try:
       self.stoppedTime = int(self.getFileContents('stopped'))
     except:
-      if self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting:
+      if self.managedHere and (self.state == MachineState.shutdown or self.state == MachineState.failed or self.state == MachineState.deleting):
         # Record that we have seen the machine in a stopped state for the first time
         # If updateTime has the last transition time, presumably it is to being stopped.
         # This is certainly a better estimate than using time.time() if available (ie OpenStack)
@@ -330,6 +330,9 @@ class Machine:
                             logStoppedTimeStr + ':' +
                             logHeartbeatTimeStr
                            )
+
+  def machineDir(self):
+    return spaces[self.spaceName].machineDir(self.name)
 
   def getFileContents(self, fileName):
     # Get the contents of a file for this machine
@@ -504,7 +507,7 @@ class Machine:
 
      try:
        self.shutdownMessage = self.getFileContents('joboutputs/shutdown_message').strip()
-       self.shutdownMessageTime = int(os.stat(self.machineDir(self.name) + '/joboutputs/shutdown_message').st_ctime)
+       self.shutdownMessageTime = int(os.stat(self.machineDir() + '/joboutputs/shutdown_message').st_ctime)
      except:
        self.shutdownMessage     = None
        self.shutdownMessageTime = None
@@ -517,7 +520,7 @@ class Machine:
        return
 
      try:
-       self.heartbeatTime = int(os.stat(self.machineDir(self.name) + '/joboutputs/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file).st_ctime)
+       self.heartbeatTime = int(os.stat(self.machineDir() + '/joboutputs/' + spaces[self.spaceName].machinetypes[self.machinetypeName].heartbeat_file).st_ctime)
      except:
        self.heartbeatTime = None
 
@@ -796,7 +799,7 @@ class Machinetype:
     while True:
       machineName = 'vcycle-' + self.machinetypeName + '-' + ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))      
 
-      if not os.path.exists(self.machineDir(machineName)):
+      if not os.path.exists(spaces[self.spaceName].machineDir(machineName)):
         break
   
       vcycle.vacutils.logLine('New random machine name ' + machineName + ' already exists! Trying another name ...')
@@ -1073,7 +1076,7 @@ class BaseSpace(object):
 
   def setFileContents(self, machineName, fileName, contents, mode = stat.S_IRUSR|stat.S_IWUSR|stat.S_IRGRP):
     # Set the contents of a file for the given machine
-    vcycle.vacutils.createFile(self.machineDir(machineName) + '/' + fileName, contents, 0600, '/var/lib/vcycle/shared/tmp', mode = mode)
+    vcycle.vacutils.createFile(self.machineDir(machineName) + '/' + fileName, contents, mode, '/var/lib/vcycle/shared/tmp')
 
   def connect(self):
     # Null method in case this API doesn't need a connect step
@@ -1275,11 +1278,11 @@ class BaseSpace(object):
                             str(self.machines[machineName].machinetypeName) + ', in state ' + str(self.machines[machineName].state))
 
     # record when this was tried (not when done, since don't want to overload service with failing deletes)
-    vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/deleted', str(int(time.time())), 0600, '/var/lib/vcycle/tmp')
+    self.setFileContents(machineName, 'deleted', str(int(time.time())))
 
     if shutdownMessage and not os.path.exists('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message'):
       try:
-        vcycle.vacutils.createFile('/var/lib/vcycle/machines/' + machineName + '/joboutputs/shutdown_message', shutdownMessage, 0600, '/var/lib/vcycle/tmp')
+        self.setFileContents(machineName, 'joboutputs/shutdown_message', shutdownMessage)
       except:
         pass
 
@@ -1288,13 +1291,6 @@ class BaseSpace(object):
 
   def deleteMachines(self):
     # Delete machines in this space. We do not update totals here: next cycle is good enough.
-
-    # Make sure the directory we move finished machines directories to is there
-    try:
-      os.makedirs('/var/lib/vcycle/shared/machines/deleted/' + self.spaceName,
-                  stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-    except:
-      pass
 
     for machineName,machine in self.machines.iteritems():
 
@@ -1366,6 +1362,13 @@ class BaseSpace(object):
     except:
       return
  
+    # Make sure the directory we move finished machines directories to is there
+    try:
+      os.makedirs('/var/lib/vcycle/shared/machines/deleted/' + self.spaceName,
+                  stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+    except:
+      pass
+
     # Go through the per-machine directories
     for machineName in dirslist:
 
@@ -1684,7 +1687,7 @@ class BaseSpace(object):
     try:
       machineName = self.machinetypes[machinetypeName].makeMachineName()
     except Exception as e:
-      vcycle.vacutils.logLine('Failed construction new machine name (' + str(e) + ')')
+      vcycle.vacutils.logLine('Failed constructing new machine name (' + str(e) + ')')
 
     try:
       shutil.rmtree(self.machineDir(machineName))
@@ -1707,7 +1710,7 @@ class BaseSpace(object):
     self.setFileContents(machineName, 'manager',          os.uname()[1])
     
     if self.machinetypes[machinetypeName].https_x509dn:
-      self.setFileContents(machineName, 'https_x509dn', self.machinetypes[machinetypeName].https_x509dn)
+      self.setFileContents(machineName, 'https_x509dn', self.machinetypes[machinetypeName].https_x509dn, mode=0644)
     
     if self.zones:
       zone = random.choice(self.zones)

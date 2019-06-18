@@ -46,22 +46,17 @@ except:
 
 if (machinesDirectory != 'machines' or
     subDirectory != 'joboutputs' or
-    not os.path.isdir('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/joboutputs')):
+    not os.path.isdir('/var/lib/vcycle/shared/machines/current/' + spaceName + '/' + hostName + '/joboutputs')):
   print 'Status: 404 Not Found'
   print
   sys.exit(0)
 
 try:
-  machinetypeName = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/machinetype_name', 'r').read()
+  httpsX509dn = open('/var/lib/vcycle/shared/machines/current/' + spaceName + '/' + hostName + '/https_x509dn', 'r').read()
 except:
-  print 'Status: 500 Internal Server Error (2)'
+  print 'Status: 403 Forbidden'
   print
   sys.exit(0)
-
-try:
-  httpsX509dn = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/https_x509dn', 'r').read()
-except:
-  httpsX509dn = None
 
 if ('SSL_CLIENT_S_DN' not in os.environ) or (os.environ['SSL_CLIENT_S_DN'] != httpsX509dn):
   print 'Status: 403 Forbidden'
@@ -69,7 +64,7 @@ if ('SSL_CLIENT_S_DN' not in os.environ) or (os.environ['SSL_CLIENT_S_DN'] != ht
   sys.exit(0)
 
 try:
-  f = open('/var/lib/vcycle/machines/current/' + spaceName + '/' + hostName + '/joboutputs/' + fileName, 'w')
+  f = open('/var/lib/vcycle/shared/machines/current/' + spaceName + '/' + hostName + '/joboutputs/' + fileName, 'w')
   f.write(sys.stdin.read())
   f.close()
 except:

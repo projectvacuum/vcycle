@@ -61,7 +61,7 @@
 
 <VirtualHost *:80>
 ServerName vm21.tier2.hep.manchester.ac.uk
-DocumentRoot "/var/lib/vcycle/machines"
+DocumentRoot "/var/lib/vcycle/shared/machines"
 
 CustomLog logs/http--vcycle.log combined
 
@@ -70,8 +70,7 @@ AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/sha
 AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch
-"^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
+<DirectoryMatch "^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
@@ -79,7 +78,7 @@ Alias          /blank404error /dev/null
 
 <VirtualHost vm21.tier2.hep.manchester.ac.uk:443>
 ServerName vm21.tier2.hep.manchester.ac.uk
-DocumentRoot "/var/lib/vcycle/machines"
+DocumentRoot "/var/lib/vcycle/shared/machines"
 
 SSLEngine               on
 SSLCertificateFile      /etc/grid-security/vcycle.cert.pem
@@ -100,7 +99,7 @@ AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/sha
 AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/machines/[^/]*/machinefeatures/|^/var/lib/vcycle/machines/[^/]*/jobfeatures/|^/var/lib/vcycle/spaces/[^/]*/heartbeatmachines/">
+<DirectoryMatch "^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>

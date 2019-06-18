@@ -34,6 +34,7 @@
 
 import os
 import sys
+import stat
 import time
 import random
 
@@ -119,6 +120,12 @@ if __name__ == '__main__':
 
         if cyclePid == 0:
           vcycle.vacutils.logLine('=============== Start cycle ===============')
+          
+          # Ensure /var/lib/vcycle/shared/tmp exists
+          try:
+            os.makedirs('/var/lib/vcycle/shared/tmp', stat.S_IRUSR|stat.S_IWUSR|stat.S_IXUSR|stat.S_IRGRP|stat.S_IXGRP)
+          except:
+            pass
 
           try:
             vcycle.shared.readConf(printConf = True, updatePipes = True)
@@ -132,9 +139,8 @@ if __name__ == '__main__':
               except Exception as e:
                 print 'Processing space ' + spaceName + ' fails with exception ' + str(e)
 
-          vcycle.vacutils.logLine('----------------- Cleanup -----------------')
-          vcycle.shared.cleanupMachines()
-          vcycle.shared.cleanupJoboutputs()
+#          vcycle.vacutils.logLine('----------------- Cleanup -----------------')
+#          vcycle.shared.cleanupJoboutputs()
           vcycle.vacutils.logLine('================ End cycle ================')
           sys.exit(0)
 
