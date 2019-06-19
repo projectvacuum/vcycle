@@ -1053,10 +1053,10 @@ class BaseSpace(object):
                    option, value)
 
   def findMachinesWithFile(self, fileName):
-    # Return a list of machine names that have the given fileName (used by EC2 currently)
+    # Return a list of machine names that have the given fileName (only used by EC2 plugin currently)
 
     machineNames = []
-    pathsList    = glob.glob('/var/lib/vcycle/shared/machines/current/' + self.spaceName + '/*/' + fileName)
+    pathsList    = glob.glob('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/current/*/' + fileName)
 
     if pathsList:
       for onePath in pathsList:
@@ -1065,7 +1065,7 @@ class BaseSpace(object):
     return machineNames
     
   def machineDir(self, machineName):
-    return '/var/lib/vcycle/shared/machines/current/' + self.spaceName + '/' + machineName
+    return '/var/lib/vcycle/shared/spaces/' + self.spaceName + '/current/' + machineName
 
   def getFileContents(self, machineName, fileName):
     # Get the contents of a file for the given machine
@@ -1354,17 +1354,17 @@ class BaseSpace(object):
           self._deleteOneMachine(machineName, '700 Passed shutdowntime')
 
   def moveMachineDirectories(self):
-    """ Go through /var/lib/vcycle/shared/machines/current/SPACENAME, moving directory trees
+    """ Go through /var/lib/vcycle/shared/spaces/SPACENAME/current/, moving directory trees
         for now absent machines to deleted directory ie deletion by the cloud has now happened """
 
     try:
-      dirslist = os.listdir('/var/lib/vcycle/shared/machines/current/' + self.spaceName)
+      dirslist = os.listdir('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/current')
     except:
       return
  
     # Make sure the directory we move finished machines directories to is there
     try:
-      os.makedirs('/var/lib/vcycle/shared/machines/deleted/' + self.spaceName,
+      os.makedirs('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted',
                   stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     except:
       pass
@@ -1377,14 +1377,14 @@ class BaseSpace(object):
         continue
 
       # Move the directory structure to the stopped machines directory
-      vcycle.vacutils.logLine('Save ' + machineName + ' files to stopped directory')
-      os.rename(self.machineDir(machineName), '/var/lib/vcycle/shared/machines/deleted/' + self.spaceName + '/' + machineName)
+      vcycle.vacutils.logLine('Save ' + machineName + ' files to deleted directory')
+      os.rename(self.machineDir(machineName), '/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
 
   def createHeartbeatMachines(self):
     # Create a list of machines in each machinetype, to be populated
     # with machine names of machines with a current heartbeat
     try:
-      os.makedirs('/var/lib/vcycle/shared/heartbeatmachines/' + self.spaceName,
+      os.makedirs('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/heartbeatlists',
                 stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
     except:
       pass
@@ -1415,7 +1415,7 @@ class BaseSpace(object):
 
       # Sort the list by heartbeat time, newest first, then write as a file
       fileContents.sort(reverse=True)
-      vcycle.vacutils.createFile('/var/lib/vcycle/shared/heartbeatmachines/' + self.spaceName + '/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/shared/tmp')
+      vcycle.vacutils.createFile('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/heartbeatlists/' + machinetypeName, ''.join(fileContents), 0664, '/var/lib/vcycle/shared/tmp')
       
   def makeFactoryMessage(self, cookie = '0'):
     factoryHeartbeatTime = int(time.time())
@@ -1765,7 +1765,7 @@ class BaseSpace(object):
                                                         machinefeaturesURL   = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/machinefeatures',
                                                         jobfeaturesURL       = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/jobfeatures',
                                                         joboutputsURL        = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/joboutputs',
-                                                        heartbeatMachinesURL = 'https://' + self.https_host + ':' + str(self.https_port) + '/heartbeatmachines/' + self.spaceName
+                                                        heartbeatMachinesURL = 'https://' + self.https_host + ':' + str(self.https_port) + '/heartbeatlists/' + self.spaceName
                                                        )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')

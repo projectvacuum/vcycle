@@ -65,12 +65,12 @@ DocumentRoot "/var/lib/vcycle/shared/machines"
 
 CustomLog logs/http--vcycle.log combined
 
-AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/machinefeatures/$3
-AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/jobfeatures/$3
-AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
+AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/machinefeatures/$3
+AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/jobfeatures/$3
+AliasMatch    ^/heartbeatlists/([^/]*)/([^/]*) /var/lib/vcycle/shared/spaces/$1/heartbeatlists/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
+<DirectoryMatch "^/var/lib/vcycle/shared/spaces/[^/]*/current/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/spaces/[^/]*/current/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/spaces/[^/]*/heartbeatlists/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
@@ -94,12 +94,12 @@ CustomLog logs/https-vcycle.log combined
 ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
 
-AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/machinefeatures/$3
-AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/machines/current/$1/$2/jobfeatures/$3
-AliasMatch    ^/heartbeatmachines/([^/]*)/([^/]*) /var/lib/vcycle/shared/heartbeatmachines/$1/$2
+AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/machinefeatures/$3
+AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/jobfeatures/$3
+AliasMatch    ^/heartbeatlists/([^/]*)/([^/]*) /var/lib/vcycle/shared/spaces/$1/heartbeatlists/$2
 Alias          /blank404error /dev/null
 
-<DirectoryMatch "^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/machines/current/[^/]*/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/heartbeatmachines/[^/]">
+<DirectoryMatch "^/var/lib/vcycle/shared/spaces/[^/]*/current/[^/]*/machinefeatures/|^/var/lib/vcycle/shared/spaces/[^/]*/current/[^/]*/jobfeatures/|^/var/lib/vcycle/shared/spaces/[^/]*/heartbeatlists/">
  ErrorDocument 404 /blank404error
  Options +Indexes
 </DirectoryMatch>
