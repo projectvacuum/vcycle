@@ -3,12 +3,12 @@
 - Add min/max_wallclock_seconds, min/max_processors, bytes_per_processor
   to machinetypes VacQuery messages to VacMon
 - Fix $MACHINEFEATURES/shutdowntime key name
-- Create vcycled logs in /var/log/vcycle to all symlink redirection
+- Create vcycled logs in /var/log/vcycle to allow symlink redirection
 - Move directories for removed machines to deleted machines directory
 - Do not try to process machines if fail to connect to space's service
 - Remove joboutputs copying and joboutputs configuration options
 - Remove remote joboutputs handling
-- Seperate hiearchies in /var/lib/vcycle/shared/machines for each space
+- Seperate hiearchies in /var/lib/vcycle/shared/SPACE for each space
 - x509dn becomes https_x509dn, now recorded in each machines directory
 - Add https_host to allow a remote HTTPS server using a shared filesystem
 - vcycle-cgi now no longer depends on Vcycle or Vacutils modules

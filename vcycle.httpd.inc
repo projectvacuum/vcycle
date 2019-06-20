@@ -65,6 +65,9 @@ DocumentRoot "/var/lib/vcycle/shared/machines"
 
 CustomLog logs/http--vcycle.log combined
 
+RedirectMatch ^/machines/([^/]*)/([^/]*)/machinefeatures$ /machines/$1/$2/machinefeatures/
+RedirectMatch ^/machines/([^/]*)/([^/]*)/jobfeatures$ /machines/$1/$2/jobfeatures/
+
 AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/machinefeatures/$3
 AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/jobfeatures/$3
 AliasMatch    ^/heartbeatlists/([^/]*)/([^/]*) /var/lib/vcycle/shared/spaces/$1/heartbeatlists/$2
@@ -93,6 +96,9 @@ CustomLog logs/https-vcycle.log combined
 
 ScriptAlias /vcycle-cgi /usr/sbin/vcycle-cgi
 Script PUT /vcycle-cgi
+
+RedirectMatch ^/machines/([^/]*)/([^/]*)/machinefeatures$ /machines/$1/$2/machinefeatures/
+RedirectMatch ^/machines/([^/]*)/([^/]*)/jobfeatures$ /machines/$1/$2/jobfeatures/
 
 AliasMatch    ^/machines/([^/]*)/([^/]*)/machinefeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/machinefeatures/$3
 AliasMatch    ^/machines/([^/]*)/([^/]*)/jobfeatures/([^/]*) /var/lib/vcycle/shared/spaces/$1/current/$2/jobfeatures/$3

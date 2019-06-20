@@ -79,6 +79,11 @@ gives a time to set shutdowntime_job files to, in Unix time. By default these
 are just set to be time + max_wallclock_seconds. If this time is in the past,
 vcycle stops creating machines for the space.
 
+.B cleanup_hours
+gives how many hours to keep per-machine directories in 
+/var/lib/vcycle/shared/spaces/SPACE/deleted . The modification time
+of the machine's directory is used in the calculation. Default 72.
+
 .SH OPENSTACK SPACE SECTIONS
 
 OpenStack spaces are enabled with
@@ -159,7 +164,8 @@ server.
 Vcycle will create the machinefeatures and jobfeatures files according
 to the WLCG MJF protocol described in HSF-TN-2016-02 in machinefeatures and
 jobfeatures subdirectories
-of the VMs directory in /var/lib/vcycle/machines . Using the vcycle.httpd.inc
+of the VM's directory in /var/lib/vcycle/shared/spaces/SPACE/current . 
+Using the vcycle.httpd.inc
 Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
 files are publish via HTTP and HTTPS.
 

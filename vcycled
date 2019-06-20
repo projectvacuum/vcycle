@@ -139,8 +139,6 @@ if __name__ == '__main__':
               except Exception as e:
                 print 'Processing space ' + spaceName + ' fails with exception ' + str(e)
 
-#          vcycle.vacutils.logLine('----------------- Cleanup -----------------')
-#          vcycle.shared.cleanupJoboutputs()
           vcycle.vacutils.logLine('================ End cycle ================')
           sys.exit(0)
 

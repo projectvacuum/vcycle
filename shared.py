@@ -1380,6 +1380,28 @@ class BaseSpace(object):
       vcycle.vacutils.logLine('Save ' + machineName + ' files to deleted directory')
       os.rename(self.machineDir(machineName), '/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
 
+  def cleanupDeletedDirectories(self):
+    """ Go through /var/lib/vcycle/shared/SPACE/deleted deleting expired directory trees """
+
+    try:
+      dirslist = os.listdir('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/')
+    except:
+      return
+      
+    expireTime = int(time.time() - self.cleanup_hours * 3600)
+
+    # Go through the per-machine directories
+    for machineName in dirslist:
+    
+      if int(os.stat('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName).st_mtime) < expireTime:
+        vcycle.vacutils.logLine('Cleanup directory of ' + machineName + ' in ' + self.spaceName)
+        
+        try:
+          shutil.rmtree('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
+          vcycle.vacutils.logLine('Deleted /var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
+        except:
+          vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
+
   def createHeartbeatMachines(self):
     # Create a list of machines in each machinetype, to be populated
     # with machine names of machines with a current heartbeat
@@ -1881,6 +1903,12 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Making machines in ' + self.spaceName + ' fails: ' + str(e))
 
+    try:
+      self.cleanupDeletedDirectories()
+    except Exception as e:
+      vcycle.vacutils.logLine('Cleanup of deleted directories in ' + self.spaceName + ' fails: ' + str(e))
+      # We carry on because this isn't fatal
+      
 def readConf(printConf = False, updatePipes = True):
 
   global vcycleVersion, spaces
@@ -1978,10 +2006,15 @@ def readConf(printConf = False, updatePipes = True):
       else:
         spaces[spaceName].https_host = os.uname()[1]
 
-      if parser.has_option(spaceSectionName, 'https_port'):
+      try:
         spaces[spaceName].https_port = int(parser.get(spaceSectionName,'https_port').strip())
-      else:
+      except:
         spaces[spaceName].https_port = 443
+
+      try:
+        spaces[spaceName].cleanup_hours = int(parser.get(spaceSectionName,'cleanup_hours').strip())
+      except:
+        spaces[spaceName].cleanup_hours = 72
 
     elif sectionType != 'machinetype' and sectionType != 'vacuum_pipe':
       raise VcycleError('Section type ' + sectionType + 'not recognised')
@@ -1993,135 +2026,5 @@ def readConf(printConf = False, updatePipes = True):
     print
     parser.write(sys.stdout)
     print
-
-
-def cleanupFinished():    
-  """ Go through /var/lib/vcycle/machines moving expired directory trees to ../finished """
-
-  try:
-    dirslist = os.listdir('/var/lib/vcycle/shared/machines/finished/')
-  except:
-    return
-
-  # Go through the per-machine directories
-  for machineName in dirslist:
-
-    # Get the space name
-    try:
-      spaceName = open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/space_name', 'r').read().strip()
-    except:
-      spaceName = None
-
-    # Get the time beyond which this machine shouldn't be here
-    try:
-      expireTime = int(open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/machinefeatures/shutdowntime', 'r').read().strip())
-    except Exception as e:
-      # if the shutdowntime is missing, then we force the removal of the directory
-      vcycle.vacutils.logLine(machineName + ' has no shutdowntime - cleaning up its directory (' + str(e) + ')')
-      expireTime = 0
-
-    if int(time.time()) > expireTime + 3600:
-
-      # Get the machinetype
-      try:
-        machinetypeName = open('/var/lib/vcycle/shared/machines/finished/' + machineName + '/machinetype_name', 'r').read().strip()
-      except:
-        machinetypeName = None
-
-      # Log joboutputs if a current space and machinetype and logging is enabled
-      if spaceName and \
-         machinetypeName and \
-         spaceName in spaces and \
-         machinetypeName in spaces[spaceName].machinetypes and \
-         spaces[spaceName].machinetypes[machinetypeName].log_joboutputs:
-        vcycle.vacutils.logLine('Saving joboutputs to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
-        logJoboutputs(spaceName, machinetypeName, machineName)
-
-      # Always delete the working copies
-      try:
-        shutil.rmtree('/var/lib/vcycle/shared/machines/finished/' + machineName)
-        vcycle.vacutils.logLine('Deleted /var/lib/vcycle/shared/machines/finished/' + machineName)
-      except:
-        vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/shared/machines/finished/' + machineName)
-
-def logJoboutputs(spaceName, machinetypeName, machineName):
-
-  if os.path.exists('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName):
-    # Copy (presumably) already exists so don't need to do anything
-    return
-
-  try:
-    os.makedirs('/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName,
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
-  except:
-    vcycle.vacutils.logLine('Failed creating /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName)
-    return
-
-  try:
-    # Get the list of files that the VM wrote in its /etc/joboutputs
-    outputs = os.listdir('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs')
-  except:
-    vcycle.vacutils.logLine('Failed reading /var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs')
-    return
-
-  if outputs:
-    # Go through the files one by one, adding them to the joboutputs directory
-    for oneOutput in outputs:
-
-      try:
-        # first we try a hard link, which is efficient in time and space used
-        os.link('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput,
-                '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
-      except:
-        try:
-          # if linking failed (different filesystems?) then we try a copy
-          shutil.copyfile('/var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput,
-                            '/var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
-        except:
-          vcycle.vacutils.logLine('Failed copying /var/lib/vcycle/shared/machines/finished/' + machineName + '/joboutputs/' + oneOutput +
-                                  ' to /var/lib/vcycle/joboutputs/' + spaceName + '/' + machinetypeName + '/' + machineName + '/' + oneOutput)
-
-def cleanupJoboutputs():
-  """Go through /var/lib/vcycle/joboutputs deleting expired directory trees whether they are current spaces/machinetypes or not"""
-
-  try:
-    spacesDirslist = os.listdir('/var/lib/vcycle/joboutputs/')
-  except:
-    return
-
-  # Go through the per-machine directories
-  for spaceDir in spacesDirslist:
-
-    try:
-      machinetypesDirslist = os.listdir('/var/lib/vcycle/joboutputs/' + spaceDir)
-    except:
-      continue
-
-    for machinetypeDir in machinetypesDirslist:
-
-      try:
-        hostNamesDirslist = os.listdir('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir)
-      except:
-        continue
-
-      for hostNameDir in hostNamesDirslist:
-
-        # Expiration is based on file timestamp from when the COPY was created
-        hostNameDirCtime = int(os.stat('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir).st_ctime)
-
-        try:
-          expirationDays = spaces[spaceDir].machinetypes[machinetypeDir].joboutputs_days
-        except:
-          # use the default if something goes wrong (configuration file changed?)
-          expirationDays = 3.0
-
-        if hostNameDirCtime < (time.time() - (86400 * expirationDays)):
-          try:
-            shutil.rmtree('/var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir + '/' + hostNameDir)
-            vcycle.vacutils.logLine('Deleted /var/lib/vcycle/joboutputs/' + spaceDir + '/' + machinetypeDir +
-                                    '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
-          except:
-            vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/joboutputs/' + spaceDir + '/' +
-                                    machinetypeDir + '/' + hostNameDir + ' (' + str((int(time.time()) - hostNameDirCtime)/86400.0) + ' days)')
 
 ### END ###
