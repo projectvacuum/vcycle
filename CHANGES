@@ -12,6 +12,7 @@
 - x509dn becomes https_x509dn, now recorded in each machines directory
 - Add https_host to allow a remote HTTPS server using a shared filesystem
 - vcycle-cgi now no longer depends on Vcycle or Vacutils modules
+- Add mechanism to take machines abandoned by other Vcycle instances
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================

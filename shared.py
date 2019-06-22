@@ -65,10 +65,11 @@ class VcycleError(Exception):
   pass
 
 vcycleVersion       = None
-vacQueryVersion     = '01.02' # Has to match shared.py in Vac
+vacQueryVersion     = '01.02'	# Has to match shared.py in Vac
 spaces              = None
 maxWallclockSeconds = 0
 curlTimeOutSeconds  = 90
+takeSeconds         = 3600	# Take machines abandoned by their manager for 1.00-1.99 hours
 
 class MachineState:
   #
@@ -220,14 +221,24 @@ class Machine:
       pass
 
     try:
-      manager = self.getFileContents('manager')
+      self.manager = self.getFileContents('manager')
     except:
+      self.manager = None
       self.managedHere = False
     else:
-      if manager == os.uname()[1]:
+      if self.manager == os.uname()[1]:
         self.managedHere = True
       else:
         self.managedHere = False
+
+    if self.managedHere:
+      self.managerHeartbeatTime = int(time.time())
+      self.setFileContents('manager_heartbeat', str(self.managerHeartbeatTime))
+    else:
+      try:
+        self.managerHeartbeatTime = int(self.getFileContents('manager_heartbeat'))
+      except:
+        self.managerHeartbeatTime = None
 
     # Record when the machine started (rather than just being created)
     if self.managedHere and self.startedTime and not os.path.isfile(self.machineDir() + '/started'):
@@ -240,7 +251,7 @@ class Machine:
       self.deletedTime = None
 
     # Set heartbeat time if available
-    self.setHeartbeatTime()
+    self.getHeartbeatTime()
 
     # Check if the machine already has a stopped timestamp
     try:
@@ -258,7 +269,7 @@ class Machine:
         self.setFileContents('stopped', str(self.stoppedTime))
 
         # Record the shutdown message if available
-        self.setShutdownMessage()
+        self.getShutdownMessage()
 
         if self.shutdownMessage:
           vcycle.vacutils.logLine('Machine ' + name + ' shuts down with message "' + self.shutdownMessage + '"')
@@ -503,7 +514,7 @@ class Machine:
 
     sock.close()
 
-  def setShutdownMessage(self):
+  def getShutdownMessage(self):
 
      try:
        self.shutdownMessage = self.getFileContents('joboutputs/shutdown_message').strip()
@@ -512,7 +523,7 @@ class Machine:
        self.shutdownMessage     = None
        self.shutdownMessageTime = None
 
-  def setHeartbeatTime(self):
+  def getHeartbeatTime(self):
 
      # No valid machinetype (probably removed from configuration)
      if not self.machinetypeName:
@@ -646,7 +657,7 @@ class Machinetype:
 
 
     if parser.has_option(machinetypeSectionName, 'x509dn'):
-      vcycle.vacutils.logLine('x509dn (in machinetype ' + machinetypeSectionName + ') is deprecated - please use https_x509dn')
+      vcycle.vacutils.logLine('x509dn in [' + machinetypeSectionName + '] is deprecated - please use https_x509dn')
       self.https_x509dn = parser.get(machinetypeSectionName, 'x509dn')
     else:
       try:
@@ -1402,12 +1413,41 @@ class BaseSpace(object):
         except:
           vcycle.vacutils.logLine('Failed deleting /var/lib/vcycle/shared/spaces/' + self.spaceName + '/deleted/' + machineName)
 
+  def takeMachines(self):
+    # Take abandoned machines from other managers (Vcycle instances), based on their manager_heartbeat times
+    # We do this at the end of the cycle to prevent race conditions mattering
+    # (things settle down during the end of cycle sleep)
+
+    for machineName,machine in self.machines.iteritems():
+
+      if machine.managedHere:
+        # We do not process machines that are already managed by this Vcycle instance
+        continue
+
+      # We add a random tolerance of up to 100% to takeSeconds in case there is more than
+      # one valid Vcycle instance. Each will take an equal share of abandoned machines during
+      # that extra tolerance period.
+      if machine.managerHeartbeatTime < time.time() - takeSeconds * (1.0 + random.random()):
+        vcycle.vacutils.logLine('Will take ' + machineName + ' in ' + self.spaceName + ' from manager ' + str(machine.manager))
+        try:
+          # First try to change the manager name
+          machine.setFileContents('manager', os.uname()[1])          
+        except Exception as e:
+          # If that fails, bail out. Hopefully another manager will successfully take it? Or we will next cycle?
+          vcycle.vacutils.logLine('Failed changing manager for ' + machineName + ' in ' + self.spaceName)
+        else:
+          # If it succeeds, then update the heartbeat immediately to stop another manager taking it 
+          machine.setFileContents('manager_heartbeat', str(int(time.time())))
+          vcycle.vacutils.logLine('Have taken ' + machineName + ' in ' + self.spaceName + ' from manager ' + str(machine.manager))
+          
   def createHeartbeatMachines(self):
     # Create a list of machines in each machinetype, to be populated
     # with machine names of machines with a current heartbeat
+    # Permissions o+x to allow httpd to read specific lists but not
+    # allow directory browsing
     try:
       os.makedirs('/var/lib/vcycle/shared/spaces/' + self.spaceName + '/heartbeatlists',
-                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH + stat.S_IROTH)
+                stat.S_IWUSR + stat.S_IXUSR + stat.S_IRUSR + stat.S_IXGRP + stat.S_IRGRP + stat.S_IXOTH)
     except:
       pass
 
@@ -1908,6 +1948,12 @@ class BaseSpace(object):
     except Exception as e:
       vcycle.vacutils.logLine('Cleanup of deleted directories in ' + self.spaceName + ' fails: ' + str(e))
       # We carry on because this isn't fatal
+      
+    # This must be done last in the cycle to avoid race conditions between manager instances
+    try:
+      self.takeMachines()
+    except Exception as e:
+      vcycle.vacutils.logLine('Take abandoned machines ' + self.spaceName + ' fails: ' + str(e))
       
 def readConf(printConf = False, updatePipes = True):
 

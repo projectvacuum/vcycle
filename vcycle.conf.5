@@ -169,7 +169,7 @@ Using the vcycle.httpd.inc
 Apache configuration file supplied in /usr/share/doc/vcycle-VERSION, these
 files are publish via HTTP and HTTPS.
 
-In addition, if x509dn is set for the VM's machinetype, then the script vcycle-cgi
+In addition, if https_x509dn is set for the VM's machinetype, then the script vcycle-cgi
 will allow the VM to write heartbeat, logging, and shutdown_message files
 to the VM's $JOBOUTPUTS directory.
 
@@ -294,7 +294,7 @@ See
 .B USER_DATA SUBSTITUTIONS
 for more details.
 
-.B x509dn
+.B https_x509dn
 is an optional X.509 DN which will be used by the vcycle-cgi script to
 control writing to VMs' $JOBOUTPUTS directories on the local HTTPS
 server.
