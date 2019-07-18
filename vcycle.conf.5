@@ -8,7 +8,9 @@ is a daemon  which implements VM lifecycle management on IaaS cloud systems
 in a way inspired by Vac. vcycled reads its configuration from
 .B /etc/vcycle.conf
 and .conf files in
-.B /etc/vcycle.d
+.B /etc/vcycle.d 
+and
+.B /var/lib/vcycle/shared/vcycle.d
 
 The configuration files use the Python ConfigParser syntax, which is similar
 to MS Windows INI files. The files are divided into sections, with each section
@@ -18,9 +20,9 @@ and if options are duplicated, later values overwrite values given
 earlier.
 
 For ease of management, any configuration file ending in .conf in the
-directory /etc/vcycle.d will be read, in
-alphanumeric order by name, and then /etc/vcycle.conf is read if present.
-
+directories /var/lib/vcycle/shared/vcycle.d and then /etc/vcycle.d will be read,
+in alphanumeric order by name, and then /etc/vcycle.conf is read if present.
+ 
 .SH [SPACE ...] SECTIONS
 
 One [space ...] section must exist for each project, tenancy, or account in which

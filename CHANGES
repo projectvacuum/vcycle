@@ -13,6 +13,7 @@
 - Add https_host to allow a remote HTTPS server using a shared filesystem
 - vcycle-cgi now no longer depends on Vcycle or Vacutils modules
 - Add mechanism to take machines abandoned by other Vcycle instances
+- Read config files in /var/lib/vcycle/shared/vcycle.d too
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================

@@ -1345,7 +1345,12 @@ class BaseSpace(object):
             (machine.heartbeatTime is None) or
             (machine.heartbeatTime < (int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds))
            ):
-        vcycle.vacutils.logLine(machineName + ' failed to update heartbeat file')
+        vcycle.vacutils.logLine(machineName + 
+                                ' failed to update heartbeat file (heartbeatTime = ' + 
+                                str(machine.heartbeatTime) + 
+                                ', < ' + 
+                                str(int(time.time()) - self.machinetypes[machine.machinetypeName].heartbeat_seconds) + 
+                                ')')
         self._deleteOneMachine(machineName, '700 Heartbeat file not updated')
 
       # Check shutdown times
@@ -1971,17 +1976,19 @@ def readConf(printConf = False, updatePipes = True):
   parser = ConfigParser.RawConfigParser()
 
   # Look for configuration files in /etc/vcycle.d
-  try:
-    confFiles = os.listdir('/etc/vcycle.d')
-  except:
-    pass
-  else:
-    for oneFile in sorted(confFiles):
-      if oneFile[-5:] == '.conf':
-        try:
-          parser.read('/etc/vcycle.d/' + oneFile)
-        except Exception as e:
-          vcycle.vacutils.logLine('Failed to parse /etc/vcycle.d/' + oneFile + ' (' + str(e) + ')')
+  
+  for etcPath in ['/var/lib/vcycle/shared/vcycle.d/', '/etc/vcycle.d/']:
+    try:
+      confFiles = os.listdir(etcPath)
+    except:
+      pass
+    else:
+      for oneFile in sorted(confFiles):
+        if oneFile[-5:] == '.conf':
+          try:
+            parser.read(etcPath + oneFile)
+          except Exception as e:
+            vcycle.vacutils.logLine('Failed to parse ' + etcPath + oneFile + ' (' + str(e) + ')')
 
   # Standalone configuration file, read last in case of manual overrides
   parser.read('/etc/vcycle.conf')
