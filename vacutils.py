@@ -5,7 +5,7 @@
 ## UNMODIFIED VERSIONS ARE COPIED TO THE Vcycle REPO AS NEEDED  ##
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-8. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -117,10 +117,12 @@ def secondsToString(timeStamp):
    else:
      return '%dd' % (seconds / 86400)
 
-def readPipe(pipeFile, pipeURL, versionString, updatePipes = False):
+def readPipe(pipeDir, pipeURL, versionString, updatePipes = False):
 
    # Default value in case not given in file
    cacheSeconds = 3600
+
+   pipeFile = pipeDir + '/' + urllib.quote(pipeURL, '')
 
    try:
      pipeDict = json.load(open(pipeFile, 'r'))

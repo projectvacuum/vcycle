@@ -950,12 +950,10 @@ class BaseSpace(object):
       totalTargetShare = 0.0
 
     try:
-      vacuumPipe = vcycle.vacutils.readPipe(
-          '/var/lib/vcycle/spaces/' + self.spaceName + '/machinetypes/'
-          + machinetypeNamePrefix + '/vacuum.pipe',
-          vacuumPipeURL,
-          'vcycle ' + vcycleVersion,
-          updatePipes = updatePipes)
+      vacuumPipe = vcycle.vacutils.readPipe('/var/lib/vcycle/pipescache',
+                                            vacuumPipeURL,
+                                            'vcycle ' + vcycleVersion,
+                                            updatePipes = updatePipes)
     except Exception as e:
       raise VcycleError(vacuumPipeURL + ' given but failed reading/updating the pipe: ' + str(e))
 

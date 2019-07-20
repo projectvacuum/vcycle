@@ -1,6 +1,6 @@
 #
 #  Andrew McNab, University of Manchester.
-#  Copyright (c) 2013-6. All rights reserved.
+#  Copyright (c) 2013-9. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or
 #  without modification, are permitted provided that the following
@@ -61,6 +61,7 @@ install: $(INSTALL_FILES)
  	         $(RPM_BUILD_ROOT)/usr/share/man/man5 \
                  $(RPM_BUILD_ROOT)/usr/share/man/man8 \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/tmp \
+ 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/pipescache \
  	         $(RPM_BUILD_ROOT)/var/lib/vcycle/imagecache \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-archive \
 	         $(RPM_BUILD_ROOT)/var/lib/vcycle/apel-outgoing \

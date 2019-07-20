@@ -58,7 +58,21 @@ except:
   print
   sys.exit(0)
 
-if ('SSL_CLIENT_S_DN' not in os.environ) or (os.environ['SSL_CLIENT_S_DN'] != httpsX509dn):
+if 'SSL_CLIENT_S_DN' not in os.environ:
+  print 'Status: 403 Forbidden'
+  print
+  sys.exit(0)
+
+if os.environ['SSL_CLIENT_S_DN'][0] == '/':
+  # Use slash format DN without modification
+  x509Client = os.environ['SSL_CLIENT_S_DN']
+else:
+  # Convert comma DN format to slashes
+  x509ClientList = os.environ['SSL_CLIENT_S_DN'].split(',')
+  x509ClientList.reverse()
+  x509Client = '/' + '/'.join(x509ClientList)
+  
+if x509Client != httpsX509dn:
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)
