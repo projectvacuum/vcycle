@@ -1830,7 +1830,8 @@ class BaseSpace(object):
                                                         machinefeaturesURL   = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/machinefeatures',
                                                         jobfeaturesURL       = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/jobfeatures',
                                                         joboutputsURL        = 'https://' + self.https_host + ':' + str(self.https_port) + '/machines/' + self.spaceName + '/' + machineName + '/joboutputs',
-                                                        heartbeatMachinesURL = 'https://' + self.https_host + ':' + str(self.https_port) + '/heartbeatlists/' + self.spaceName
+                                                        heartbeatMachinesURL = 'https://' + self.https_host + ':' + str(self.https_port) + '/heartbeatlists/' + self.spaceName,
+                                                        gocdbSitename        =  spaces[self.spaceName].gocdb_sitename
                                                        )
     except Exception as e:
       raise VcycleError('Failed getting user_data file (' + str(e) + ')')

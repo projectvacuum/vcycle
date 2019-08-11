@@ -201,7 +201,8 @@ def readPipe(pipesCache, pipeURL, versionString, updatePipes = False):
    return pipeDict
 
 def createUserData(shutdownTime, machinetypePath, options, versionString, spaceName, machinetypeName, userDataPath, hostName, uuidStr,
-                   machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None, rootImageURL = None, heartbeatMachinesURL = None):
+                   machinefeaturesURL = None, jobfeaturesURL = None, joboutputsURL = None, rootImageURL = None, heartbeatMachinesURL = None,
+                   gocdbSitename = None):
 
    # Get raw user_data template file, either from network ...
    if (userDataPath[0:7] == 'http://') or (userDataPath[0:8] == 'https://'):
@@ -245,6 +246,9 @@ def createUserData(shutdownTime, machinetypePath, options, versionString, spaceN
        raise VacutilsError('Failed to read ' + userDataFile)
 
    # Default substitutions (plus ##user_data_url## possibly done already)
+   if gocdbSitename:
+     userDataContents = userDataContents.replace('##user_data_site##', gocdbSitename)
+   
    userDataContents = userDataContents.replace('##user_data_space##',            spaceName)
    userDataContents = userDataContents.replace('##user_data_machinetype##',      machinetypeName)
    userDataContents = userDataContents.replace('##user_data_machine_hostname##', hostName)
@@ -763,7 +767,7 @@ def makeSshFingerprint(pubFileLine):
 
 def loadAvg(which = None):
    # By default, use maximum load average
-   # which = 1, 2, or 3
+   # which = 0, 1, or 2
 
    try:
      load0,load1,load2 = open('/proc/loadavg').readline().split()[0:3]
