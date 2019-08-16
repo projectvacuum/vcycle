@@ -15,6 +15,7 @@
 - Add mechanism to take machines abandoned by other Vcycle instances
 - Read config files in /var/lib/vcycle/shared/vcycle.d too
 - Add ##user_data_site##
+- Support application credential authentication in OpenStack
 ==================== Changes in Vcycle version 01.00.01 =====================
 - Fix cleanup of machine files from machines in spaces removed from config
 ==================== Changes in Vcycle version 01.00.00 =====================
