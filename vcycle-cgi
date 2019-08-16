@@ -72,7 +72,7 @@ else:
   x509ClientList.reverse()
   x509Client = '/' + '/'.join(x509ClientList)
   
-if x509Client != httpsX509dn:
+if not x509Client.startswith(httpsX509dn):
   print 'Status: 403 Forbidden'
   print
   sys.exit(0)

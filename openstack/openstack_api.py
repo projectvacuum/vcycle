@@ -96,6 +96,11 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.zones = parser.get(spaceSectionName, 'zones').split()
     except Exception as e:
       self.zones = None
+      
+    try:
+      self.security_groups = parser.get(spaceSectionName, 'security_groups').split()
+    except Exception as e:
+      self.security_groups = None    
 
     try:
       self.identityURL = parser.get(spaceSectionName, 'url')
@@ -235,7 +240,7 @@ class OpenstackSpace(vcycle.BaseSpace):
   def _connectV3(self):
   # Connect to the OpenStack service with Identity v3
 
-    if cred_id and cred_secret:
+    if self.cred_id and self.cred_secret:
       jsonRequest = { "auth": { "identity": { "methods" : [ "application_credential"],
                                               "application_credential": {
                                                                           "id":     self.cred_id,
@@ -665,6 +670,13 @@ class OpenstackSpace(vcycle.BaseSpace):
       if zone:
         request['server']['availability_zone'] = zone
         vcycle.vacutils.logLine('Will request %s be created in zone %s of space %s' % (machineName, zone, self.spaceName))
+
+      if self.security_groups:
+        request['server']['security_groups'] = []
+        for security_group in self.security_groups:
+          request['server']['security_groups'].append( { "name" : security_group } )
+
+        vcycle.vacutils.logLine('Will request %s be created in security groups %s of space %s' % (machineName, str(self.security_groups), self.spaceName))
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)
