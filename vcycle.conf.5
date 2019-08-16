@@ -126,6 +126,12 @@ You can encode the real password with something like:
 .ce
 echo -n 'PASSword' | base64
 
+.B cred_id
+and
+.B cred_secret
+give an application credential ID and secret as an alternative to 
+username and password.
+
 When creating VMs in OpenStack spaces, Vcycle will create "machinefeatures",
 "jobfeatures", and "joboutputs" metadata keys with the URLs of the
 corresponding directories for the VM on the Vcycle machine's HTTP(S)

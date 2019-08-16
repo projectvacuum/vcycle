@@ -108,28 +108,12 @@ class OpenstackSpace(vcycle.BaseSpace):
       raise OpenstackError('glance_api is required in OpenStack [space '
           + spaceName + '] (' + str(e) + ')')
 
+    # For username/password authentication
+
     try:
       self.username = parser.get(spaceSectionName, 'username')
     except Exception as e:
       self.username = None
-
-    try:
-      self.usercert = parser.get(spaceSectionName, 'usercert')
-    except Exception as e:
-      self.usercert = None
-
-    try:
-      self.userkey = parser.get(spaceSectionName, 'userkey')
-    except Exception as e:
-      self.userkey = None
-
-    if self.usercert and not self.userkey:
-      self.userkey = self.usercert
-    elif self.userkey and not self.usercert:
-      self.usercert = self.userkey
-
-    if not self.username and not self.usercert:
-      raise OpenstackError('username or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     try:
       # We use Base64 encoding so browsing around casually
@@ -137,6 +121,42 @@ class OpenstackSpace(vcycle.BaseSpace):
       self.password = base64.b64decode(parser.get(spaceSectionName, 'password_base64').strip()).strip()
     except Exception:
       self.password = ''
+      
+    # For application credential authentication
+
+    try:
+      self.cred_id = parser.get(spaceSectionName, 'cred_id')
+    except Exception as e:
+      self.cred_id = None
+
+    try:
+      self.cred_secret = parser.get(spaceSectionName, 'cred_secret')
+    except Exception as e:
+      self.cred_secret = None
+      
+#    # For X.509 certificate and key file names
+#
+#    try:
+#      self.usercert = parser.get(spaceSectionName, 'usercert')
+#    except Exception as e:
+#      self.usercert = None
+#
+#    try:
+#      self.userkey = parser.get(spaceSectionName, 'userkey')
+#    except Exception as e:
+#      self.userkey = None
+#
+#    # If only one file given, then assume it contains both cert and key
+#    if self.usercert and not self.userkey:
+#      self.userkey = self.usercert
+#    elif self.userkey and not self.usercert:
+#      self.usercert = self.userkey
+#
+#    if (not self.username or not self.password) and not self.usercert and (not self.cred_id or not self.cred_secret):
+#      raise OpenstackError('username or cred_id/cred_secret or usercert/userkey is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
+
+    if (not self.username or not self.password) and (not self.cred_id or not self.cred_secret):
+      raise OpenstackError('username or cred_id/cred_secret is required in OpenStack [space ' + spaceName + '] (' + str(e) + ')')
 
     if self.apiVersion and self.apiVersion != '2' and not self.apiVersion.startswith('2.') and self.apiVersion != '3' and not self.apiVersion.startswith('3.'):
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
@@ -215,22 +235,32 @@ class OpenstackSpace(vcycle.BaseSpace):
   def _connectV3(self):
   # Connect to the OpenStack service with Identity v3
 
+    if cred_id and cred_secret:
+      jsonRequest = { "auth": { "identity": { "methods" : [ "application_credential"],
+                                              "application_credential": {
+                                                                          "id":     self.cred_id,
+                                                                          "secret": self.cred_secret
+                                                                        }
+                                            }
+                              }
+                    }
+    else:
+      jsonRequest = { "auth": { "identity": { "methods" : [ "password"],
+                                              "password": {
+                                                            "user": {
+                                                                      "name"    : self.username,
+                                                                      "domain"  : { "name": self.domain_name },
+                                                                      "password": self.password
+                                                                    }
+                                                          }
+                                            },
+                                "scope": { "project": { "domain"  : { "name": self.domain_name }, "name": self.project_name } }
+                              }
+                    }
+
     try:
       # No trailing slash of identityURL! (matches URL on Horizon Dashboard API page)
-      result = self.httpRequest(self.identityURL + '/auth/tokens',
-                                jsonRequest = { "auth": { "identity": { "methods" : [ "password"],
-                                                                        "password": {
-                                                                                      "user": {
-                                                                                                "name"    : self.username,
-                                                                                                "domain"  : { "name": self.domain_name },
-                                                                                                "password": self.password
-                                                                                              }
-                                                                                    }
-                                                                      },
-                                                "scope": { "project": { "domain"  : { "name": self.domain_name }, "name": self.project_name } }
-                                              }
-                                  }
-                               )
+      result = self.httpRequest(self.identityURL + '/auth/tokens', jsonRequest = jsonRequest)
     except Exception as e:
         raise OpenstackError('Cannot connect to ' + self.identityURL + ' with v' + self.apiVersion + ' API (' + str(e) + ')')
 
