@@ -50,6 +50,11 @@ this space in any state exceeds the given limit.
 gives a space-separated list of one or more names of flavors defined
 by the cloud system, which may be used by machinetypes within this space.
 
+.B volume_gb_per_processor
+causes Vcycle to create disk volumes of the given size and attach them
+to VMs. The volumes are automatically deleted with the VMs. Default 0,
+which disables this features.
+
 .B gocdb_sitename
 gives the GOCDB site name to use when writing APEL
 accounting record files to /var/lib/vcycle/apel-outgoing and
@@ -319,7 +324,7 @@ machinetype's subdirectory of /var/lib/vcycle/spaces/SPACE/machinetypes to
 be used to make a limited X.509 proxy. The two files can be
 identical if desired, and the X.509 certificate and RSA private key
 will be extracted from the files as appropriate. (Note that this location
-is one level about the files subdirectory in which the following options
+is one level above the files subdirectory in which the following options
 look by default.)
 
 For the remaining options, if the file name begins with '/', then it
@@ -356,8 +361,9 @@ the regular expression /CN=cvm-sign01\\.cern\\.ch$
 
 .B root_public_key
 is the file name of a public key which Vcycle will set up on the cloud
-system and supply to the VMs to allow root ssh access. Setting this
-option to /root/.ssh/id_rsa.pub will give access from the factory machine.
+system and supply to the VMs to allow root ssh access. If this option is
+not given and the file /root/.ssh/id_rsa.pub exists, it will be used
+instead, giving ssh access from the factory machine.
 
 .B user_data
 is the path of a contextualization file provided by the VO and perhaps

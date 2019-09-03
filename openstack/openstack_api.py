@@ -177,6 +177,10 @@ class OpenstackSpace(vcycle.BaseSpace):
       # This rechecks the checking done in the constructor called by readConf()
       raise OpenstackError('api_version %s not recognised' % self.apiVersion)
 
+    # Save token locally for debugging with openstack command-line client
+    vcycle.vacutils.createFile('/var/lib/vcycle/spaces/' + self.spaceName + '/token',
+                               self.token, tmpDir = '/var/lib/vcycle/tmp')
+
     # initialise glance api (has to be here as we don't have imageURL until
     # after connecting)
     if self.glanceAPIVersion == '2':
@@ -220,12 +224,15 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     self.computeURL = None
     self.imageURL   = None
+    self.volumeURL  = None
 
     for endpoint in result['response']['access']['serviceCatalog']:
       if endpoint['type'] == 'compute':
         self.computeURL = str(endpoint['endpoints'][0]['publicURL'])
       elif endpoint['type'] == 'image':
         self.imageURL = str(endpoint['endpoints'][0]['publicURL'])
+      elif endpoint['type'].startswith('volume'):
+        self.volumeURL = str(endpoint['endpoints'][0]['publicURL'])
 
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
@@ -236,6 +243,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    vcycle.vacutils.logLine('volumeURL  = ' + str(self.volumeURL))
 
   def _connectV3(self):
   # Connect to the OpenStack service with Identity v3
@@ -276,6 +284,7 @@ class OpenstackSpace(vcycle.BaseSpace):
 
     self.computeURL = None
     self.imageURL   = None
+    self.volumeURL  = None
 
     # This might be a bit naive? We just keep the LAST matching one we see.
     for service in result['response']['token']['catalog']:
@@ -292,6 +301,12 @@ class OpenstackSpace(vcycle.BaseSpace):
               (self.region is None or self.region == endpoint['region']):
             self.imageURL = str(endpoint['url'])
 
+      elif service['type'].startswith('volume'):
+        for endpoint in service['endpoints']:
+          if endpoint['interface'] == 'public' and \
+              (self.region is None or self.region == endpoint['region']):
+            self.volumeURL = str(endpoint['url'])
+
     if not self.computeURL:
       raise OpenstackError('No compute service URL found from ' + self.identityURL)
 
@@ -301,6 +316,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     vcycle.vacutils.logLine('Connected to ' + self.identityURL + ' for space ' + self.spaceName)
     vcycle.vacutils.logLine('computeURL = ' + self.computeURL)
     vcycle.vacutils.logLine('imageURL   = ' + self.imageURL)
+    vcycle.vacutils.logLine('volumeURL  = ' + str(self.volumeURL))
 
   def _getFlavors(self):
     """Query OpenStack to get details of flavors defined for this project"""
@@ -619,7 +635,7 @@ class OpenstackSpace(vcycle.BaseSpace):
     try:
       result = self.httpRequest(self.computeURL + '/os-keypairs',
                                 jsonRequest = { 'keypair' : { 'name'       : keyName,
-                                                               'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
+                                                              'public_key' : 'ssh-rsa ' + sshPublicKey + ' vcycle'
                                                             }
                                               },
                                 headers = [ 'X-Auth-Token: ' + self.token ])
@@ -631,6 +647,97 @@ class OpenstackSpace(vcycle.BaseSpace):
     self.machinetypes[machinetypeName]._keyPairName = keyName
     return self.machinetypes[machinetypeName]._keyPairName
 
+  def deleteVolumes(self):
+  
+    try:
+      listResult = self.httpRequest(self.volumeURL + '/volumes',
+                                  headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise OpenstackError('Cannot connect to ' + self.volumeURL + ' (' + str(e) + ')')
+  
+    for volume in listResult['response']['volumes']:
+    
+      uuidStr = str(volume['id'])
+   
+      print 'Try to delete ' + str(volume['name'])
+    
+      try:
+        deleteResult = self.httpRequest(self.volumeURL + '/volumes/' + uuidStr,
+                                        method = 'DELETE',
+                                        headers = [ 'X-Auth-Token: ' + self.token ])
+      except Exception as e:
+        print str(e)
+
+  def createVolume(self, machineName, machinetypeName, processors, zone):
+    # Create a volume synchronously
+    # Volume is created with the same name as its intended machine
+
+    request = { 
+                "volume" : {
+                             "size"    : self.volume_gb_per_processor * processors,
+                             "imageRef": self.getImageID(machinetypeName),    
+                             "name"    : machineName
+                           } 
+              }
+                                   
+    if zone:
+      request['volume']['availability_zone'] = zone
+    
+    try:
+      result = self.httpRequest(self.volumeURL + '/volumes',
+                                jsonRequest = request,
+                                headers = [ 'X-Auth-Token: ' + self.token ])
+    except Exception as e:
+      raise OpenstackError('Cannot connect to ' + self.volumeURL + ' (' + str(e) + ')')
+
+    try:
+      uuidStr = str(result['response']['volume']['id'])
+    except:
+      raise OpenstackError('Could not get volume UUID from volume creation response (' + str(e) + ')')
+
+    vcycle.vacutils.logLine('Created volume ' + machineName + ' (' + uuidStr + ') within ' + self.spaceName)
+
+    startTime = int(time.time())
+
+    # Wait for volume to become available. Not ideal since may take a while
+    # 120 is a hardcoded timeout of 120 seconds
+    while int(time.time()) < startTime + 120:
+    
+      try:
+        infoResult = self.httpRequest(self.volumeURL + '/volumes/' + uuidStr,
+                                      headers = [ 'X-Auth-Token: ' + self.token ])
+      except Exception as e:
+        raise OpenstackError('Cannot connect to ' + self.volumeURL + ' (' + str(e) + ')')
+  
+      if infoResult['response']['volume']['status'] == 'available':
+        vcycle.vacutils.logLine('Volume ' + machineName + ' (' + uuidStr + ') is now available')
+        return uuidStr
+        
+      time.sleep(10) # Hardcoded checking interval of 10 seconds
+
+    raise OpenstackError('Volume ' + machineName + ' (' + uuidStr + ') failed to become available - timeout reached')
+
+#    request = { "os-attach": {
+#                               "host_name" : machineName,
+#                               "mountpoint": "/dev/vdd" # Hardcoded but ignored anyway?
+#                             }
+#              }
+#
+#    return
+#
+#              
+#    try:
+#      result = self.httpRequest(self.volumeURL + '/volumes/' + uuidStr + '/action',
+#                                jsonRequest = request,
+#                                headers = [ 'X-Auth-Token: ' + self.token ])
+#    except Exception as e:
+#      raise OpenstackError('Cannot connect to ' + self.volumeURL + ' (' + str(e) + ')')
+#
+#    if result['status'] != 202:
+#      raise OpenstackError('Attaching volume %s to %s fails with code %d' % (uuidStr, machineName, result['status']))
+#      
+#    vcycle.vacutils.logLine('Attached volume ' + machineName + ' (' + uuidStr + ')  within ' + self.spaceName)
+    
   def createMachine(self, machineName, machinetypeName, zone = None):
     # OpenStack-specific machine creation steps
     
@@ -647,6 +754,11 @@ class OpenstackSpace(vcycle.BaseSpace):
     
     if not flavorName:
       raise OpenstackError('No flavor suitable for machinetype ' + machinetypeName)
+
+    if self.volume_gb_per_processor:
+      uuidVolume = self.createVolume(machineName, machinetypeName, self.flavors[flavorName]['processors'], zone)
+    else:
+      uuidVolume = None
 
     try:
       request = { 'server' :
@@ -680,6 +792,24 @@ class OpenstackSpace(vcycle.BaseSpace):
 
       if self.machinetypes[machinetypeName].root_public_key:
         request['server']['key_name'] = self.getKeyPairName(machinetypeName)
+
+      if uuidVolume:
+        time.sleep(60) # UNTIL WE HAVE HANDLE THE STATE PROPERLY
+        request['server']['block_device_mapping_v2'] = [{ "source_type" : "volume",
+                                                          "uuid"        : uuidVolume,  
+                                                          "delete_on_termination" : True,
+                                                          "boot_index": 0,
+                                                          "destination_type" : "volume"
+                                                       }]
+
+#      if self.volume_gb_per_processor:
+#        request['server']['block_device_mapping_v2'] = [{ "source_type" : "blank",
+#                                                          "volume_size" : self.volume_gb_per_processor * self.flavors[flavorName]['processors'],
+#                                                          "delete_on_termination" : True,
+#                                                          "no_device": True,
+#                                                          "boot_index": -1,
+#                                                          "destination_type" : "volume"
+#                                                       }]
 
     except Exception as e:
       raise OpenstackError('Failed to create new machine %s: %s' % (machineName, str(e)))

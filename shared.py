@@ -616,7 +616,10 @@ class Machinetype:
     try:
       self.root_public_key = parser.get(machinetypeSectionName, 'root_public_key')
     except:
-      self.root_public_key = None
+      self.root_public_key = '/root/.ssh/id_rsa.pub'
+      
+      if not os.path.exists(self.root_public_key):
+        self.root_public_key = None
 
     try:
       if parser.has_option(machinetypeSectionName, 'processors_limit'):
@@ -852,6 +855,11 @@ class BaseSpace(object):
       self.flavor_names = parser.get(spaceSectionName, 'flavor_names').strip().split()
     except:
       self.flavor_names = []
+      
+    try:
+      self.volume_gb_per_processor = int(parser.get(spaceSectionName, 'volume_gb_per_processor'))
+    except:
+      self.volume_gb_per_processor = 0
 
     if parser.has_option(spaceSectionName, 'shutdown_time'):
       try:
@@ -910,6 +918,9 @@ class BaseSpace(object):
 
     # Dictionary of all the Vcycle-created VMs in this space: None in case failed to connect and do scan successfully
     self.machines = None
+    
+    # Dictionary of all the Vcycle-created volumes in this space
+    self.volumes = None
 
   def _expandVacuumPipe(self, parser, vacuumPipeSectionName, machinetypeNamePrefix, updatePipes):
     """ Read configuration settings from a vacuum pipe """
